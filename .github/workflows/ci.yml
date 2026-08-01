@@ -95,3 +95,9 @@ jobs:
 
       - name: Wave 9 AI unit tests
         run: npm run test:ai
+
+      - name: Wave 10 ops unit tests
+        run: npm run test:ops
+
+      - name: Build admin
+        run: npm run build -w @trustchain/admin

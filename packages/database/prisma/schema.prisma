@@ -45,6 +45,12 @@ model User {
   documentQrCodesCreated   DocumentQrCode[]          @relation("DocumentQrCreatedBy")
   aiJobsCreated            AiJob[]                   @relation("AiJobCreatedBy")
   aiReviewsCompleted       AiHumanReview[]           @relation("AiReviewReviewer")
+  opsAlertsCreated         OpsAlert[]                @relation("OpsAlertCreatedBy")
+  opsReportsCreated        OpsReport[]               @relation("OpsReportCreatedBy")
+  investigationsCreated    Investigation[]           @relation("InvestigationCreatedBy")
+  policiesCreated          OpsPolicy[]               @relation("OpsPolicyCreatedBy")
+  policyApprovals          PolicyApproval[]          @relation("PolicyApprovalActor")
+  deploymentsCreated       DeploymentRecord[]        @relation("DeploymentCreatedBy")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -111,6 +117,26 @@ model Organization {
   aiLineages                  AiLineage[]
   aiAuditEvents               AiAuditEvent[]
   documentEmbeddings          DocumentEmbedding[]
+  opsAlerts                   OpsAlert[]
+  opsReports                  OpsReport[]
+  investigations              Investigation[]
+  evidenceItems               Evidence[]
+  opsPolicies                 OpsPolicy[]
+  subscriptions               Subscription[]
+  invoices                    Invoice[]
+  usageMetrics                UsageMetric[]
+  featureFlags                FeatureFlag[]
+  complianceEvents            ComplianceEvent[]
+  opsAuditEvents              OpsAuditEvent[]
+  healthSnapshots             HealthSnapshot[]
+  platformScores              PlatformScore[]
+  deploymentRecords           DeploymentRecord[]
+  recoveryBackups             RecoveryBackup[]
+  capacitySnapshots           CapacitySnapshot[]
+  dataCatalogEntries          DataCatalogEntry[]
+  serviceRegistryEntries      ServiceRegistryEntry[]
+  secretAuditEvents           SecretAuditEvent[]
+  platformEvents              PlatformEvent[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -1411,5 +1437,384 @@ model AiModelRegistryEntry {
 
   @@unique([provider, modelId, version, capability], map: "ai_model_registry_unique")
   @@map("ai_model_registry_entries")
+}
+
+/// Wave 10 — Operational intelligence (never mutates trust sources)
+
+model OpsAlert {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String    @unique @map("public_code")
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  severity       String    @default("info")
+  source         String    @default("manual")
+  title          String
+  status         String    @default("pending")
+  payloadJson    Json?     @map("payload_json")
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation("OpsAlertCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "ops_alerts_org_created_at_idx")
+  @@index([status], map: "ops_alerts_status_idx")
+  @@map("ops_alerts")
+}
+
+model OpsReport {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode      String    @unique @map("public_code")
+  organizationId  String?   @map("organization_id") @db.Uuid
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  kind            String
+  status          String    @default("pending")
+  paramsJson      Json?     @map("params_json")
+  resultJson      Json?     @map("result_json")
+  exportObjectKey String?   @map("export_object_key")
+  generatedAt     DateTime? @map("generated_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation("OpsReportCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "ops_reports_org_created_at_idx")
+  @@map("ops_reports")
+}
+
+model Investigation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode      String   @unique @map("public_code")
+  organizationId  String   @map("organization_id") @db.Uuid
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  title           String
+  status          String   @default("pending")
+  subjectDocumentId String? @map("subject_document_id") @db.Uuid
+  lineagePublicCode String? @map("lineage_public_code")
+  timelineJson    Json     @map("timeline_json")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("InvestigationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  evidence     Evidence[]
+
+  @@index([organizationId, createdAt], map: "investigations_org_created_at_idx")
+  @@map("investigations")
+}
+
+model Evidence {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  investigationId  String   @map("investigation_id") @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  sourceType       String   @map("source_type")
+  contentHash      String   @map("content_hash")
+  immutable        Boolean  @default(true)
+  metaJson         Json?    @map("meta_json")
+  objectKey        String?  @map("object_key")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  investigation Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([investigationId], map: "evidence_investigation_id_idx")
+  @@map("evidence")
+}
+
+model OpsPolicy {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode      String   @unique @map("public_code")
+  organizationId  String?  @map("organization_id") @db.Uuid
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  name            String
+  version         Int      @default(1)
+  status          String   @default("pending")
+  definitionJson  Json     @map("definition_json")
+  /// Wave 10 never auto-enforces; human activation required
+  autoEnforce     Boolean  @default(false) @map("auto_enforce")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("OpsPolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvals    PolicyApproval[]
+
+  @@index([organizationId, status], map: "ops_policies_org_status_idx")
+  @@map("ops_policies")
+}
+
+model PolicyApproval {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyId  String   @map("policy_id") @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  decision  String
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  policy OpsPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  actor  User      @relation("PolicyApprovalActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([policyId], map: "policy_approvals_policy_id_idx")
+  @@map("policy_approvals")
+}
+
+model Subscription {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  planKey        String    @map("plan_key")
+  status         String    @default("pending")
+  /// Autonomous billing decisions are forbidden
+  autonomous     Boolean   @default(false)
+  quotaJson      Json?     @map("quota_json")
+  periodStart    DateTime? @map("period_start") @db.Timestamptz(6)
+  periodEnd      DateTime? @map("period_end") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([organizationId, status], map: "subscriptions_org_status_idx")
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  subscriptionId String?   @map("subscription_id") @db.Uuid
+  status         String    @default("pending")
+  currency       String    @default("USD")
+  amountCents    Int       @map("amount_cents")
+  lineItemsJson  Json?     @map("line_items_json")
+  settledAt      DateTime? @map("settled_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "invoices_org_created_at_idx")
+  @@map("invoices")
+}
+
+model UsageMetric {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  metricKey      String   @map("metric_key")
+  day            DateTime @db.Date
+  value          Float    @default(0)
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, metricKey, day], map: "usage_metrics_org_key_day_unique")
+  @@index([organizationId, day], map: "usage_metrics_org_day_idx")
+  @@map("usage_metrics")
+}
+
+model FeatureFlag {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  organizationId String?  @map("organization_id") @db.Uuid
+  key            String
+  status         String   @default("inactive")
+  rolloutPercent Int      @default(0) @map("rollout_percent")
+  killSwitch     Boolean  @default(false) @map("kill_switch")
+  targetingJson  Json?    @map("targeting_json")
+  experimentsJson Json?   @map("experiments_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key], map: "feature_flags_org_key_unique")
+  @@index([key], map: "feature_flags_key_idx")
+  @@map("feature_flags")
+}
+
+model ComplianceEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  framework      String
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  success        Boolean  @default(true)
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "compliance_events_org_created_at_idx")
+  @@map("compliance_events")
+}
+
+model OpsAuditEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  success        Boolean  @default(true)
+  targetCode     String?  @map("target_code")
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "ops_audit_events_org_created_at_idx")
+  @@map("ops_audit_events")
+}
+
+model HealthSnapshot {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  status         String   @default("active")
+  checksJson     Json     @map("checks_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "health_snapshots_org_created_at_idx")
+  @@map("health_snapshots")
+}
+
+model PlatformScore {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String?  @map("organization_id") @db.Uuid
+  trustScore       Float    @map("trust_score")
+  healthScore      Float    @map("health_score")
+  riskScore        Float    @map("risk_score")
+  complianceScore  Float    @map("compliance_score")
+  componentsJson   Json?    @map("components_json")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "platform_scores_org_created_at_idx")
+  @@map("platform_scores")
+}
+
+model DeploymentRecord {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  releaseCode     String   @map("release_code")
+  publicCode      String   @unique @map("public_code")
+  organizationId  String?  @map("organization_id") @db.Uuid
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  environment     String
+  status          String   @default("pending")
+  /// Requires human approval — never autonomous
+  approved        Boolean  @default(false)
+  rollbackPlanJson Json?   @map("rollback_plan_json")
+  metaJson        Json?    @map("meta_json")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation("DeploymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "deployment_records_org_created_at_idx")
+  @@map("deployment_records")
+}
+
+model RecoveryBackup {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  kind           String   @default("snapshot")
+  status         String   @default("pending")
+  locationRef    String?  @map("location_ref")
+  checksum       String?
+  validated      Boolean  @default(false)
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "recovery_backups_org_created_at_idx")
+  @@map("recovery_backups")
+}
+
+model CapacitySnapshot {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  storageBytes   Float    @default(0) @map("storage_bytes")
+  computeUnits   Float    @default(0) @map("compute_units")
+  networkBytes   Float    @default(0) @map("network_bytes")
+  forecastJson   Json?    @map("forecast_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "capacity_snapshots_org_created_at_idx")
+  @@map("capacity_snapshots")
+}
+
+model DataCatalogEntry {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  name           String
+  classification String   @default("internal")
+  lineageJson    Json?    @map("lineage_json")
+  retentionDays  Int?     @map("retention_days")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, name], map: "data_catalog_entries_org_name_idx")
+  @@map("data_catalog_entries")
+}
+
+model ServiceRegistryEntry {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  serviceKey     String   @map("service_key")
+  version        String   @default("1.0.0")
+  endpoint       String?
+  status         String   @default("active")
+  dependenciesJson Json?  @map("dependencies_json")
+  healthJson     Json?    @map("health_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, serviceKey], map: "service_registry_org_key_unique")
+  @@map("service_registry_entries")
+}
+
+model SecretAuditEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  secretRef      String   @map("secret_ref")
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  success        Boolean  @default(true)
+  /// Never stores secret material — refs and metadata only
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "secret_audit_events_org_created_at_idx")
+  @@map("secret_audit_events")
+}
+
+model PlatformEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  topic          String
+  payloadJson    Json     @map("payload_json")
+  retainedUntil  DateTime? @map("retained_until") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([topic, createdAt], map: "platform_events_topic_created_at_idx")
+  @@index([organizationId, createdAt], map: "platform_events_org_created_at_idx")
+  @@map("platform_events")
 }
 

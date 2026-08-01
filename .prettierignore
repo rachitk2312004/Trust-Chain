@@ -9,5 +9,6 @@ typechain-types
 package-lock.json
 *.md
 services/ai
+services/dist
 **/.pytest_cache
 *.py

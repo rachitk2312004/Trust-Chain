@@ -391,3 +391,55 @@ export const AiEmbeddingDefaults = {
   chunkSize: 800,
   chunkOverlap: 100,
 } as const;
+
+/** Wave 10 — Operational intelligence platform. */
+export const OpsIdPrefixes = {
+  alert: "ALERT",
+  report: "REPORT",
+  case: "CASE",
+  policy: "POLICY",
+  feature: "FEATURE",
+  release: "RELEASE",
+  deployment: "DEPLOYMENT",
+} as const;
+
+export const OpsEntityStates = {
+  active: "active",
+  inactive: "inactive",
+  pending: "pending",
+  suspended: "suspended",
+  archived: "archived",
+} as const;
+
+export const OpsAlertSeverities = {
+  info: "info",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export const ComplianceFrameworks = {
+  gdpr: "gdpr",
+  soc2: "soc2",
+  iso27001: "iso27001",
+} as const;
+
+export const BillingPlanKeys = {
+  free: "free",
+  starter: "starter",
+  growth: "growth",
+  enterprise: "enterprise",
+} as const;
+
+export const OpsRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 60,
+} as const;
+
+export const PlatformScoreDefaults = {
+  trustScore: 0.8,
+  healthScore: 0.9,
+  riskScore: 0.2,
+  complianceScore: 0.75,
+} as const;

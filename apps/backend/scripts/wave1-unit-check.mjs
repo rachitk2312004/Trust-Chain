@@ -219,7 +219,13 @@ async function main() {
   testForbiddenOperations();
   testStubProcessors();
   testJobAndReviewStates();
-  console.log("Wave 1–9 unit checks passed");
+  const { testOpsPublicCodes, testOpsStatesAndScores, testForbiddenOpsOperations } = await import(
+    "../dist/modules/ops/tests/ops.unit.js"
+  );
+  testOpsPublicCodes();
+  testOpsStatesAndScores();
+  testForbiddenOpsOperations();
+  console.log("Wave 1–10 unit checks passed");
 }
 
 main().catch((error) => {

@@ -24,7 +24,8 @@
     "db:migrate": "npm run db:migrate -w @trustchain/database",
     "db:seed": "npm run db:seed -w @trustchain/database",
     "test:ai": "cd services/ai && PYTHONPATH=. python3 -m pytest -q",
-    "ci": "npm run lint && npm run format:check && npm run build -w @trustchain/config && npm run db:generate && npm run build -w @trustchain/database && npm run typecheck && npm run build -w @trustchain/backend && npm run test:unit -w @trustchain/backend && npm run build -w @trustchain/web && npm run test:unit -w @trustchain/extension && npm run build -w @trustchain/extension && npm run test:unit -w @trustchain/mobile && npm run compile -w @trustchain/blockchain && npm run test -w @trustchain/blockchain && npm run test:ai"
+    "test:ops": "npx tsc -p services/tsconfig.json && node services/ops-unit-check-dist.mjs",
+    "ci": "npm run lint && npm run format:check && npm run build -w @trustchain/config && npm run db:generate && npm run build -w @trustchain/database && npm run typecheck && npm run build -w @trustchain/backend && npm run test:unit -w @trustchain/backend && npm run build -w @trustchain/web && npm run build -w @trustchain/admin && npm run test:unit -w @trustchain/extension && npm run build -w @trustchain/extension && npm run test:unit -w @trustchain/mobile && npm run compile -w @trustchain/blockchain && npm run test -w @trustchain/blockchain && npm run test:ai && npm run test:ops"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
