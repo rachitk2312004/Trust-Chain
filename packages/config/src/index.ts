@@ -21,6 +21,9 @@ export const EnvKeys = {
   CHAIN_RPC_URL: "CHAIN_RPC_URL",
   CHAIN_NETWORK: "CHAIN_NETWORK",
   CHAIN_PRIVATE_KEY: "CHAIN_PRIVATE_KEY",
+  CHAIN_ENABLED: "CHAIN_ENABLED",
+  CHAIN_DOCUMENT_REGISTRY_ADDRESS: "CHAIN_DOCUMENT_REGISTRY_ADDRESS",
+  CHAIN_CONFIRMATIONS: "CHAIN_CONFIRMATIONS",
   JWT_ACCESS_SECRET: "JWT_ACCESS_SECRET",
   JWT_ACCESS_EXPIRES_IN: "JWT_ACCESS_EXPIRES_IN",
   JWT_REFRESH_EXPIRES_DAYS: "JWT_REFRESH_EXPIRES_DAYS",
@@ -101,3 +104,56 @@ export const DocumentAllowedMimeTypes = [
 
 /** Max upload size in bytes (25 MiB). */
 export const DocumentMaxUploadBytes = 25 * 1024 * 1024;
+
+/** Wave 3 — supported networks only (Hardhat + Sepolia). */
+export const BlockchainNetworkKeys = {
+  hardhat: "hardhat",
+  sepolia: "sepolia",
+} as const;
+
+export const BlockchainAllowedNetworks = [
+  BlockchainNetworkKeys.hardhat,
+  BlockchainNetworkKeys.sepolia,
+] as const;
+
+export const BlockchainChainIds = {
+  hardhat: 31337,
+  sepolia: 11155111,
+} as const;
+
+/** Anchor verification / lifecycle statuses. */
+export const BlockchainAnchorStatuses = {
+  pending: "pending",
+  anchored: "anchored",
+  revoked: "revoked",
+  failed: "failed",
+} as const;
+
+export const BlockchainTxStatuses = {
+  pending: "pending",
+  submitted: "submitted",
+  confirming: "confirming",
+  confirmed: "confirmed",
+  failed: "failed",
+  replaced: "replaced",
+} as const;
+
+export const BlockchainOperations = {
+  registerOrg: "register_org",
+  anchor: "anchor",
+  revoke: "revoke",
+} as const;
+
+export const BlockchainRetryJobStatuses = {
+  queued: "queued",
+  running: "running",
+  succeeded: "succeeded",
+  failed: "failed",
+  dead: "dead",
+} as const;
+
+export const OrganizationChainRegistrationStatuses = {
+  pending: "pending",
+  registered: "registered",
+  failed: "failed",
+} as const;

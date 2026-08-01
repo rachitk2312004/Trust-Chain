@@ -63,8 +63,8 @@ model Organization {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  parent                 Organization?           @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
-  children               Organization[]          @relation("OrgHierarchy")
+  parent                 Organization?                   @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children               Organization[]                  @relation("OrgHierarchy")
   branches               Branch[]
   departments            Department[]
   memberships            Membership[]
@@ -77,6 +77,11 @@ model Organization {
   documentTags           DocumentTag[]
   documentAuditEntries   DocumentAuditEntry[]
   documentUploadSessions DocumentUploadSession[]
+  blockchainTransactions BlockchainTransaction[]
+  blockchainAnchors      BlockchainAnchor[]
+  blockchainRetryJobs    BlockchainRetryJob[]
+  chainRegistrations     OrganizationChainRegistration[]
+  chainIntentNonces      BlockchainIntentNonce[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -326,16 +331,18 @@ model Document {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  category       DocumentCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  currentVersion DocumentVersion?        @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
-  versions       DocumentVersion[]       @relation("DocumentVersions")
-  tags           DocumentTagOnDocument[]
-  shares         DocumentShare[]
-  accessPolicies DocumentAccessPolicy[]
-  auditEntries   DocumentAuditEntry[]
-  uploadSessions DocumentUploadSession[]
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy              User                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  category               DocumentCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  currentVersion         DocumentVersion?        @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions               DocumentVersion[]       @relation("DocumentVersions")
+  tags                   DocumentTagOnDocument[]
+  shares                 DocumentShare[]
+  accessPolicies         DocumentAccessPolicy[]
+  auditEntries           DocumentAuditEntry[]
+  uploadSessions         DocumentUploadSession[]
+  blockchainTransactions BlockchainTransaction[]
+  blockchainAnchors      BlockchainAnchor[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -357,9 +364,11 @@ model DocumentVersion {
   checksumAlgorithm String   @default("sha256") @map("checksum_algorithm")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  document   Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
-  uploadedBy User      @relation("DocumentVersionUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  currentFor Document? @relation("DocumentCurrentVersion")
+  document               Document                @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy             User                    @relation("DocumentVersionUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  currentFor             Document?               @relation("DocumentCurrentVersion")
+  blockchainTransactions BlockchainTransaction[]
+  blockchainAnchors      BlockchainAnchor[]
 
   @@unique([documentId, versionNumber], map: "document_versions_document_id_version_number_key")
   @@index([documentId], map: "document_versions_document_id_idx")
@@ -484,4 +493,183 @@ model DocumentUploadSession {
   @@index([status], map: "document_upload_sessions_status_idx")
   @@index([expiresAt], map: "document_upload_sessions_expires_at_idx")
   @@map("document_upload_sessions")
+}
+
+/// Wave 3 — Blockchain integration (Hardhat + Sepolia only)
+
+model BlockchainNetwork {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key                     String   @unique
+  chainId                 Int      @map("chain_id")
+  name                    String
+  rpcUrlHint              String?  @map("rpc_url_hint")
+  explorerBaseUrl         String?  @map("explorer_base_url")
+  documentRegistryAddress String?  @map("document_registry_address")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions     BlockchainTransaction[]
+  anchors          BlockchainAnchor[]
+  events           BlockchainEvent[]
+  retryJobs        BlockchainRetryJob[]
+  orgRegistrations OrganizationChainRegistration[]
+  intentNonces     BlockchainIntentNonce[]
+
+  @@index([chainId], map: "blockchain_networks_chain_id_idx")
+  @@map("blockchain_networks")
+}
+
+model BlockchainTransaction {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  networkId         String    @map("network_id") @db.Uuid
+  organizationId    String?   @map("organization_id") @db.Uuid
+  documentId        String?   @map("document_id") @db.Uuid
+  documentVersionId String?   @map("document_version_id") @db.Uuid
+  operation         String
+  fromAddress       String    @map("from_address")
+  toAddress         String    @map("to_address")
+  nonce             Int?
+  txHash            String?   @map("tx_hash")
+  status            String    @default("pending")
+  blockNumber       BigInt?   @map("block_number")
+  blockHash         String?   @map("block_hash")
+  transactionIndex  Int?      @map("transaction_index")
+  confirmationCount Int       @default(0) @map("confirmation_count")
+  gasLimit          BigInt?   @map("gas_limit")
+  gasUsed           BigInt?   @map("gas_used")
+  maxFeePerGas      BigInt?   @map("max_fee_per_gas")
+  error             String?
+  submittedAt       DateTime? @map("submitted_at") @db.Timestamptz(6)
+  confirmedAt       DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  network          BlockchainNetwork               @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  organization     Organization?                   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  document         Document?                       @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion  DocumentVersion?                @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  anchorsAsAnchor  BlockchainAnchor[]              @relation("AnchorTx")
+  anchorsAsRevoke  BlockchainAnchor[]              @relation("RevokeTx")
+  orgRegistrations OrganizationChainRegistration[]
+
+  @@unique([networkId, txHash], map: "blockchain_transactions_network_id_tx_hash_key")
+  @@index([status], map: "blockchain_transactions_status_idx")
+  @@index([organizationId], map: "blockchain_transactions_organization_id_idx")
+  @@index([documentId], map: "blockchain_transactions_document_id_idx")
+  @@map("blockchain_transactions")
+}
+
+model BlockchainAnchor {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  networkId         String    @map("network_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  documentVersionId String    @map("document_version_id") @db.Uuid
+  contentHash       String    @map("content_hash")
+  versionNumber     Int       @map("version_number")
+  orgIdBytes32      String    @map("org_id_bytes32")
+  documentIdBytes32 String    @map("document_id_bytes32")
+  status            String    @default("pending")
+  blockNumber       BigInt?   @map("block_number")
+  blockHash         String?   @map("block_hash")
+  transactionIndex  Int?      @map("transaction_index")
+  confirmationCount Int       @default(0) @map("confirmation_count")
+  anchoredAt        DateTime? @map("anchored_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(6)
+  failureReason     String?   @map("failure_reason")
+  anchorTxId        String?   @map("anchor_tx_id") @db.Uuid
+  revokeTxId        String?   @map("revoke_tx_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  network         BlockchainNetwork      @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document        Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion DocumentVersion        @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  anchorTx        BlockchainTransaction? @relation("AnchorTx", fields: [anchorTxId], references: [id], onDelete: SetNull)
+  revokeTx        BlockchainTransaction? @relation("RevokeTx", fields: [revokeTxId], references: [id], onDelete: SetNull)
+
+  @@unique([networkId, documentVersionId], map: "blockchain_anchors_network_id_document_version_id_key")
+  @@index([contentHash], map: "blockchain_anchors_content_hash_idx")
+  @@index([organizationId], map: "blockchain_anchors_organization_id_idx")
+  @@index([status], map: "blockchain_anchors_status_idx")
+  @@map("blockchain_anchors")
+}
+
+model BlockchainEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  networkId       String   @map("network_id") @db.Uuid
+  contractAddress String   @map("contract_address")
+  eventName       String   @map("event_name")
+  blockNumber     BigInt   @map("block_number")
+  logIndex        Int      @map("log_index")
+  txHash          String   @map("tx_hash")
+  payload         Json?
+  processedAt     DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  network BlockchainNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+
+  @@unique([networkId, txHash, logIndex], map: "blockchain_events_network_id_tx_hash_log_index_key")
+  @@index([networkId, eventName], map: "blockchain_events_network_id_event_name_idx")
+  @@map("blockchain_events")
+}
+
+model BlockchainRetryJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  networkId      String    @map("network_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  operation      String
+  referenceType  String    @map("reference_type")
+  referenceId    String    @map("reference_id") @db.Uuid
+  payload        Json?
+  status         String    @default("queued")
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(8) @map("max_attempts")
+  lastError      String?   @map("last_error")
+  nextRunAt      DateTime  @default(now()) @map("next_run_at") @db.Timestamptz(6)
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  network      BlockchainNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextRunAt], map: "blockchain_retry_jobs_status_next_run_at_idx")
+  @@index([organizationId], map: "blockchain_retry_jobs_organization_id_idx")
+  @@map("blockchain_retry_jobs")
+}
+
+model OrganizationChainRegistration {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  networkId      String    @map("network_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  ownerAddress   String    @map("owner_address")
+  status         String    @default("pending")
+  registerTxId   String?   @map("register_tx_id") @db.Uuid
+  registeredAt   DateTime? @map("registered_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  network      BlockchainNetwork      @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registerTx   BlockchainTransaction? @relation(fields: [registerTxId], references: [id], onDelete: SetNull)
+
+  @@unique([networkId, organizationId], map: "organization_chain_registrations_network_id_organization_id_key")
+  @@map("organization_chain_registrations")
+}
+
+model BlockchainIntentNonce {
+  organizationId String   @map("organization_id") @db.Uuid
+  networkId      String   @map("network_id") @db.Uuid
+  nextNonce      BigInt   @default(0) @map("next_nonce")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  network      BlockchainNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, networkId])
+  @@map("blockchain_intent_nonces")
 }

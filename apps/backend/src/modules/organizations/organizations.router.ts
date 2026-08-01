@@ -33,11 +33,13 @@ import {
 import { createLogoUploadUrl, getOrgBranding, updateOrgBranding } from "./branding.service.js";
 import { getBulkImportJob, runBulkImport } from "./bulkImport.service.js";
 import { documentsRouter } from "../documents/documents.router.js";
+import { organizationBlockchainRouter } from "../blockchain/blockchain.router.js";
 
 export const organizationsRouter = Router();
 
 organizationsRouter.use(requireAuth);
 organizationsRouter.use("/:id", documentsRouter);
+organizationsRouter.use("/:id", organizationBlockchainRouter);
 
 organizationsRouter.post(
   "/",
