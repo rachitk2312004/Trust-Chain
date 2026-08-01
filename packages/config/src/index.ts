@@ -56,3 +56,48 @@ export const RoleKeys = {
   employee: "employee",
   publicUser: "public_user",
 } as const;
+
+/** Wave 2 document lifecycle statuses. */
+export const DocumentStatuses = {
+  pendingUpload: "pending_upload",
+  draft: "draft",
+  active: "active",
+  archived: "archived",
+  expired: "expired",
+} as const;
+
+/** Wave 2 upload-session statuses. */
+export const DocumentUploadSessionStatuses = {
+  pending: "pending",
+  completed: "completed",
+  expired: "expired",
+  aborted: "aborted",
+} as const;
+
+/** Document share / ACL permission levels. */
+export const DocumentPermissions = {
+  view: "view",
+  download: "download",
+  edit: "edit",
+  manage: "manage",
+} as const;
+
+/** Document access-policy subject types. */
+export const DocumentAccessSubjectTypes = {
+  user: "user",
+  role: "role",
+  organization: "organization",
+} as const;
+
+/** Allowed MIME types for document uploads (Wave 2). */
+export const DocumentAllowedMimeTypes = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
+
+/** Max upload size in bytes (25 MiB). */
+export const DocumentMaxUploadBytes = 25 * 1024 * 1024;

@@ -22,15 +22,21 @@ model User {
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  devices            Device[]
-  sessions           Session[]
-  mfaFactors         MfaFactor[]
-  emailTokens        EmailToken[]
-  roleBindings       RoleBinding[]
-  memberships        Membership[]
-  invitationsSent    Invitation[]       @relation("InvitationInvitedBy")
-  bulkImportJobs     BulkImportJob[]
-  mfaLoginChallenges MfaLoginChallenge[]
+  devices                  Device[]
+  sessions                 Session[]
+  mfaFactors               MfaFactor[]
+  emailTokens              EmailToken[]
+  roleBindings             RoleBinding[]
+  memberships              Membership[]
+  invitationsSent          Invitation[]            @relation("InvitationInvitedBy")
+  bulkImportJobs           BulkImportJob[]
+  mfaLoginChallenges       MfaLoginChallenge[]
+  documentsCreated         Document[]              @relation("DocumentCreatedBy")
+  documentVersionsUploaded DocumentVersion[]       @relation("DocumentVersionUploadedBy")
+  documentSharesCreated    DocumentShare[]         @relation("DocumentShareCreatedBy")
+  documentSharesReceived   DocumentShare[]         @relation("DocumentShareRecipient")
+  documentAuditEntries     DocumentAuditEntry[]    @relation("DocumentAuditActor")
+  documentUploadSessions   DocumentUploadSession[] @relation("DocumentUploadSessionCreator")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -49,23 +55,28 @@ model Role {
 }
 
 model Organization {
-  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String
   slug                 String
-  parentOrganizationId String? @map("parent_organization_id") @db.Uuid
-  status               String  @default("active")
+  parentOrganizationId String?  @map("parent_organization_id") @db.Uuid
+  status               String   @default("active")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  parent       Organization?  @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
-  children     Organization[] @relation("OrgHierarchy")
-  branches     Branch[]
-  departments  Department[]
-  memberships  Membership[]
-  invitations  Invitation[]
-  roleBindings RoleBinding[]
-  branding     OrganizationBranding?
-  bulkImports  BulkImportJob[]
+  parent                 Organization?           @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children               Organization[]          @relation("OrgHierarchy")
+  branches               Branch[]
+  departments            Department[]
+  memberships            Membership[]
+  invitations            Invitation[]
+  roleBindings           RoleBinding[]
+  branding               OrganizationBranding?
+  bulkImports            BulkImportJob[]
+  documents              Document[]
+  documentCategories     DocumentCategory[]
+  documentTags           DocumentTag[]
+  documentAuditEntries   DocumentAuditEntry[]
+  documentUploadSessions DocumentUploadSession[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -92,15 +103,15 @@ model Device {
 }
 
 model Session {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
-  deviceId         String?   @map("device_id") @db.Uuid
-  refreshTokenHash String    @map("refresh_token_hash")
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String               @map("user_id") @db.Uuid
+  deviceId         String?              @map("device_id") @db.Uuid
+  refreshTokenHash String               @map("refresh_token_hash")
   ip               Unsupported("inet")?
-  userAgent        String?   @map("user_agent")
-  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
-  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  userAgent        String?              @map("user_agent")
+  expiresAt        DateTime             @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
@@ -296,4 +307,181 @@ model BulkImportJob {
 
   @@index([organizationId], map: "bulk_import_jobs_organization_id_idx")
   @@map("bulk_import_jobs")
+}
+
+/// Wave 2 — Document management
+
+model Document {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  title            String
+  description      String?
+  categoryId       String?   @map("category_id") @db.Uuid
+  currentVersionId String?   @unique @map("current_version_id") @db.Uuid
+  status           String    @default("pending_upload")
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  category       DocumentCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  currentVersion DocumentVersion?        @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       DocumentVersion[]       @relation("DocumentVersions")
+  tags           DocumentTagOnDocument[]
+  shares         DocumentShare[]
+  accessPolicies DocumentAccessPolicy[]
+  auditEntries   DocumentAuditEntry[]
+  uploadSessions DocumentUploadSession[]
+
+  @@index([organizationId], map: "documents_organization_id_idx")
+  @@index([status], map: "documents_status_idx")
+  @@index([deletedAt], map: "documents_deleted_at_idx")
+  @@index([expiresAt], map: "documents_expires_at_idx")
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId        String   @map("document_id") @db.Uuid
+  versionNumber     Int      @map("version_number")
+  objectKey         String   @map("object_key")
+  contentHash       String   @map("content_hash")
+  mimeType          String   @map("mime_type")
+  sizeBytes         BigInt   @map("size_bytes")
+  originalFileName  String   @map("original_file_name")
+  uploadedById      String   @map("uploaded_by_id") @db.Uuid
+  checksumAlgorithm String   @default("sha256") @map("checksum_algorithm")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document   Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy User      @relation("DocumentVersionUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  currentFor Document? @relation("DocumentCurrentVersion")
+
+  @@unique([documentId, versionNumber], map: "document_versions_document_id_version_number_key")
+  @@index([documentId], map: "document_versions_document_id_idx")
+  @@index([contentHash], map: "document_versions_content_hash_idx")
+  @@map("document_versions")
+}
+
+model DocumentCategory {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    Document[]
+
+  @@unique([organizationId, name], map: "document_categories_organization_id_name_key")
+  @@index([organizationId], map: "document_categories_organization_id_idx")
+  @@map("document_categories")
+}
+
+model DocumentTag {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    DocumentTagOnDocument[]
+
+  @@unique([organizationId, name], map: "document_tags_organization_id_name_key")
+  @@index([organizationId], map: "document_tags_organization_id_idx")
+  @@map("document_tags")
+}
+
+model DocumentTagOnDocument {
+  documentId String @map("document_id") @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+
+  document Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      DocumentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@map("document_tags_on_documents")
+}
+
+model DocumentShare {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId       String    @map("document_id") @db.Uuid
+  sharedWithUserId String?   @map("shared_with_user_id") @db.Uuid
+  sharedWithEmail  String?   @map("shared_with_email")
+  permission       String
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdById      String    @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sharedWithUser User?    @relation("DocumentShareRecipient", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+  createdBy      User     @relation("DocumentShareCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([documentId], map: "document_shares_document_id_idx")
+  @@map("document_shares")
+}
+
+model DocumentAccessPolicy {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId  String   @map("document_id") @db.Uuid
+  subjectType String   @map("subject_type")
+  subjectId   String   @map("subject_id")
+  permission  String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, subjectType, subjectId, permission], map: "document_access_policies_unique")
+  @@index([documentId], map: "document_access_policies_document_id_idx")
+  @@map("document_access_policies")
+}
+
+model DocumentAuditEntry {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("DocumentAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([documentId], map: "document_audit_entries_document_id_idx")
+  @@index([organizationId, createdAt], map: "document_audit_entries_organization_id_created_at_idx")
+  @@map("document_audit_entries")
+}
+
+model DocumentUploadSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  createdById       String    @map("created_by_id") @db.Uuid
+  objectKey         String    @map("object_key")
+  expectedMimeType  String    @map("expected_mime_type")
+  expectedSizeBytes BigInt?   @map("expected_size_bytes")
+  status            String    @default("pending")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("DocumentUploadSessionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([documentId], map: "document_upload_sessions_document_id_idx")
+  @@index([organizationId], map: "document_upload_sessions_organization_id_idx")
+  @@index([status], map: "document_upload_sessions_status_idx")
+  @@index([expiresAt], map: "document_upload_sessions_expires_at_idx")
+  @@map("document_upload_sessions")
 }

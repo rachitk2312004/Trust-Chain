@@ -32,10 +32,12 @@ import {
 } from "./orgStructure.service.js";
 import { createLogoUploadUrl, getOrgBranding, updateOrgBranding } from "./branding.service.js";
 import { getBulkImportJob, runBulkImport } from "./bulkImport.service.js";
+import { documentsRouter } from "../documents/documents.router.js";
 
 export const organizationsRouter = Router();
 
 organizationsRouter.use(requireAuth);
+organizationsRouter.use("/:id", documentsRouter);
 
 organizationsRouter.post(
   "/",
