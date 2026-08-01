@@ -157,3 +157,35 @@ export const OrganizationChainRegistrationStatuses = {
   registered: "registered",
   failed: "failed",
 } as const;
+
+/** Wave 4 — verification internal pipeline states. */
+export const VerificationInternalStatuses = {
+  pending: "pending",
+  processing: "processing",
+  completed: "completed",
+  failed: "failed",
+} as const;
+
+/** Wave 4 — external verification outcomes (report result). */
+export const VerificationOutcomes = {
+  valid: "valid",
+  invalid: "invalid",
+  revoked: "revoked",
+  expired: "expired",
+  missing: "missing",
+  tampered: "tampered",
+} as const;
+
+export const VerificationModes = {
+  sync: "sync",
+  async: "async",
+} as const;
+
+/** Default verification cache TTL (5 minutes). */
+export const VerificationCacheTtlMs = 5 * 60 * 1000;
+
+/** Default verify rate limit: 30 requests / 5 minutes per user+org. */
+export const VerificationRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 30,
+} as const;

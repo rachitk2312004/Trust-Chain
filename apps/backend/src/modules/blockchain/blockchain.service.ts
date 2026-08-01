@@ -15,6 +15,7 @@ import { getDocumentRegistryContract, sha256HexToBytes32, uuidToBytes32 } from "
 import { indexReceiptEvents } from "./eventIndexer.js";
 import { blockchainJobQueue } from "./jobQueue.js";
 import { createPendingTransaction, submitAndConfirm } from "./transactionManager.js";
+import { invalidateVerificationCacheForDocument } from "../verification/services/cacheInvalidation.js";
 
 async function assertOrgAdmin(userId: string, organizationId: string): Promise<void> {
   const allowed = await userHasRole(
@@ -474,6 +475,7 @@ export async function anchorDocumentOnChain(
         },
       },
     });
+    await invalidateVerificationCacheForDocument(organizationId, documentId, "anchor_created");
 
     return {
       anchor: publicAnchor(updated),
@@ -625,6 +627,7 @@ export async function revokeDocumentOnChain(
         metadata: { anchorId: updated.id, txHash },
       },
     });
+    await invalidateVerificationCacheForDocument(organizationId, documentId, "anchor_revoked");
 
     return {
       anchor: publicAnchor(updated),

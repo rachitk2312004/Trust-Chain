@@ -189,7 +189,13 @@ async function main() {
   testAccessRanks();
   testConfirmSchema();
   await testBlockchainHelpers();
-  console.log("Wave 1 + Wave 2 + Wave 3 unit checks passed");
+  const { testVerificationCodeFormat, testOutcomePrecedence, testReportProofFields } = await import(
+    "../dist/modules/verification/tests/verification.unit.js"
+  );
+  testVerificationCodeFormat();
+  testOutcomePrecedence();
+  testReportProofFields();
+  console.log("Wave 1 + Wave 2 + Wave 3 + Wave 4 unit checks passed");
 }
 
 main().catch((error) => {

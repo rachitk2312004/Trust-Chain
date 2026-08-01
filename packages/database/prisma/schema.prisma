@@ -28,15 +28,17 @@ model User {
   emailTokens              EmailToken[]
   roleBindings             RoleBinding[]
   memberships              Membership[]
-  invitationsSent          Invitation[]            @relation("InvitationInvitedBy")
+  invitationsSent          Invitation[]             @relation("InvitationInvitedBy")
   bulkImportJobs           BulkImportJob[]
   mfaLoginChallenges       MfaLoginChallenge[]
-  documentsCreated         Document[]              @relation("DocumentCreatedBy")
-  documentVersionsUploaded DocumentVersion[]       @relation("DocumentVersionUploadedBy")
-  documentSharesCreated    DocumentShare[]         @relation("DocumentShareCreatedBy")
-  documentSharesReceived   DocumentShare[]         @relation("DocumentShareRecipient")
-  documentAuditEntries     DocumentAuditEntry[]    @relation("DocumentAuditActor")
-  documentUploadSessions   DocumentUploadSession[] @relation("DocumentUploadSessionCreator")
+  documentsCreated         Document[]               @relation("DocumentCreatedBy")
+  documentVersionsUploaded DocumentVersion[]        @relation("DocumentVersionUploadedBy")
+  documentSharesCreated    DocumentShare[]          @relation("DocumentShareCreatedBy")
+  documentSharesReceived   DocumentShare[]          @relation("DocumentShareRecipient")
+  documentAuditEntries     DocumentAuditEntry[]     @relation("DocumentAuditActor")
+  documentUploadSessions   DocumentUploadSession[]  @relation("DocumentUploadSessionCreator")
+  verificationRequests     VerificationRequest[]    @relation("VerificationRequestedBy")
+  verificationAuditEntries VerificationAuditEntry[] @relation("VerificationAuditActor")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -63,25 +65,29 @@ model Organization {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  parent                 Organization?                   @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
-  children               Organization[]                  @relation("OrgHierarchy")
-  branches               Branch[]
-  departments            Department[]
-  memberships            Membership[]
-  invitations            Invitation[]
-  roleBindings           RoleBinding[]
-  branding               OrganizationBranding?
-  bulkImports            BulkImportJob[]
-  documents              Document[]
-  documentCategories     DocumentCategory[]
-  documentTags           DocumentTag[]
-  documentAuditEntries   DocumentAuditEntry[]
-  documentUploadSessions DocumentUploadSession[]
-  blockchainTransactions BlockchainTransaction[]
-  blockchainAnchors      BlockchainAnchor[]
-  blockchainRetryJobs    BlockchainRetryJob[]
-  chainRegistrations     OrganizationChainRegistration[]
-  chainIntentNonces      BlockchainIntentNonce[]
+  parent                   Organization?                   @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children                 Organization[]                  @relation("OrgHierarchy")
+  branches                 Branch[]
+  departments              Department[]
+  memberships              Membership[]
+  invitations              Invitation[]
+  roleBindings             RoleBinding[]
+  branding                 OrganizationBranding?
+  bulkImports              BulkImportJob[]
+  documents                Document[]
+  documentCategories       DocumentCategory[]
+  documentTags             DocumentTag[]
+  documentAuditEntries     DocumentAuditEntry[]
+  documentUploadSessions   DocumentUploadSession[]
+  blockchainTransactions   BlockchainTransaction[]
+  blockchainAnchors        BlockchainAnchor[]
+  blockchainRetryJobs      BlockchainRetryJob[]
+  chainRegistrations       OrganizationChainRegistration[]
+  chainIntentNonces        BlockchainIntentNonce[]
+  verificationRequests     VerificationRequest[]
+  verificationResults      VerificationResult[]
+  verificationAuditEntries VerificationAuditEntry[]
+  verificationCaches       VerificationCache[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -343,6 +349,8 @@ model Document {
   uploadSessions         DocumentUploadSession[]
   blockchainTransactions BlockchainTransaction[]
   blockchainAnchors      BlockchainAnchor[]
+  verificationRequests   VerificationRequest[]
+  verificationCaches     VerificationCache[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -369,6 +377,7 @@ model DocumentVersion {
   currentFor             Document?               @relation("DocumentCurrentVersion")
   blockchainTransactions BlockchainTransaction[]
   blockchainAnchors      BlockchainAnchor[]
+  verificationRequests   VerificationRequest[]
 
   @@unique([documentId, versionNumber], map: "document_versions_document_id_version_number_key")
   @@index([documentId], map: "document_versions_document_id_idx")
@@ -672,4 +681,113 @@ model BlockchainIntentNonce {
 
   @@id([organizationId, networkId])
   @@map("blockchain_intent_nonces")
+}
+
+/// Wave 4 — Verification engine
+
+model VerificationRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verificationCode    String    @unique @map("verification_code")
+  organizationId      String    @map("organization_id") @db.Uuid
+  documentId          String    @map("document_id") @db.Uuid
+  documentVersionId   String?   @map("document_version_id") @db.Uuid
+  requestedByUserId   String    @map("requested_by_user_id") @db.Uuid
+  mode                String    @default("sync")
+  /// Internal: pending | processing | completed | failed
+  status              String    @default("pending")
+  idempotencyKey      String?   @map("idempotency_key")
+  expectedContentHash String?   @map("expected_content_hash")
+  options             Json?
+  intentNonce         BigInt?   @map("intent_nonce")
+  signature           String?
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document        Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion DocumentVersion?         @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  requestedBy     User                     @relation("VerificationRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  result          VerificationResult?
+  auditEntries    VerificationAuditEntry[]
+  caches          VerificationCache[]
+
+  @@unique([organizationId, idempotencyKey], map: "verification_requests_organization_id_idempotency_key_key")
+  @@index([organizationId, createdAt], map: "verification_requests_organization_id_created_at_idx")
+  @@index([documentId, createdAt], map: "verification_requests_document_id_created_at_idx")
+  @@index([status], map: "verification_requests_status_idx")
+  @@index([verificationCode], map: "verification_requests_verification_code_idx")
+  @@map("verification_requests")
+}
+
+model VerificationResult {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId        String    @unique @map("request_id") @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  /// External: valid | invalid | revoked | expired | missing | tampered
+  outcome          String
+  versionNumber    Int?      @map("version_number")
+  contentHash      String?   @map("content_hash")
+  blockchainStatus String?   @map("blockchain_status")
+  revocationStatus String?   @map("revocation_status")
+  proofOfIntegrity String?   @map("proof_of_integrity")
+  proofTimestamp   DateTime? @map("proof_timestamp") @db.Timestamptz(6)
+  networkName      String?   @map("network_name")
+  transactionHash  String?   @map("transaction_hash")
+  blockNumber      BigInt?   @map("block_number")
+  checks           Json?
+  failureReasons   Json?     @map("failure_reasons")
+  report           Json
+  verifiedAt       DateTime  @default(now()) @map("verified_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  request      VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  caches       VerificationCache[]
+
+  @@index([organizationId, verifiedAt], map: "verification_results_organization_id_verified_at_idx")
+  @@index([outcome], map: "verification_results_outcome_idx")
+  @@map("verification_results")
+}
+
+model VerificationAuditEntry {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId      String   @map("request_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  request      VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?               @relation("VerificationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId], map: "verification_audit_entries_request_id_idx")
+  @@index([organizationId, createdAt], map: "verification_audit_entries_organization_id_created_at_idx")
+  @@map("verification_audit_entries")
+}
+
+model VerificationCache {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cacheKey       String   @unique @map("cache_key")
+  organizationId String   @map("organization_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  requestId      String?  @map("request_id") @db.Uuid
+  resultId       String?  @map("result_id") @db.Uuid
+  outcome        String
+  status         String
+  report         Json
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  request      VerificationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  result       VerificationResult?  @relation(fields: [resultId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, documentId], map: "verification_caches_organization_id_document_id_idx")
+  @@index([expiresAt], map: "verification_caches_expires_at_idx")
+  @@map("verification_caches")
 }

@@ -21,6 +21,7 @@ import {
 import { assertAllowedMimeType, assertAllowedSize, assertObjectKeyPrefix } from "./documentFile.js";
 import { encryptDocumentObject } from "./encryption.js";
 import { scanDocumentObject } from "./malwareScan.js";
+import { invalidateVerificationCacheForDocument } from "../verification/services/cacheInvalidation.js";
 
 const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
 
@@ -605,6 +606,7 @@ export async function confirmDocumentVersion(
       uploadSessionId: session.id,
     },
   });
+  await invalidateVerificationCacheForDocument(organizationId, documentId, "version_created");
 
   const full = await loadDocument(organizationId, documentId);
   return {
@@ -745,6 +747,7 @@ export async function patchDocument(
     action: "document.updated",
     metadata: input as Prisma.InputJsonValue,
   });
+  await invalidateVerificationCacheForDocument(organizationId, documentId, "document_updated");
 
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
@@ -794,6 +797,7 @@ export async function archiveDocument(userId: string, organizationId: string, do
     actorUserId: userId,
     action: "document.archived",
   });
+  await invalidateVerificationCacheForDocument(organizationId, documentId, "document_archived");
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
 }
@@ -826,6 +830,7 @@ export async function restoreDocument(userId: string, organizationId: string, do
     action: "document.restored",
     metadata: { status: nextStatus },
   });
+  await invalidateVerificationCacheForDocument(organizationId, documentId, "document_restored");
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
 }

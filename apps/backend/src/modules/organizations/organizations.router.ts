@@ -34,12 +34,14 @@ import { createLogoUploadUrl, getOrgBranding, updateOrgBranding } from "./brandi
 import { getBulkImportJob, runBulkImport } from "./bulkImport.service.js";
 import { documentsRouter } from "../documents/documents.router.js";
 import { organizationBlockchainRouter } from "../blockchain/blockchain.router.js";
+import { organizationVerificationRouter } from "../verification/routes/verification.router.js";
 
 export const organizationsRouter = Router();
 
 organizationsRouter.use(requireAuth);
 organizationsRouter.use("/:id", documentsRouter);
 organizationsRouter.use("/:id", organizationBlockchainRouter);
+organizationsRouter.use("/:id", organizationVerificationRouter);
 
 organizationsRouter.post(
   "/",

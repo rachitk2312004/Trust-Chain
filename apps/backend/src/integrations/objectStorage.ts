@@ -133,6 +133,39 @@ export async function headObject(objectKey: string): Promise<{
   }
 }
 
+export async function getObjectBuffer(objectKey: string): Promise<{
+  exists: boolean;
+  body?: Buffer;
+  contentType?: string;
+  contentLength?: number;
+}> {
+  try {
+    const result = await getClient().send(
+      new GetObjectCommand({
+        Bucket: getBucket(),
+        Key: objectKey,
+      }),
+    );
+    if (!result.Body) {
+      return { exists: false };
+    }
+    const bytes = await result.Body.transformToByteArray();
+    return {
+      exists: true,
+      body: Buffer.from(bytes),
+      contentType: result.ContentType,
+      contentLength: result.ContentLength,
+    };
+  } catch (error) {
+    const name = (error as { name?: string }).name;
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (name === "NotFound" || name === "NoSuchKey" || name === "NoSuchBucket" || status === 404) {
+      return { exists: false };
+    }
+    throw error;
+  }
+}
+
 export async function putObjectBuffer(input: {
   objectKey: string;
   body: Buffer;
