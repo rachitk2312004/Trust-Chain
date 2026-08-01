@@ -304,3 +304,41 @@ export const ExtensionRateLimit = {
   windowMs: 5 * 60 * 1000,
   maxRequests: 20,
 } as const;
+
+/** Wave 8 — mobile identifiers, sync priorities, app states. */
+export const MobileIdPrefixes = {
+  session: "MOBILE-SESSION",
+  cache: "MOBILE-CACHE",
+  event: "MOBILE-EVENT",
+  device: "MOBILE-DEVICE",
+} as const;
+
+export const MobileAppStates = {
+  online: "online",
+  offline: "offline",
+  synchronizing: "synchronizing",
+  verifying: "verifying",
+  blocked: "blocked",
+  failed: "failed",
+} as const;
+
+export const MobileSyncPriorities = {
+  critical: "critical",
+  high: "high",
+  normal: "normal",
+  low: "low",
+  background: "background",
+} as const;
+
+export const MobileSyncPriorityOrder = [
+  MobileSyncPriorities.critical,
+  MobileSyncPriorities.high,
+  MobileSyncPriorities.normal,
+  MobileSyncPriorities.low,
+  MobileSyncPriorities.background,
+] as const;
+
+export const MobileRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 20,
+} as const;

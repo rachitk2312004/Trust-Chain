@@ -1,0 +1,1 @@
+export { runRecoveryMigration } from "../index";
