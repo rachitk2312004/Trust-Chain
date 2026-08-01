@@ -43,6 +43,8 @@ model User {
   publicVerificationLinks  PublicVerificationLink[]  @relation("PublicLinkCreatedBy")
   qrTemplatesCreated       QrTemplate[]              @relation("QrTemplateCreatedBy")
   documentQrCodesCreated   DocumentQrCode[]          @relation("DocumentQrCreatedBy")
+  aiJobsCreated            AiJob[]                   @relation("AiJobCreatedBy")
+  aiReviewsCompleted       AiHumanReview[]           @relation("AiReviewReviewer")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -101,6 +103,14 @@ model Organization {
   documentQrCodes             DocumentQrCode[]
   qrVerificationEvents        QrVerificationEvent[]
   qrAnalytics                 QrAnalytics[]
+  aiJobs                      AiJob[]
+  ocrJobs                     OcrJob[]
+  classificationJobs          ClassificationJob[]
+  embeddingJobs               EmbeddingJob[]
+  fraudAnalysisJobs           FraudAnalysisJob[]
+  aiLineages                  AiLineage[]
+  aiAuditEvents               AiAuditEvent[]
+  documentEmbeddings          DocumentEmbedding[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -374,6 +384,13 @@ model Document {
   documentQrCodes             DocumentQrCode[]
   qrVerificationEvents        QrVerificationEvent[]
   qrAnalytics                 QrAnalytics[]
+  aiJobs                      AiJob[]
+  ocrJobs                     OcrJob[]
+  classificationJobs          ClassificationJob[]
+  embeddingJobs               EmbeddingJob[]
+  fraudAnalysisJobs           FraudAnalysisJob[]
+  aiLineages                  AiLineage[]
+  documentEmbeddings          DocumentEmbedding[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -1090,3 +1107,309 @@ model QrBatchJob {
   @@index([organizationId, createdAt], map: "qr_batch_jobs_organization_id_created_at_idx")
   @@map("qr_batch_jobs")
 }
+
+/// Wave 9 — AI / OCR (advisory only; never trust source of truth)
+
+model AiJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode        String    @unique @map("public_code")
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String?   @map("document_id") @db.Uuid
+  documentVersionId String?   @map("document_version_id") @db.Uuid
+  createdByUserId   String    @map("created_by_user_id") @db.Uuid
+  kind              String
+  status            String    @default("pending")
+  reviewStatus      String    @default("pending_review") @map("review_status")
+  lineageId         String?   @map("lineage_id") @db.Uuid
+  modelProvider     String?   @map("model_provider")
+  modelVersion      String?   @map("model_version")
+  evaluationVersion String?   @map("evaluation_version")
+  confidence        Float?
+  confidenceLow     Float?    @map("confidence_low")
+  confidenceHigh    Float?    @map("confidence_high")
+  tokenUsage        Int       @default(0) @map("token_usage")
+  computeUsageMs    Int       @default(0) @map("compute_usage_ms")
+  storageUsageBytes Int       @default(0) @map("storage_usage_bytes")
+  estimatedCostUsd  Float     @default(0) @map("estimated_cost_usd")
+  resultJson        Json?     @map("result_json")
+  explanationJson   Json?     @map("explanation_json")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation("AiJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lineage      AiLineage?    @relation(fields: [lineageId], references: [id], onDelete: SetNull)
+  humanReviews AiHumanReview[]
+
+  @@index([organizationId, createdAt], map: "ai_jobs_organization_id_created_at_idx")
+  @@index([status], map: "ai_jobs_status_idx")
+  @@index([publicCode], map: "ai_jobs_public_code_idx")
+  @@map("ai_jobs")
+}
+
+model OcrJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode        String    @unique @map("public_code")
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  documentVersionId String?   @map("document_version_id") @db.Uuid
+  aiJobId           String?   @map("ai_job_id") @db.Uuid
+  lineageId         String?   @map("lineage_id") @db.Uuid
+  engine            String    @default("stub")
+  status            String    @default("pending")
+  reviewStatus      String    @default("pending_review") @map("review_status")
+  modelVersion      String?   @map("model_version")
+  evaluationVersion String?   @map("evaluation_version")
+  confidence        Float?
+  confidenceLow     Float?    @map("confidence_low")
+  confidenceHigh    Float?    @map("confidence_high")
+  tokenUsage        Int       @default(0) @map("token_usage")
+  computeUsageMs    Int       @default(0) @map("compute_usage_ms")
+  storageUsageBytes Int       @default(0) @map("storage_usage_bytes")
+  estimatedCostUsd  Float     @default(0) @map("estimated_cost_usd")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lineage      AiLineage?   @relation(fields: [lineageId], references: [id], onDelete: SetNull)
+  result       OcrResult?
+
+  @@index([organizationId, createdAt], map: "ocr_jobs_organization_id_created_at_idx")
+  @@index([status], map: "ocr_jobs_status_idx")
+  @@map("ocr_jobs")
+}
+
+model OcrResult {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ocrJobId           String   @unique @map("ocr_job_id") @db.Uuid
+  text               String   @default("")
+  language           String?
+  handwritingLikely  Boolean  @default(false) @map("handwriting_likely")
+  layoutJson         Json?    @map("layout_json")
+  confidence         Float?
+  confidenceLow      Float?   @map("confidence_low")
+  confidenceHigh     Float?   @map("confidence_high")
+  modelVersion       String?  @map("model_version")
+  evaluationVersion  String?  @map("evaluation_version")
+  explanationJson    Json?    @map("explanation_json")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ocrJob OcrJob @relation(fields: [ocrJobId], references: [id], onDelete: Cascade)
+
+  @@map("ocr_results")
+}
+
+model ClassificationJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode        String    @unique @map("public_code")
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  lineageId         String?   @map("lineage_id") @db.Uuid
+  status            String    @default("pending")
+  reviewStatus      String    @default("pending_review") @map("review_status")
+  modelProvider     String?   @map("model_provider")
+  modelVersion      String?   @map("model_version")
+  evaluationVersion String?   @map("evaluation_version")
+  confidence        Float?
+  confidenceLow     Float?    @map("confidence_low")
+  confidenceHigh    Float?    @map("confidence_high")
+  tokenUsage        Int       @default(0) @map("token_usage")
+  computeUsageMs    Int       @default(0) @map("compute_usage_ms")
+  storageUsageBytes Int       @default(0) @map("storage_usage_bytes")
+  estimatedCostUsd  Float     @default(0) @map("estimated_cost_usd")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lineage      AiLineage?            @relation(fields: [lineageId], references: [id], onDelete: SetNull)
+  result       ClassificationResult?
+
+  @@index([organizationId, createdAt], map: "classification_jobs_organization_id_created_at_idx")
+  @@map("classification_jobs")
+}
+
+model ClassificationResult {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classificationJobId String @unique @map("classification_job_id") @db.Uuid
+  label             String
+  scoresJson        Json?    @map("scores_json")
+  confidence        Float?
+  confidenceLow     Float?   @map("confidence_low")
+  confidenceHigh    Float?   @map("confidence_high")
+  modelVersion      String?  @map("model_version")
+  evaluationVersion String?  @map("evaluation_version")
+  explanationJson   Json?    @map("explanation_json")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  classificationJob ClassificationJob @relation(fields: [classificationJobId], references: [id], onDelete: Cascade)
+
+  @@map("classification_results")
+}
+
+model EmbeddingJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode        String    @unique @map("public_code")
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  lineageId         String?   @map("lineage_id") @db.Uuid
+  status            String    @default("pending")
+  reviewStatus      String    @default("pending_review") @map("review_status")
+  modelProvider     String?   @map("model_provider")
+  modelVersion      String?   @map("model_version")
+  evaluationVersion String?   @map("evaluation_version")
+  confidence        Float?
+  confidenceLow     Float?    @map("confidence_low")
+  confidenceHigh    Float?    @map("confidence_high")
+  tokenUsage        Int       @default(0) @map("token_usage")
+  computeUsageMs    Int       @default(0) @map("compute_usage_ms")
+  storageUsageBytes Int       @default(0) @map("storage_usage_bytes")
+  estimatedCostUsd  Float     @default(0) @map("estimated_cost_usd")
+  chunkCount        Int       @default(0) @map("chunk_count")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lineage      AiLineage?   @relation(fields: [lineageId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "embedding_jobs_organization_id_created_at_idx")
+  @@map("embedding_jobs")
+}
+
+model DocumentEmbedding {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  chunkIndex     Int      @map("chunk_index")
+  chunkText      String   @map("chunk_text")
+  /// JSON float array (pgvector-ready; CI-safe without native vector ops)
+  embeddingJson  Json     @map("embedding_json")
+  modelVersion   String?  @map("model_version")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, documentId], map: "document_embeddings_org_doc_idx")
+  @@map("document_embeddings")
+}
+
+model FraudAnalysisJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode        String    @unique @map("public_code")
+  organizationId    String    @map("organization_id") @db.Uuid
+  documentId        String    @map("document_id") @db.Uuid
+  lineageId         String?   @map("lineage_id") @db.Uuid
+  status            String    @default("pending")
+  reviewStatus      String    @default("pending_review") @map("review_status")
+  riskScore         Float?    @map("risk_score")
+  signalsJson       Json?     @map("signals_json")
+  modelProvider     String?   @map("model_provider")
+  modelVersion      String?   @map("model_version")
+  evaluationVersion String?   @map("evaluation_version")
+  confidence        Float?
+  confidenceLow     Float?    @map("confidence_low")
+  confidenceHigh    Float?    @map("confidence_high")
+  tokenUsage        Int       @default(0) @map("token_usage")
+  computeUsageMs    Int       @default(0) @map("compute_usage_ms")
+  storageUsageBytes Int       @default(0) @map("storage_usage_bytes")
+  estimatedCostUsd  Float     @default(0) @map("estimated_cost_usd")
+  explanationJson   Json?     @map("explanation_json")
+  /// Always advisory — must never mutate Wave 4 verification outcomes
+  advisoryOnly      Boolean   @default(true) @map("advisory_only")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lineage      AiLineage?   @relation(fields: [lineageId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "fraud_analysis_jobs_organization_id_created_at_idx")
+  @@map("fraud_analysis_jobs")
+}
+
+model AiLineage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  organizationId String   @map("organization_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  stepsJson      Json     @map("steps_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document           Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  aiJobs             AiJob[]
+  ocrJobs            OcrJob[]
+  classificationJobs ClassificationJob[]
+  embeddingJobs      EmbeddingJob[]
+  fraudAnalysisJobs  FraudAnalysisJob[]
+
+  @@index([organizationId, documentId], map: "ai_lineages_org_doc_idx")
+  @@map("ai_lineages")
+}
+
+model AiHumanReview {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aiJobId      String    @map("ai_job_id") @db.Uuid
+  reviewerId   String?   @map("reviewer_id") @db.Uuid
+  status       String    @default("pending_review")
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  aiJob    AiJob @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("AiReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([aiJobId], map: "ai_human_reviews_ai_job_id_idx")
+  @@map("ai_human_reviews")
+}
+
+model AiAuditEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  jobPublicCode  String?  @map("job_public_code")
+  action         String
+  success        Boolean  @default(true)
+  inputHash      String?  @map("input_hash")
+  outputHash     String?  @map("output_hash")
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "ai_audit_events_organization_id_created_at_idx")
+  @@map("ai_audit_events")
+}
+
+model AiModelRegistryEntry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider     String
+  modelId      String   @map("model_id")
+  version      String
+  capability   String
+  isDefault    Boolean  @default(false) @map("is_default")
+  isFallback   Boolean  @default(false) @map("is_fallback")
+  benchmarkJson Json?   @map("benchmark_json")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([provider, modelId, version, capability], map: "ai_model_registry_unique")
+  @@map("ai_model_registry_entries")
+}
+

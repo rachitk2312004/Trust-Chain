@@ -8,3 +8,6 @@ cache
 typechain-types
 package-lock.json
 *.md
+services/ai
+**/.pytest_cache
+*.py

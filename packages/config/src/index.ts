@@ -342,3 +342,52 @@ export const MobileRateLimit = {
   windowMs: 5 * 60 * 1000,
   maxRequests: 20,
 } as const;
+
+/** Wave 9 — AI / OCR platform (advisory only). */
+export const AiIdPrefixes = {
+  ocrJob: "OCR-JOB",
+  aiJob: "AI-JOB",
+  embeddingJob: "EMBEDDING-JOB",
+  lineage: "LINEAGE",
+} as const;
+
+export const AiJobStates = {
+  pending: "pending",
+  processing: "processing",
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+} as const;
+
+export const AiReviewStates = {
+  pendingReview: "pending_review",
+  approved: "approved",
+  rejected: "rejected",
+  escalated: "escalated",
+} as const;
+
+export const OcrEngines = {
+  auto: "auto",
+  tesseract: "tesseract",
+  easyocr: "easyocr",
+  paddleocr: "paddleocr",
+  stub: "stub",
+} as const;
+
+export const AiModelProviders = {
+  openai: "openai",
+  gemini: "gemini",
+  local: "local",
+  stub: "stub",
+} as const;
+
+export const AiRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 30,
+} as const;
+
+export const AiEmbeddingDefaults = {
+  dimensions: 1536,
+  chunkSize: 800,
+  chunkOverlap: 100,
+} as const;

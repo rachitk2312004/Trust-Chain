@@ -207,7 +207,19 @@ async function main() {
   testQrPublicCodes();
   testQrPayloadVersions();
   testQrStatusEvaluation();
-  console.log("Wave 1–6 unit checks passed");
+  const {
+    testAiPublicCodes,
+    testConfidenceAndCost,
+    testForbiddenOperations,
+    testStubProcessors,
+    testJobAndReviewStates,
+  } = await import("../dist/modules/ai/tests/ai.unit.js");
+  testAiPublicCodes();
+  testConfidenceAndCost();
+  testForbiddenOperations();
+  testStubProcessors();
+  testJobAndReviewStates();
+  console.log("Wave 1–9 unit checks passed");
 }
 
 main().catch((error) => {

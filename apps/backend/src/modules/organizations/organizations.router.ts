@@ -37,6 +37,7 @@ import { organizationBlockchainRouter } from "../blockchain/blockchain.router.js
 import { organizationVerificationRouter } from "../verification/routes/verification.router.js";
 import { organizationPublicVerificationRouter } from "../public-verification/routes/publicVerification.router.js";
 import { organizationQrRouter } from "../qr/routes/qr.router.js";
+import { organizationAiRouter } from "../ai/routes/ai.router.js";
 
 export const organizationsRouter = Router();
 
@@ -46,6 +47,7 @@ organizationsRouter.use("/:id", organizationBlockchainRouter);
 organizationsRouter.use("/:id", organizationVerificationRouter);
 organizationsRouter.use("/:id", organizationPublicVerificationRouter);
 organizationsRouter.use("/:id", organizationQrRouter);
+organizationsRouter.use("/:id", organizationAiRouter);
 
 organizationsRouter.post(
   "/",
