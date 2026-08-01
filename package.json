@@ -8,10 +8,7 @@
   },
   "workspaces": [
     "packages/*",
-    "backend",
-    "web",
-    "mobile",
-    "extension",
+    "apps/*",
     "blockchain"
   ],
   "scripts": {
@@ -19,9 +16,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build": "npm run build -w @trustchain/config && npm run build --workspaces --if-present",
+    "build": "npm run build -w @trustchain/config && npm run db:generate && npm run build -w @trustchain/database && npm run build -w @trustchain/backend && npm run build --workspaces --if-present",
     "compile:contracts": "npm run compile -w @trustchain/blockchain",
-    "ci": "npm run lint && npm run format:check && npm run build -w @trustchain/config && npm run typecheck && npm run build -w @trustchain/backend && npm run build -w @trustchain/web && npm run build -w @trustchain/extension && npm run compile -w @trustchain/blockchain"
+    "migrate:up": "npm run db:migrate:deploy -w @trustchain/database",
+    "migrate:down": "echo \"Prisma does not support migrate down; use prisma migrate resolve / restore\"",
+    "db:generate": "npm run db:generate -w @trustchain/database",
+    "db:migrate": "npm run db:migrate -w @trustchain/database",
+    "db:seed": "npm run db:seed -w @trustchain/database",
+    "ci": "npm run lint && npm run format:check && npm run build -w @trustchain/config && npm run db:generate && npm run build -w @trustchain/database && npm run typecheck && npm run build -w @trustchain/backend && npm run test:unit -w @trustchain/backend && npm run build -w @trustchain/web && npm run build -w @trustchain/extension && npm run compile -w @trustchain/blockchain"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

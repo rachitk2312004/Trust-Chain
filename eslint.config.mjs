@@ -14,6 +14,7 @@ export default tseslint.config(
       "**/artifacts/**",
       "**/cache/**",
       "**/typechain-types/**",
+      "docs/archive/**",
       "package-lock.json",
     ],
   },
@@ -36,7 +37,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["web/**/*.{ts,tsx}", "extension/**/*.{ts,tsx}", "mobile/**/*.{ts,tsx}"],
+    files: ["apps/web/**/*.{ts,tsx}", "apps/extension/**/*.{ts,tsx}", "apps/mobile/**/*.{ts,tsx}"],
     languageOptions: {
       globals: {
         ...globals.browser,

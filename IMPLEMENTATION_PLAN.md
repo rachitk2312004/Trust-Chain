@@ -4,6 +4,8 @@
 
 TrustChain is a **multi-tenant document trust cloud**: organizations issue documents; anyone can verify authenticity via hash, QR, ID, upload, or public URL; integrity is anchored on an Ethereum-compatible chain; clients include web, mobile, extension, and public API.
 
+**Product architecture is unchanged** (modules, phases, platforms, and trust loop). Tooling and repository layout decisions below supersede earlier Docker / MinIO / raw-SQL choices.
+
 ```
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │  Web Portal │  │ Mobile Apps │  │  Extension  │  │ Public API  │
@@ -18,11 +20,29 @@ TrustChain is a **multi-tenant document trust cloud**: organizations issue docum
                     └────────────┬────────────┘
          ┌───────────┬───────────┼───────────┬───────────┐
          ▼           ▼           ▼           ▼           ▼
-    PostgreSQL   Object Store  Queue/Jobs  Blockchain  AI/OCR
-    (tenant DB)  (docs/PDF)    (email/SMS) (Solidity)  (optional)
+    PostgreSQL   Cloudflare R2  Redis*     Blockchain  AI/OCR
+    (Prisma)     (files only)   (optional) (Hardhat)   (optional)
 ```
 
+\* Redis is optional. It must not store permanent data (cache, queues, ephemeral rate limits only).
+
 **Core invariant:** Document bytes → content hash → on-chain record (issue / revoke / ownership). Verification always compares current hash + off-chain metadata (expiry, status) against chain state.
+
+**Blockchain rule:** Never store complete files on-chain. Store only hashes, metadata references, signatures, timestamps, and transaction IDs.
+
+---
+
+## 1.1 Locked stack decisions
+
+| Concern | Decision |
+|---------|----------|
+| Primary database | PostgreSQL |
+| ORM / schema SoT | Prisma (`packages/database`) |
+| Object storage | Cloudflare R2 |
+| Cache / queues | Redis (optional; non-permanent only) |
+| Email | Mailtrap **or** Gmail SMTP |
+| Blockchain | Hardhat + Solidity |
+| Local containers | **None** — no Docker, no Docker Compose, no MinIO |
 
 ---
 
@@ -46,100 +66,101 @@ Dependencies flow **bottom → top**. A module may not ship before its prerequis
 
 **Critical path (Phase 1):** Security → Auth → Org → Documents → Hash + Smart contracts → Verification + QR.
 
-**Reasoning:** Without identity and tenancy, documents have no owner. Without documents and hashes, blockchain and verification are empty. QR and certificate tooling are product surfaces on top of that trust loop. Mobile/extension reuse the same verification APIs. Enterprise/AI/integrations amplify an already stable core.
-
 ---
 
-## 3. Folder Structure (expanded from spec)
+## 3. Folder Structure
+
+Target monorepo layout (maintainable as the platform grows):
 
 ```
 trustchain/
-├── web/                      # React + TS + Tailwind portal
-│   ├── src/
-│   │   ├── app/              # routes, layouts
-│   │   ├── features/         # auth, orgs, docs, verify, certs, admin, analytics
-│   │   ├── shared/           # UI kit, hooks, api client
-│   │   └── lib/
-│   └── public/
-├── mobile/                   # Expo monorepo (Android + iOS)
-│   ├── app/                  # Expo Router screens
-│   ├── src/features/         # dashboard, wallet, scanner, history
-│   └── packages/shared/      # shared types/api with web where useful
-├── extension/                # Manifest V3
-│   ├── src/                  # background, content, popup
-│   └── manifests/            # chrome/edge/firefox variants if needed
-├── backend/
-│   ├── src/
-│   │   ├── modules/          # one folder per domain module
-│   │   ├── middleware/       # auth, rbac, rate-limit, tenant
-│   │   ├── jobs/             # notifications, expiry, chain sync
-│   │   ├── integrations/     # email, sms, storage, chain RPC
-│   │   └── app.ts
-│   └── tests/
-├── blockchain/
-│   ├── contracts/            # DocumentRegistry, ownership, revoke
-│   ├── scripts/              # deploy, verify, seed
-│   ├── test/
-│   └── abis/                 # consumed by backend
-├── database/
-│   ├── migrations/
-│   ├── seeds/
-│   └── schemas/              # ERD / SQL reference
-├── infrastructure/
-│   ├── docker/
-│   ├── k8s/ or terraform/    # choose one IaC style early
-│   └── ci/
-└── docs/
-    ├── api/                  # OpenAPI
-    ├── architecture/
-    └── runbooks/
+├── apps/
+│   ├── backend/              # Express + TypeScript API
+│   ├── web/                  # React + TypeScript + Tailwind
+│   ├── mobile/               # React Native (Expo)
+│   └── extension/            # Manifest V3 + React + TypeScript
+├── packages/
+│   ├── config/               # Shared env keys, ports, constants
+│   ├── database/             # Prisma schema + migrations (DB source of truth)
+│   ├── ui/                   # Shared UI primitives (web/extension as needed)
+│   └── types/                # Shared TypeScript types / API DTOs
+├── blockchain/               # Hardhat + Solidity
+├── docs/
+│   ├── api/
+│   ├── architecture/
+│   └── runbooks/
+└── infrastructure/
+    └── ci/                   # CI workflows (no local Docker Compose)
 ```
 
-**Reasoning:** Spec’s top-level split is correct. Expand by **domain modules** in backend (not by CRUD verbs) so Phase 2–4 features land without reorganizing. Keep blockchain and DB as first-class packages so chain ABIs and migrations version with the app.
+**Notes**
+
+- Prisma schema and Prisma migrations live in `packages/database` and are the **database source of truth**.
+- Application packages consume `@trustchain/database` (Prisma Client).
+- Cloudflare R2 holds PDFs, certificates, images, QR assets, and other uploads. PostgreSQL stores keys and metadata only.
+- Legacy top-level `backend/`, `web/`, `mobile/`, `extension/`, and `database/` paths are transitional until the apps/packages move is completed; this plan defines the target layout.
 
 ---
 
-## 4. Database Plan (PostgreSQL)
+## 4. Database Plan (PostgreSQL + Prisma)
 
 ### 4.1 Multi-tenancy model
 
-- **Shared DB, `organization_id` on all tenant rows** for Phase 1–3 (simpler ops, fits SaaS).
-- Row-level enforcement in middleware + DB constraints.
-- Phase 4 (M15): optional schema-per-tenant or DB-per-enterprise for white-label / compliance customers.
+- Shared database, `organizationId` on tenant rows (Phase 1–3).
+- Enforcement in middleware + Prisma queries.
+- Phase 4 (M15): optional stronger isolation for enterprise.
 
-### 4.2 Core entity groups
+### 4.2 Prisma as source of truth
 
-| Domain | Primary tables | Notes |
+- Models, indexes, relations, and enums are defined in `packages/database/prisma/schema.prisma`.
+- Schema changes ship only via `prisma migrate`.
+- No hand-written SQL migration plans for new work.
+- Seeds use Prisma seed scripts when needed.
+
+### 4.3 Core entity groups
+
+| Domain | Primary models | Notes |
 |--------|----------------|-------|
-| Identity | `users`, `credentials`, `sessions`, `devices`, `mfa_factors`, `email_tokens`, `roles`, `role_bindings` | Soft-delete users; sessions hashed |
-| Org | `organizations`, `branches`, `departments`, `memberships`, `invitations`, `branding`, `bulk_import_jobs` | Hierarchy via parent refs |
-| Documents | `documents`, `document_versions`, `document_files`, `categories`, `tags`, `document_tags`, `shares`, `archives` | Content in object storage; DB stores metadata + hash |
-| Chain | `blockchain_anchors`, `chain_txs`, `revocations` | Map `document_version_id` → tx hash, block, network |
-| Verify / QR | `verification_events`, `qr_codes`, `qr_scans` | High write volume; partition by month later |
-| Certs / Sign | `templates`, `template_assets`, `signature_requests`, `signatures` | |
-| Audit / Notif | `audit_logs`, `notification_outbox`, `notification_deliveries` | Append-only audit |
-| API / Enterprise | `api_keys`, `webhooks`, `webhook_deliveries`, `sso_configs`, `ip_allowlists` | |
-| Reputation | `trust_scores` (or materialized views) | Derived from events |
+| Identity | User, Session, Device, MfaFactor, EmailToken, Role, RoleBinding | Soft-delete users; refresh tokens hashed |
+| Org | Organization, Branch, Department, Membership, Invitation, OrganizationBranding, BulkImportJob | Hierarchy via parent org |
+| Documents | Document, DocumentVersion, … | Metadata + content hash in Postgres; bytes in R2 |
+| Chain | BlockchainAnchor, ChainTx, Revocation | Hash, tx id, timestamps, status — never file bytes |
+| Verify / QR | VerificationEvent, QrCode, QrScan | |
+| Certs / Sign | Template, SignatureRequest, Signature | |
+| Audit / Notif | AuditLog, NotificationOutbox, … | Append-only audit |
+| API / Enterprise | ApiKey, Webhook, SsoConfig, … | |
+| Reputation | TrustScore (or materialized views) | Derived |
 
-### 4.3 Storage split
+### 4.4 Required indexes (apply in Prisma schema)
+
+- `User.email` (unique where not deleted)
+- `Organization.slug` (unique)
+- `Session.userId`
+- `Device.userId`
+- `Membership.organizationId`
+- `Invitation.email`
+- `EmailToken.tokenHash`
+- `RoleBinding.userId`
+
+### 4.5 Storage split
 
 - **PostgreSQL:** metadata, hashes, RBAC, audit, analytics aggregates.
-- **Object storage (S3-compatible):** PDF/DOCX/images; encrypt at rest (AES per M16).
-- **Never store raw private keys in DB;** use KMS / wallet service for chain signing.
+- **Cloudflare R2:** uploaded files (PDFs, images, certificates, QR assets, import CSVs).
+- **Redis (optional):** ephemeral cache/queues/rate limits only — never source of truth.
+- **Never store raw chain private keys in DB;** use secure secret storage for the relayer.
 
-### 4.4 Indexing & search (M11)
+### 4.6 Blockchain data policy
 
-- Phase 1–2: Postgres `ILIKE` + GIN on tags/metadata; unique indexes on `verification_id`, `content_hash`, `qr_token`.
-- Phase 4: optional OpenSearch/Elastic if smart search + AI demand it (M17).
+On-chain and chain-related DB rows may contain only:
 
-### 4.5 Complexity & risks
+- Content hashes
+- Metadata references
+- Signatures
+- Timestamps
+- Transaction IDs / block references
+- Revocation / ownership status
 
-| Item | Complexity | Risk |
-|------|------------|------|
-| Tenant isolation bugs | High | Data leak across orgs — mitigate with automated tenancy tests |
-| Audit volume | Medium | Table growth — partition early for `audit_logs` / `verification_events` |
-| Hash uniqueness | Medium | Same file across orgs — scope unique hash per org or global with org link |
-| Soft delete vs legal hold | Medium | Define retention policy before archive/restore ships |
+Never store complete documents or file payloads on the blockchain.
 
 ---
 
@@ -148,378 +169,245 @@ trustchain/
 ### 5.1 Design principles
 
 - Versioned REST: `/api/v1/...`
-- Auth: JWT (session) for portal/mobile; API keys for M20; SSO later (M15).
-- Every authenticated route resolves **tenant + role** before handler.
-- Idempotent writes for issue/revoke/anchor where possible (`Idempotency-Key`).
-- OpenAPI as source of truth from Phase 1; SDKs generated in Phase 4.
+- Auth: JWT access + hashed refresh sessions in PostgreSQL
+- Every authenticated route resolves tenant + role
+- OpenAPI grows with each wave
 
 ### 5.2 API surface by phase
 
 **Phase 1 – Core**
-- Auth: register, login, logout, refresh, password reset, email verify, MFA enroll/verify, devices, sessions
+
+- Auth: register, login, logout, refresh, password reset, email verify, MFA, devices, sessions
 - Orgs: CRUD org/branch/dept, invite, members, branding, bulk import
-- Documents: upload, metadata, versions, archive/restore, categories/tags, share ACL
-- Blockchain: anchor document, get on-chain status, revoke (admin/issuer)
-- Internal health, admin bootstrap (super admin)
+- Documents / chain APIs follow in later waves after identity/org is stable
 
-**Phase 2 – Trust UX**
-- Verify: by ID, hash, file upload, public URL token
-- QR: create static/dynamic, download, analytics
-- Notifications: preferences, test send (admin)
-- Analytics: verification trends, geo aggregates
-- Audit/search: filtered activity and document search
-- Certificates & signatures: templates, generate, signature request flows
+**Phase 2 – Trust UX** — verification, QR, notifications, analytics, audit/search, certificates/signatures
 
-**Phase 3 – Client-oriented**
-- Wallet: list credentials, share links, temporary access
-- Mobile-specific: push token register, optimized verify endpoints
-- Extension: lightweight verify + trust score lookup
+**Phase 3 – Clients** — wallet, mobile, extension endpoints
 
-**Phase 4 – Platform**
-- Public API keys, rate limits, webhooks
-- Enterprise: SSO/LDAP/AD config, custom domains, white-label flags
-- AI: OCR, duplicate/fraud hints, summaries (async jobs)
-- Integrations: OAuth connectors for Drive/Gmail/etc.
-- Reputation: score read APIs
+**Phase 4 – Platform** — public API keys, webhooks, enterprise, AI, integrations, reputation
 
-### 5.3 Cross-cutting API concerns
+### 5.3 Cross-cutting
 
 | Concern | Approach |
 |---------|----------|
-| Rate limiting | Per user + per API key + per IP on public verify |
-| File upload | Presigned URLs to object storage; virus scan hook (M16) |
-| Public verify | Unauthenticated but heavily rate-limited; no PII leakage in responses |
-| Webhooks | Signed payloads, retry with backoff, delivery log |
-| Errors | Stable error codes (`DOC_EXPIRED`, `DOC_REVOKED`, `DOC_TAMPERED`) matching M5 outputs |
-
-**Complexity:** High for upload + ACL + chain consistency. **Risk:** Public verify endpoints become abuse vectors — plan CDN/WAF and CAPTCHA thresholds early.
+| Rate limiting | Prefer Postgres/app limits first; optional Redis later |
+| File upload | Presigned URLs to Cloudflare R2 |
+| Email | SMTP via Mailtrap (dev/staging) or Gmail SMTP (configured accounts) |
+| Errors | Stable codes (`DOC_EXPIRED`, `DOC_REVOKED`, `DOC_TAMPERED`, …) |
 
 ---
 
 ## 6. Blockchain Plan
 
-### 6.1 Role of the chain
-
-On-chain is the **integrity and revocation authority**, not document storage.
-
-Store on-chain (minimal):
-- Content hash (bytes32)
-- Issuer / organization identifier (address or hashed org id)
-- Issued timestamp (block time + optional explicit)
-- Status: active / revoked
-- Optional: document type code, expiry hash commitment (or keep expiry off-chain and verify off-chain after hash match)
-
-### 6.2 Contracts (recommended)
-
-1. **`DocumentRegistry`** — `issue(hash, metadataRef)`, `revoke(hash)`, `isValid(hash)`, events `Issued` / `Revoked`
-2. **`AccessControl` / Ownable pattern** — org issuer wallets or backend relayer roles
-3. Optional later: **batch issue** for certificate batch generation (M7)
-
-### 6.3 Operational model
-
-- **Backend-controlled relayer wallet** for Phase 1 (orgs don’t manage gas). Gas billed as SaaS usage later.
-- Network: Ethereum-compatible L2 (lower cost) — decide before mainnet (e.g. Polygon, Base, or private permissioned chain for gov customers).
-- Backend writes `blockchain_anchors` after confirmed tx; verification reads DB first, then optionally re-checks RPC for high-assurance mode.
-- Explorer UI (M4): link tx hashes to block explorer + internal event timeline.
-
-### 6.4 Verification engine alignment (M5)
-
-| Result | Logic |
-|--------|-------|
-| Verified | Hash matches + on-chain active + not past expiry |
-| Revoked | On-chain or DB revoke flag |
-| Expired | Off-chain expiry (or on-chain if stored) |
-| Tampered | Uploaded file hash ≠ anchored hash |
-
-### 6.5 Complexity & risks
-
-| Risk | Mitigation |
-|------|------------|
-| Gas cost / throughput | Batch txs, L2, queue anchoring async |
-| Chain reorgs | Wait N confirmations before marking anchored |
-| Key compromise | HSM/KMS, rotate relayer, pause contract |
-| “Blockchain theater” | Keep hash + revoke as real product truth; don’t overclaim immutability of metadata |
-
-**Complexity:** High (contracts + ops + async confirmation). Ship **testnet + local Hardhat** in Phase 1 before mainnet.
+- Hardhat + Solidity on an Ethereum-compatible network
+- `DocumentRegistry` (and related) store hash / status / events only
+- Backend relayer for early phases
+- Explorer links use transaction IDs — never file contents
 
 ---
 
 ## 7. Mobile Application Plan (M21 / M22)
 
-### 7.1 Strategy
-
-- **Single Expo (React Native) codebase** for Android and iOS.
-- Feature parity where possible; platform-specific: secure enclave storage, camera permissions, push (FCM/APNs).
-
-### 7.2 Feature mapping
-
-| Spec feature | Shared module | Notes |
-|--------------|---------------|-------|
-| Dashboard | Auth + org context + recent docs/verifications | After Phase 1 APIs stable |
-| Wallet (M18) | Credential list, share, temp links, QR | Depends on issued docs + verify IDs |
-| QR scanner | Camera → decode → verify API | Core Phase 3 MVP |
-| Notifications | Push + in-app | Needs M12 |
-| Verification history | M9 API | |
-| Search / secure sharing | Deep links + ACL | iOS emphasis in spec; ship both |
-
-### 7.3 Delivery order
-
-1. Auth + session refresh + biometric unlock  
-2. Public/verify flow + QR scanner (highest unique mobile value)  
-3. Wallet + sharing  
-4. Dashboard + history + push  
-5. Polish: offline cache of last verifications, deep links from email
-
-### 7.4 Risks
-
-- Camera/QR reliability across devices — invest in QA matrix early.  
-- Token storage security — use secure store, short-lived access tokens.  
-- Drift from web API — generate shared TypeScript types from OpenAPI.
-
-**Complexity:** Medium–High (scanner + wallet + push). Start after Phase 2 verification APIs are frozen.
+Unchanged product scope: single Expo app for Android/iOS; dashboard, wallet, QR scanner, notifications, history. Lives under `apps/mobile`.
 
 ---
 
 ## 8. Browser Extension Plan (M19)
 
-### 8.1 Architecture (MV3)
-
-- **Service worker:** API calls, caching trust scores  
-- **Content script:** page QR detection, selection/right-click hooks  
-- **Popup:** verify result, trust score, link to portal  
-
-Browsers: Chrome, Edge (Chromium shared), Firefox (separate build/permissions as needed).
-
-### 8.2 Features → implementation notes
-
-| Feature | Approach |
-|---------|----------|
-| Right-click verification | Context menu on selection/link/image URL → hash or ID extract → verify API |
-| QR detection | Scan images in page / canvas decode (careful with performance) |
-| Trust score | Call M24 when available; until then show verification status only |
-| Blockchain lookup | Display tx/explorer link from verify response |
-
-### 8.3 Security constraints
-
-- Minimal permissions; no broad `<all_urls>` unless required.  
-- Never embed API secrets; use user session or limited public verify endpoints.  
-- CSP and MV3 remote-code restrictions — no eval of remote scripts.
-
-### 8.4 Order
-
-1. Popup verify by ID/hash  
-2. Context menu verify  
-3. In-page QR detect  
-4. Trust score + explorer deep link  
-5. Firefox packaging  
-
-**Complexity:** Medium. **Risk:** Store review policies and QR false positives. Depends on stable public verify API (Phase 2).
+Unchanged product scope: MV3 Chrome/Edge/Firefox; verify, QR detect, trust score, chain lookup. Lives under `apps/extension`.
 
 ---
 
 ## 9. Deployment Plan
 
-### 9.1 Environments
+### 9.1 Environments (no local Docker Compose)
 
 | Env | Purpose |
 |-----|---------|
-| Local | Docker Compose: Postgres, MinIO/S3, mailhog, chain local node |
-| Staging | Full stack + testnet blockchain |
-| Production | Multi-AZ app, managed Postgres, object storage, CDN, WAF |
+| Local | Managed/local PostgreSQL; Cloudflare R2 bucket; Mailtrap or Gmail SMTP; Hardhat node; optional Redis |
+| Staging | Full stack + testnet + R2 + Mailtrap (or staging SMTP) |
+| Production | Managed PostgreSQL, Cloudflare R2, CDN/WAF, optional Redis, mainnet/L2 |
 
 ### 9.2 Runtime topology
 
-- **API:** containerized Node/Express behind load balancer  
-- **Workers:** separate process for jobs (anchor txs, email/SMS, OCR, webhooks)  
-- **Web:** static build on CDN  
-- **Mobile:** Expo EAS build channels (preview/production)  
-- **Extension:** store-published builds from CI artifacts  
-- **Secrets:** vault/KMS; never in images  
+- API: Node/Express (hosted containers or PaaS — CI may use GitHub service containers; developers do not rely on repo Docker Compose)
+- Workers: jobs for email, chain confirmations, imports
+- Web: static CDN
+- Mobile: Expo EAS
+- Extension: store builds from CI
+- Secrets: environment / secret manager
 
 ### 9.3 CI/CD gates
 
-1. Lint/typecheck/unit tests  
-2. Contract tests + migration dry-run  
-3. Integration tests against Compose  
-4. Deploy staging → smoke verify endpoints  
+1. Lint / typecheck / unit tests  
+2. `prisma migrate` / `prisma validate`  
+3. Integration tests against CI Postgres service  
+4. Staging deploy + smoke  
 5. Production deploy with rollback  
-
-### 9.4 Observability & security ops
-
-- Structured logs + audit trail retention  
-- Metrics: verify latency, chain pending queue, upload failures  
-- Backup: Postgres PITR + object storage versioning (M16)  
-- IP allowlists for admin (M16)  
-
-**Complexity:** High for multi-platform release trains. **Risk:** Chain RPC outages — verification must degrade gracefully using last known DB anchor state with clear UI caveats.
 
 ---
 
 ## 10. Development Roadmap (aligned to spec phases)
 
-### Phase 1 – Trust foundation  
-**Goal:** An org can register, upload a document, anchor its hash, and an admin can revoke it.
+### Phase 1 – Trust foundation
 
-| Milestone | Outcomes | Est. complexity |
-|-----------|----------|-----------------|
-| M1.0 Foundation | Repo layout, CI, Compose, migrations baseline, security middleware skeleton | M |
-| M1.1 Auth | Registration→MFA→sessions→RBAC roles | H |
-| M1.2 Organizations | Hierarchy, invites, branding, bulk import | H |
-| M1.3 Documents | Upload pipeline, versions, metadata, archive, tags | H |
-| M1.4 Blockchain | Contracts, relayer, anchor/revoke, explorer basics | H |
-| **Phase 1 exit** | E2E: issue → on-chain → revoke on testnet | — |
+Auth → Organizations → Documents → Blockchain integration
 
-### Phase 2 – Verify & operate  
-**Goal:** Anyone can verify; issuers get QR, analytics, notifications.
+### Phase 2 – Verify & operate
 
-| Milestone | Outcomes | Est. complexity |
-|-----------|----------|-----------------|
-| M2.1 Verification engine | All 5 methods + 4 outcomes | H |
-| M2.2 QR system | Static/dynamic, print/download, analytics | M |
-| M2.3 Certs + signatures | Templates, batch PDF, multi-sign flows | H |
-| M2.4 History, audit, search | Fraud alerts, searchable logs | M |
-| M2.5 Notifications + analytics | Email/SMS/push hooks, reports/heatmaps | M–H |
-| M2.6 Admin platform | Super-admin ops, storage/chain monitoring | M |
-| **Phase 2 exit** | Public verify URL + QR on issued certificate | — |
+Verification, QR, analytics, notifications
 
-### Phase 3 – Clients  
-**Goal:** Mobile + extension as first-class verify/wallet clients.
+### Phase 3 – Clients
 
-| Milestone | Outcomes | Est. complexity |
-|-----------|----------|-----------------|
-| M3.1 Mobile MVP | Auth, scanner, verify, history | H |
-| M3.2 Digital wallet | Credentials, share links, QR | M |
-| M3.3 Mobile GA | Push, dashboard, iOS/Android store readiness | H |
-| M3.4 Extension MVP→GA | Context menu, QR detect, trust display | M |
-| **Phase 3 exit** | Store builds + extension listing candidates | — |
+Android, iOS, browser extension
 
-### Phase 4 – Platform & enterprise  
-**Goal:** API product, AI assist, enterprise tenancy.
+### Phase 4 – Platform & enterprise
 
-| Milestone | Outcomes | Est. complexity |
-|-----------|----------|-----------------|
-| M4.1 Public API | Keys, rate limits, OpenAPI, SDKs, webhooks | H |
-| M4.2 Reputation engine | Trust/risk/fraud/activity scores | M |
-| M4.3 AI layer | OCR, duplicate/fraud, smart search, summaries | H |
-| M4.4 Enterprise | SSO/LDAP/AD, white-label, custom domains, multi-tenancy hardening | H |
-| M4.5 Integrations | Drive/Gmail/Outlook/WhatsApp/ERP/HRMS (prioritize by customer) | H |
-| **Phase 4 exit** | External integrator can issue+verify via API; enterprise pilot | — |
+Public API, AI, enterprise features
 
 ---
 
 ## 11. Task Breakdown (dependency order)
 
-Complexity: **S** small · **M** medium · **H** high · **XL** extra-high  
+### Wave 0 – Foundations
 
-### Wave 0 – Foundations  
-1. Monorepo/tooling, env standards, Docker Compose — **M**  
-2. Postgres schema v1 + migration tooling — **M**  
-3. Object storage + AES encryption strategy — **M**  
-4. Express app skeleton, logging, error model, tenancy middleware — **M**  
-5. CI pipeline (test + lint) — **S**  
+1. Monorepo under `apps/` + `packages/` (npm workspaces), env standards — **M**  
+2. `packages/database` Prisma init + PostgreSQL connection — **M**  
+3. Cloudflare R2 client wiring (presign/upload) — **M**  
+4. Express app skeleton in `apps/backend` — **M**  
+5. CI pipeline (lint/typecheck/build/prisma) — **S**  
 
-### Wave 1 – Identity & org  
-6. User registration/login/password reset/email verify — **M**  
-7. Sessions, devices, logout — **M**  
+### Wave 1 – Identity & org (regenerated — see §16)
+
+6. Registration / login / password reset / email verify — **M**  
+7. Sessions, devices, logout, refresh — **M**  
 8. MFA — **M**  
 9. RBAC (4 roles) — **M**  
 10. Organization CRUD + hierarchy — **M**  
-11. Branches/departments/employees/invites — **M**  
-12. Branding + bulk import — **M**  
+11. Branches / departments / members / invites — **M**  
+12. Branding (R2 logos) + bulk import — **M**  
 
-### Wave 2 – Documents  
-13. Upload (PDF/image/DOCX) + malware scan hook — **H**  
-14. Metadata, categories, tags, search (basic) — **M**  
-15. Version history, archive/restore, expiry — **M**  
-16. Sharing controls — **M**  
+### Waves 2–7
 
-### Wave 3 – Chain & verify core  
-17. Hash pipeline (canonicalization rules for DOCX/PDF) — **H**  
-18. Smart contracts + tests + deploy scripts — **H**  
-19. Anchor + revoke workers + confirmation watcher — **H**  
-20. Verification engine (ID/hash/file/URL) — **H**  
-21. QR static/dynamic + embed in docs — **M**  
-
-### Wave 4 – Issuance product  
-22. Certificate templates + drag-drop editor — **XL**  
-23. Watermark, QR embed, PDF export, batch — **H**  
-24. Digital signature requests/validation/multi-sign — **H**  
-
-### Wave 5 – Ops & insight  
-25. Verification history + geo/device — **M**  
-26. Audit log system — **M**  
-27. Advanced search — **M**  
-28. Notifications (email → SMS → push) — **H**  
-29. Analytics platform — **H**  
-30. Admin platform — **M**  
-
-### Wave 6 – Clients  
-31. Wallet APIs — **M**  
-32. Mobile app shells + auth — **M**  
-33. Mobile QR verify + history — **H**  
-34. Mobile wallet + sharing + push — **H**  
-35. Extension MV3 verify flows — **M**  
-36. Extension QR detection + packaging — **M**  
-
-### Wave 7 – Platform  
-37. Public API keys, rate limits, docs, webhooks — **H**  
-38. Reputation scores — **M**  
-39. AI OCR + fraud/duplicate + assistant — **XL**  
-40. SSO/LDAP/AD + white-label + custom domains — **XL**  
-41. Integrations (prioritized backlog) — **XL**  
+Unchanged product sequencing (documents → chain/verify → issuance → ops → clients → platform).
 
 ---
 
-## 12. Cross-Cutting Risks (program level)
+## 12. Cross-Cutting Risks
 
-| Risk | Impact | Why it matters | Mitigation |
-|------|--------|----------------|------------|
-| Hash instability (PDF/DOCX non-determinism) | Critical | False “tampered” results destroy trust | Define canonical hash inputs; prefer hashing stored immutable bytes, not re-export |
-| Premature multi-platform scope | High | Dilutes Phase 1 | Freeze web+API+chain first; mobile only after verify API stable |
-| Relayer key / gas economics | High | Outage or cost blowup | Queue, budgets, pause switch, L2 choice |
-| Tenant data isolation | Critical | Enterprise deal-breaker | Mandatory integration tests per query path |
-| Certificate editor scope | High | Can consume Phase 2 alone | Ship template-based generation before full drag-drop |
-| AI/OCR accuracy expectations | Medium | Support burden | Position as assistive; human review for fraud flags |
-| Integration explosion (M23) | Medium | Never-ending surface | Customer-driven priority; webhook-first generic pattern |
+| Risk | Mitigation |
+|------|------------|
+| Hash instability | Hash immutable R2 object bytes |
+| Tenant isolation | Prisma queries always scoped; tests |
+| Prisma drift | Schema-only changes via migrate; no parallel raw SQL |
+| Redis misuse | Optional; ban permanent entities in Redis |
+| Relayer / gas | L2, queues, pause switch |
 
 ---
 
-## 13. Decision Log (recommended defaults)
+## 13. Decision Log
 
-| Decision | Recommendation | Reasoning |
-|----------|----------------|-----------|
-| Tenancy | Shared schema + `organization_id` first | Faster Phase 1; isolate later for enterprise |
-| Chain | L2 testnet → production L2 | Cost and throughput for document volume |
-| Issuance signing | Backend relayer Phase 1 | Removes wallet UX friction for universities/HR |
-| Mobile | Expo unified app | Spec lists both OS; one team can ship both |
-| Search | Postgres first | Avoid ops cost until AI/smart search needs it |
-| Cert editor | Templates MVP → drag-drop later | Reduces XL risk on critical path |
-| Public verify | Separate edge-friendly service path | Protects core API from scrape/abuse |
-| Integrations | Webhooks before deep Gmail/Drive | M20 webhooks unlock many workflows without OAuth sprawl |
-
----
-
-## 14. Suggested team sequencing (staffing lens)
-
-1. **Platform + backend** owns Waves 0–3 (critical path).  
-2. **Web** parallels Auth/Org/Docs UI as APIs land.  
-3. **Blockchain** engineer embeds in Wave 3, then support mode.  
-4. **Mobile + extension** start at end of Phase 2 (API freeze).  
-5. **AI / enterprise / integrations** only after Phase 3 revenue path exists.
+| Decision | Choice | Reasoning |
+|----------|--------|-----------|
+| Database | PostgreSQL | Spec + relational tenancy/RBAC |
+| ORM | Prisma | Schema as SoT; typed client; migrations |
+| Object storage | Cloudflare R2 | Production file store; no MinIO |
+| Redis | Optional | Cache/queues later; never permanent |
+| Email | Mailtrap or Gmail SMTP | Simple SMTP path without local mail containers |
+| Blockchain | Hardhat | Spec Ethereum-compatible tooling |
+| Containers | Removed | No Docker / Compose in this repo workflow |
+| Repo layout | `apps/` + `packages/` | Clearer growth path |
+| Tenancy | Shared schema + org id | Faster early phases |
+| Chain payload | Hash/metadata/tx only | Trust without storing files on-chain |
 
 ---
 
-## 15. Definition of Done per phase (acceptance)
+## 14. Suggested team sequencing
 
-- **Phase 1:** Org admin uploads PDF → hash anchored on testnet → second party sees Valid → admin revokes → shows Revoked. Audit log entries exist.  
-- **Phase 2:** Public verify URL + QR on issued certificate verifies in under 3s; expiry and tamper paths covered; notification on revoke; basic analytics dashboard.  
-- **Phase 3:** Android/iOS scan QR to same result as web; extension verifies page hash/ID; wallet holds issued credential.  
-- **Phase 4:** Third party issues via API key; webhook on verify; one SSO enterprise pilot; OCR extracts fields into metadata.
+1. Platform + backend (Prisma + auth/org critical path)  
+2. Web against stable `/api/v1`  
+3. Blockchain in document/verify waves  
+4. Mobile + extension after verify API freeze  
+5. AI / enterprise / integrations after client revenue path  
+
+---
+
+## 15. Definition of Done per phase
+
+- **Phase 1:** Issue → anchor hash on testnet → verify → revoke (files in R2; hash on-chain).  
+- **Phase 2:** Public verify + QR under 3s; expiry/tamper; revoke notification.  
+- **Phase 3:** Mobile scan + extension verify + wallet credential.  
+- **Phase 4:** External API issue/verify; SSO pilot; OCR assist.  
+
+---
+
+## 16. Regenerated Wave 1 Implementation Plan
+
+### 16.1 Goals
+
+API-first identity and organization platform:
+
+- Auth: register, login, logout, refresh, email verification, password reset, sessions, devices, MFA, RBAC  
+- Orgs: organizations, departments, branches, invitations, branding, bulk import  
+- PostgreSQL via **Prisma**  
+- Files (logos, import CSVs) in **Cloudflare R2**  
+- Email via **Mailtrap or Gmail SMTP**  
+- Redis optional and unused for Wave 1 application logic  
+- No Docker / Compose / MinIO  
+
+### 16.2 Prisma models (Wave 1)
+
+Define in `packages/database/prisma/schema.prisma`:
+
+- User, Session, Device, MfaFactor, MfaLoginChallenge, EmailToken  
+- Role, RoleBinding  
+- Organization, Branch, Department, Membership, Invitation  
+- OrganizationBranding, BulkImportJob  
+
+Indexes (mandatory):
+
+- users(email), organizations(slug), sessions(userId), devices(userId)  
+- memberships(organizationId), invitations(email), email_tokens(tokenHash), role_bindings(userId)  
+
+### 16.3 Ordered steps
+
+1. **Repo layout alignment** — `apps/*`, `packages/database|config|types|ui`; workspace scripts  
+2. **Prisma package** — schema + migrate + generate; seed four roles  
+3. **Backend foundations** — pool via Prisma Client, errors, `/api/v1`, auth middleware stubs  
+4. **Auth core** — register/login/email/password (Argon2id, SMTP)  
+5. **Sessions / devices / refresh / logout** — hashed refresh in Postgres  
+6. **MFA TOTP** — encrypted secrets; login challenge  
+7. **RBAC** — four roles; `requireRole`; `GET /me`  
+8. **Organizations + hierarchy** — creator becomes org_admin  
+9. **Branches, departments, members, invitations**  
+10. **Branding + R2** — logo object keys; presigned upload  
+11. **Bulk import** — CSV → memberships/invites; source/error objects in R2  
+12. **Verify** — unit/integration checks; CI runs `prisma migrate` + build  
+
+### 16.4 Explicit non-goals (Wave 1)
+
+- Documents, verification, QR, certificates, chain contracts  
+- Redis-backed sessions/queues  
+- MinIO / Docker Compose  
+- Cloudinary  
+- Web/mobile feature UIs beyond API-first backend  
+
+### 16.5 Transition note
+
+Earlier Wave 1 work used `node-pg-migrate` SQL and MinIO-oriented env. Going forward:
+
+1. Prisma schema becomes authoritative.  
+2. New migrations are Prisma-only.  
+3. Object storage env and clients target Cloudflare R2.  
+4. Docker Compose and MinIO are removed from the repository workflow.  
 
 ---
 
 ## Next build slice
 
-When implementation starts, the first build slice should be **Wave 0 + Auth (tasks 1–9)** with no mobile/extension/AI work until the document→hash→chain loop exists.
-
-This plan stays within the two specification files: 24 modules, four phases, stated stack, and the `trustchain/` top-level layout — expanded only where needed for dependency order, data, APIs, chain, clients, and deployment.
+1. Align monorepo to `apps/` + `packages/`  
+2. Establish `packages/database` Prisma schema (Wave 1 models + indexes)  
+3. Point backend data access at Prisma  
+4. Point object storage at Cloudflare R2  
+5. Continue product waves without changing module architecture  

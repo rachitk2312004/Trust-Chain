@@ -1,3 +1,5 @@
 # Migrations
 
-Domain migrations are introduced in Wave 1 (schema v1). This directory is reserved for versioned SQL migration files.
+Active migrations: `packages/database/prisma/migrations`.
+
+Archived legacy migrations: `docs/archive/legacy-node-pg-migrations/`.

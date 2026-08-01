@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Wave 1 identity & organization schema.
+/// Column and table names preserve the existing PostgreSQL shape via @map / @@map.
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String
+  passwordHash    String    @map("password_hash")
+  firstName       String?   @map("first_name")
+  lastName        String?   @map("last_name")
+  status          String    @default("active")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  devices            Device[]
+  sessions           Session[]
+  mfaFactors         MfaFactor[]
+  emailTokens        EmailToken[]
+  roleBindings       RoleBinding[]
+  memberships        Membership[]
+  invitationsSent    Invitation[]       @relation("InvitationInvitedBy")
+  bulkImportJobs     BulkImportJob[]
+  mfaLoginChallenges MfaLoginChallenge[]
+
+  @@index([email], map: "users_email_idx")
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roleBindings RoleBinding[]
+
+  @@map("roles")
+}
+
+model Organization {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String
+  slug                 String
+  parentOrganizationId String? @map("parent_organization_id") @db.Uuid
+  status               String  @default("active")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent       Organization?  @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children     Organization[] @relation("OrgHierarchy")
+  branches     Branch[]
+  departments  Department[]
+  memberships  Membership[]
+  invitations  Invitation[]
+  roleBindings RoleBinding[]
+  branding     OrganizationBranding?
+  bulkImports  BulkImportJob[]
+
+  @@unique([slug], map: "organizations_slug_unique_idx")
+  @@index([slug], map: "organizations_slug_idx")
+  @@index([parentOrganizationId], map: "organizations_parent_idx")
+  @@map("organizations")
+}
+
+model Device {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  name        String?
+  fingerprint String?
+  userAgent   String?   @map("user_agent")
+  trusted     Boolean   @default(false)
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@index([userId], map: "devices_user_id_idx")
+  @@map("devices")
+}
+
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  deviceId         String?   @map("device_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  ip               Unsupported("inet")?
+  userAgent        String?   @map("user_agent")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "sessions_user_id_idx")
+  @@index([refreshTokenHash], map: "sessions_refresh_token_hash_idx")
+  @@index([expiresAt], map: "sessions_expires_at_idx")
+  @@map("sessions")
+}
+
+model MfaFactor {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  type            String    @default("totp")
+  secretEncrypted String    @map("secret_encrypted")
+  verifiedAt      DateTime? @map("verified_at") @db.Timestamptz(6)
+  disabledAt      DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "mfa_factors_user_id_idx")
+  @@map("mfa_factors")
+}
+
+model MfaLoginChallenge {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash], map: "mfa_login_challenges_token_hash_idx")
+  @@index([userId], map: "mfa_login_challenges_user_id_idx")
+  @@map("mfa_login_challenges")
+}
+
+model EmailToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  purpose   String
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash], map: "email_tokens_token_hash_idx")
+  @@index([userId], map: "email_tokens_user_id_idx")
+  @@map("email_tokens")
+}
+
+model RoleBinding {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, organizationId])
+  @@index([userId], map: "role_bindings_user_id_idx")
+  @@index([organizationId], map: "role_bindings_organization_id_idx")
+  @@map("role_bindings")
+}
+
+model Branch {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  code           String?
+  addressLine1   String?  @map("address_line1")
+  addressLine2   String?  @map("address_line2")
+  city           String?
+  region         String?
+  postalCode     String?  @map("postal_code")
+  country        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departments  Department[]
+  memberships  Membership[]
+  invitations  Invitation[]
+
+  @@index([organizationId], map: "branches_organization_id_idx")
+  @@map("branches")
+}
+
+model Department {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  branchId       String?  @map("branch_id") @db.Uuid
+  name           String
+  code           String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  memberships  Membership[]
+  invitations  Invitation[]
+
+  @@index([organizationId], map: "departments_organization_id_idx")
+  @@index([branchId], map: "departments_branch_id_idx")
+  @@map("departments")
+}
+
+model Membership {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  branchId       String?  @map("branch_id") @db.Uuid
+  departmentId   String?  @map("department_id") @db.Uuid
+  title          String?
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId], map: "memberships_organization_id_idx")
+  @@index([userId], map: "memberships_user_id_idx")
+  @@map("memberships")
+}
+
+model Invitation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String
+  roleKey        String    @map("role_key")
+  tokenHash      String    @map("token_hash")
+  invitedBy      String?   @map("invited_by") @db.Uuid
+  branchId       String?   @map("branch_id") @db.Uuid
+  departmentId   String?   @map("department_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User?        @relation("InvitationInvitedBy", fields: [invitedBy], references: [id], onDelete: SetNull)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([email], map: "invitations_email_idx")
+  @@index([organizationId], map: "invitations_organization_id_idx")
+  @@index([tokenHash], map: "invitations_token_hash_idx")
+  @@map("invitations")
+}
+
+model OrganizationBranding {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  displayName    String?  @map("display_name")
+  logoObjectKey  String?  @map("logo_object_key")
+  primaryColor   String?  @map("primary_color")
+  secondaryColor String?  @map("secondary_color")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_branding")
+}
+
+model BulkImportJob {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  createdBy            String?   @map("created_by") @db.Uuid
+  sourceObjectKey      String    @map("source_object_key")
+  errorReportObjectKey String?   @map("error_report_object_key")
+  status               String    @default("pending")
+  totalRows            Int       @default(0) @map("total_rows")
+  successRows          Int       @default(0) @map("success_rows")
+  failedRows           Int       @default(0) @map("failed_rows")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User?        @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId], map: "bulk_import_jobs_organization_id_idx")
+  @@map("bulk_import_jobs")
+}

@@ -201,14 +201,19 @@ Phase 4
 # Folder Structure
 
 trustchain/
-├── web/
-├── mobile/
-├── extension/
-├── backend/
+├── apps/
+│   ├── backend/
+│   ├── web/
+│   ├── mobile/
+│   └── extension/
+├── packages/
+│   ├── config/
+│   ├── database/
+│   ├── ui/
+│   └── types/
 ├── blockchain/
-├── database/
-├── infrastructure/
-└── docs/
+├── docs/
+└── infrastructure/
 
 ---
 

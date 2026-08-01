@@ -11,9 +11,27 @@ concurrency:
 
 jobs:
   build:
-    name: Lint, typecheck, and build
+    name: Lint, typecheck, build, migrate
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: trustchain
+          POSTGRES_PASSWORD: trustchain
+          POSTGRES_DB: trustchain
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trustchain -d trustchain"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://trustchain:trustchain@localhost:5432/trustchain
 
     steps:
       - name: Checkout
@@ -37,11 +55,26 @@ jobs:
       - name: Build shared config
         run: npm run build -w @trustchain/config
 
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Build database package
+        run: npm run build -w @trustchain/database
+
       - name: Typecheck workspaces
         run: npm run typecheck
 
       - name: Build backend
         run: npm run build -w @trustchain/backend
+
+      - name: Run Prisma migrations
+        run: npm run migrate:up
+
+      - name: Seed roles
+        run: npm run db:seed
+
+      - name: Wave 1 unit checks
+        run: npm run test:unit -w @trustchain/backend
 
       - name: Build web
         run: npm run build -w @trustchain/web

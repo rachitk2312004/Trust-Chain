@@ -1,7 +1,13 @@
 # Database
 
-PostgreSQL schemas, migrations, and seeds live here.
+PostgreSQL via **Prisma** (`packages/database`) is the source of truth.
 
-- `migrations/` — versioned SQL migrations (domain migrations begin in Wave 1)
-- `seeds/` — optional seed data for local/dev
-- `schemas/` — ERD / SQL reference documentation
+```bash
+npm run db:generate
+npm run migrate:up          # prisma migrate deploy
+npm run db:seed
+```
+
+Legacy `node-pg-migrate` SQL files are archived at `docs/archive/legacy-node-pg-migrations/`.
+
+Schema reference notes: `database/schemas/wave1.md`.
