@@ -17,6 +17,7 @@ import { blockchainJobQueue } from "./jobQueue.js";
 import { createPendingTransaction, submitAndConfirm } from "./transactionManager.js";
 import { invalidateVerificationCacheForDocument } from "../verification/services/cacheInvalidation.js";
 import { invalidatePublicSnapshots } from "../public-verification/services/publicVerification.service.js";
+import { invalidateQrAssets } from "../qr/services/qr.service.js";
 
 async function assertOrgAdmin(userId: string, organizationId: string): Promise<void> {
   const allowed = await userHasRole(
@@ -478,6 +479,7 @@ export async function anchorDocumentOnChain(
     });
     await invalidateVerificationCacheForDocument(organizationId, documentId, "anchor_created");
     await invalidatePublicSnapshots(organizationId, documentId);
+    await invalidateQrAssets(organizationId, documentId);
 
     return {
       anchor: publicAnchor(updated),
@@ -631,6 +633,7 @@ export async function revokeDocumentOnChain(
     });
     await invalidateVerificationCacheForDocument(organizationId, documentId, "anchor_revoked");
     await invalidatePublicSnapshots(organizationId, documentId);
+    await invalidateQrAssets(organizationId, documentId);
 
     return {
       anchor: publicAnchor(updated),

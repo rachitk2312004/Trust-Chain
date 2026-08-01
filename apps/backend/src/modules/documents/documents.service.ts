@@ -23,6 +23,7 @@ import { encryptDocumentObject } from "./encryption.js";
 import { scanDocumentObject } from "./malwareScan.js";
 import { invalidateVerificationCacheForDocument } from "../verification/services/cacheInvalidation.js";
 import { invalidatePublicSnapshots } from "../public-verification/services/publicVerification.service.js";
+import { invalidateQrAssets } from "../qr/services/qr.service.js";
 
 const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
 
@@ -609,6 +610,7 @@ export async function confirmDocumentVersion(
   });
   await invalidateVerificationCacheForDocument(organizationId, documentId, "version_created");
   await invalidatePublicSnapshots(organizationId, documentId);
+  await invalidateQrAssets(organizationId, documentId);
 
   const full = await loadDocument(organizationId, documentId);
   return {
@@ -751,6 +753,7 @@ export async function patchDocument(
   });
   await invalidateVerificationCacheForDocument(organizationId, documentId, "document_updated");
   await invalidatePublicSnapshots(organizationId, documentId);
+  await invalidateQrAssets(organizationId, documentId);
 
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
@@ -802,6 +805,7 @@ export async function archiveDocument(userId: string, organizationId: string, do
   });
   await invalidateVerificationCacheForDocument(organizationId, documentId, "document_archived");
   await invalidatePublicSnapshots(organizationId, documentId);
+  await invalidateQrAssets(organizationId, documentId);
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
 }
@@ -836,6 +840,7 @@ export async function restoreDocument(userId: string, organizationId: string, do
   });
   await invalidateVerificationCacheForDocument(organizationId, documentId, "document_restored");
   await invalidatePublicSnapshots(organizationId, documentId);
+  await invalidateQrAssets(organizationId, documentId);
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
 }

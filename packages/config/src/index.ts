@@ -242,3 +242,38 @@ export const PublicAbuseProtection = {
 
 /** Signed public report TTL (default 24h). */
 export const PublicReportTtlMs = 24 * 60 * 60 * 1000;
+
+/** Wave 6 — QR format versions. */
+export const QrFormatVersions = {
+  /** URL payload — camera-app friendly */
+  V1: "V1",
+  /** Signed JSON payload */
+  V2: "V2",
+  /** Offline verification payload (hash + proof metadata, no private data) */
+  V3: "V3",
+} as const;
+
+export const QrStatuses = {
+  active: "active",
+  revoked: "revoked",
+  expired: "expired",
+  rotated: "rotated",
+  disabled: "disabled",
+} as const;
+
+export const QrIntegrity = {
+  signatureVersion: "1",
+  algorithm: "HMAC-SHA256",
+} as const;
+
+export const QrUrlPaths = {
+  scan: "/qr/{token}",
+} as const;
+
+export const QrPrintDefaults = {
+  pageSize: "A4",
+  dpi: 300,
+  marginMm: 10,
+  bleedMm: 3,
+  qrPerPage: 1,
+} as const;

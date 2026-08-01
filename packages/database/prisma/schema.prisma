@@ -41,6 +41,8 @@ model User {
   verificationAuditEntries VerificationAuditEntry[]  @relation("VerificationAuditActor")
   publicVerificationTokens PublicVerificationToken[] @relation("PublicTokenCreatedBy")
   publicVerificationLinks  PublicVerificationLink[]  @relation("PublicLinkCreatedBy")
+  qrTemplatesCreated       QrTemplate[]              @relation("QrTemplateCreatedBy")
+  documentQrCodesCreated   DocumentQrCode[]          @relation("DocumentQrCreatedBy")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -95,6 +97,10 @@ model Organization {
   publicVerificationEvents    PublicVerificationEvent[]
   publicVerificationAnalytics PublicVerificationAnalytics[]
   publicAbuseBlocks           PublicAbuseBlock[]
+  qrTemplates                 QrTemplate[]
+  documentQrCodes             DocumentQrCode[]
+  qrVerificationEvents        QrVerificationEvent[]
+  qrAnalytics                 QrAnalytics[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -365,6 +371,9 @@ model Document {
   publicVerificationLinks     PublicVerificationLink[]
   publicVerificationEvents    PublicVerificationEvent[]
   publicVerificationAnalytics PublicVerificationAnalytics[]
+  documentQrCodes             DocumentQrCode[]
+  qrVerificationEvents        QrVerificationEvent[]
+  qrAnalytics                 QrAnalytics[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -832,11 +841,12 @@ model PublicVerificationToken {
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  document     Document?                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  createdBy    User                      @relation("PublicTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  links        PublicVerificationLink[]
-  events       PublicVerificationEvent[]
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document        Document?                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy       User                      @relation("PublicTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  links           PublicVerificationLink[]
+  events          PublicVerificationEvent[]
+  documentQrCodes DocumentQrCode[]
 
   @@index([organizationId], map: "public_verification_tokens_organization_id_idx")
   @@index([status], map: "public_verification_tokens_status_idx")
@@ -861,11 +871,12 @@ model PublicVerificationLink {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  document     Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  token        PublicVerificationToken   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-  createdBy    User                      @relation("PublicLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  events       PublicVerificationEvent[]
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document        Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token           PublicVerificationToken   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  createdBy       User                      @relation("PublicLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  events          PublicVerificationEvent[]
+  documentQrCodes DocumentQrCode[]
 
   @@index([organizationId, documentId], map: "public_verification_links_organization_id_document_id_idx")
   @@index([status], map: "public_verification_links_status_idx")
@@ -938,4 +949,144 @@ model PublicAbuseBlock {
 
   @@index([ipHash, blockedUntil], map: "public_abuse_blocks_ip_hash_blocked_until_idx")
   @@map("public_abuse_blocks")
+}
+
+/// Wave 6 — QR generation & discovery (verification via Wave 5 only)
+
+model QrTemplate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode      String   @unique @map("public_code")
+  organizationId  String   @map("organization_id") @db.Uuid
+  name            String
+  description     String?
+  sizePx          Int      @default(512) @map("size_px")
+  errorCorrection String   @default("M") @map("error_correction")
+  foregroundColor String   @default("#000000") @map("foreground_color")
+  backgroundColor String   @default("#FFFFFF") @map("background_color")
+  logoObjectKey   String?  @map("logo_object_key")
+  marginModules   Int      @default(4) @map("margin_modules")
+  /// Print optimization (template subsystem)
+  printPageSize   String   @default("A4") @map("print_page_size")
+  printDpi        Int      @default(300) @map("print_dpi")
+  printMarginMm   Float    @default(10) @map("print_margin_mm")
+  printBleedMm    Float    @default(3) @map("print_bleed_mm")
+  qrPerPage       Int      @default(1) @map("qr_per_page")
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User             @relation("QrTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  qrCodes      DocumentQrCode[]
+
+  @@index([organizationId], map: "qr_templates_organization_id_idx")
+  @@map("qr_templates")
+}
+
+model DocumentQrCode {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode                String    @unique @map("public_code")
+  organizationId            String    @map("organization_id") @db.Uuid
+  documentId                String    @map("document_id") @db.Uuid
+  publicVerificationTokenId String    @map("public_verification_token_id") @db.Uuid
+  publicVerificationLinkId  String?   @map("public_verification_link_id") @db.Uuid
+  templateId                String?   @map("template_id") @db.Uuid
+  /// V1 | V2 | V3 format version
+  formatVersion             String    @default("V1") @map("format_version")
+  status                    String    @default("active")
+  visibility                String    @default("restricted")
+  payloadChecksum           String    @map("payload_checksum")
+  payloadHash               String    @map("payload_hash")
+  signatureVersion          String    @default("1") @map("signature_version")
+  algorithm                 String    @default("HMAC-SHA256")
+  payloadJson               Json      @map("payload_json")
+  issuedAt                  DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt                 DateTime? @map("expires_at") @db.Timestamptz(6)
+  rotatedFromId             String?   @map("rotated_from_id") @db.Uuid
+  rotatedToId               String?   @map("rotated_to_id") @db.Uuid
+  pngObjectKey              String?   @map("png_object_key")
+  svgObjectKey              String?   @map("svg_object_key")
+  createdByUserId           String    @map("created_by_user_id") @db.Uuid
+  revokedAt                 DateTime? @map("revoked_at") @db.Timestamptz(6)
+  disabledAt                DateTime? @map("disabled_at") @db.Timestamptz(6)
+  rotatedAt                 DateTime? @map("rotated_at") @db.Timestamptz(6)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document                @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token        PublicVerificationToken @relation(fields: [publicVerificationTokenId], references: [id], onDelete: Cascade)
+  link         PublicVerificationLink? @relation(fields: [publicVerificationLinkId], references: [id], onDelete: SetNull)
+  template     QrTemplate?             @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy    User                    @relation("DocumentQrCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  events       QrVerificationEvent[]
+
+  @@index([organizationId, createdAt], map: "document_qr_codes_organization_id_created_at_idx")
+  @@index([documentId, status], map: "document_qr_codes_document_id_status_idx")
+  @@index([status], map: "document_qr_codes_status_idx")
+  @@map("document_qr_codes")
+}
+
+model QrVerificationEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  documentId     String?  @map("document_id") @db.Uuid
+  qrCodeId       String?  @map("qr_code_id") @db.Uuid
+  qrPublicCode   String?  @map("qr_public_code")
+  lookupType     String   @map("lookup_type")
+  outcome        String?
+  success        Boolean  @default(false)
+  errorCode      String?  @map("error_code")
+  ipHash         String?  @map("ip_hash")
+  userAgentHash  String?  @map("user_agent_hash")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  document     Document?       @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  qrCode       DocumentQrCode? @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "qr_verification_events_organization_id_created_at_idx")
+  @@index([qrCodeId], map: "qr_verification_events_qr_code_id_idx")
+  @@map("qr_verification_events")
+}
+
+model QrAnalytics {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  documentId     String?  @map("document_id") @db.Uuid
+  day            DateTime @db.Date
+  scanCount      Int      @default(0) @map("scan_count")
+  downloadCount  Int      @default(0) @map("download_count")
+  validCount     Int      @default(0) @map("valid_count")
+  invalidCount   Int      @default(0) @map("invalid_count")
+  revokedCount   Int      @default(0) @map("revoked_count")
+  expiredCount   Int      @default(0) @map("expired_count")
+  errorCount     Int      @default(0) @map("error_count")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, documentId, day], map: "qr_analytics_org_doc_day_key")
+  @@map("qr_analytics")
+}
+
+model QrBatchJob {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  operation       String
+  status          String    @default("pending")
+  total           Int       @default(0)
+  successCount    Int       @default(0) @map("success_count")
+  failedCount     Int       @default(0) @map("failed_count")
+  formatVersion   String    @default("V1") @map("format_version")
+  resultJson      Json?     @map("result_json")
+  error           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([organizationId, createdAt], map: "qr_batch_jobs_organization_id_created_at_idx")
+  @@map("qr_batch_jobs")
 }

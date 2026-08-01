@@ -5,6 +5,7 @@ import { requestLogger } from "./middleware/requestLogger.js";
 import { healthRouter } from "./modules/health/health.router.js";
 import { v1Router } from "./routes/v1.js";
 import { publicVerificationRouter } from "./modules/public-verification/routes/publicVerification.router.js";
+import { publicQrRouter } from "./modules/qr/routes/qr.router.js";
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,7 @@ export function createApp() {
   app.use(requestLogger);
   app.use(healthRouter);
   app.use("/api/public", publicVerificationRouter);
+  app.use("/api/public", publicQrRouter);
   app.use(ApiConstants.prefix, v1Router);
   app.use(errorHandler);
 

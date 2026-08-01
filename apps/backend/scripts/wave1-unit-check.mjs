@@ -201,7 +201,13 @@ async function main() {
   testPublicCodes();
   testReportSigning();
   testVisibilityAndLinkState();
-  console.log("Wave 1–5 unit checks passed");
+  const { testQrPublicCodes, testQrPayloadVersions, testQrStatusEvaluation } = await import(
+    "../dist/modules/qr/tests/qr.unit.js"
+  );
+  testQrPublicCodes();
+  testQrPayloadVersions();
+  testQrStatusEvaluation();
+  console.log("Wave 1–6 unit checks passed");
 }
 
 main().catch((error) => {
