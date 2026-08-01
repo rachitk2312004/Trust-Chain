@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "TrustChain",
+  "version": "0.0.0",
+  "description": "TrustChain browser extension — document verification shell",
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "TrustChain"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "permissions": [],
+  "host_permissions": []
+}

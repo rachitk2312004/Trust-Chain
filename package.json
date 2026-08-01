@@ -1,0 +1,35 @@
+{
+  "name": "trustchain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TrustChain monorepo — document trust cloud",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "web",
+    "mobile",
+    "extension",
+    "blockchain"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @trustchain/config && npm run build --workspaces --if-present",
+    "compile:contracts": "npm run compile -w @trustchain/blockchain",
+    "ci": "npm run lint && npm run format:check && npm run build -w @trustchain/config && npm run typecheck && npm run build -w @trustchain/backend && npm run build -w @trustchain/web && npm run build -w @trustchain/extension && npm run compile -w @trustchain/blockchain"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.18.2"
+  }
+}
