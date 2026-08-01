@@ -277,3 +277,30 @@ export const QrPrintDefaults = {
   bleedMm: 3,
   qrPerPage: 1,
 } as const;
+
+/** Wave 7 — browser extension identifiers & states. */
+export const ExtensionIdPrefixes = {
+  session: "EXT-SESSION",
+  cache: "EXT-CACHE",
+  event: "EXT-EVENT",
+} as const;
+
+export const ExtensionLifecycleStates = {
+  active: "active",
+  inactive: "inactive",
+  scanning: "scanning",
+  verifying: "verifying",
+  blocked: "blocked",
+  failed: "failed",
+} as const;
+
+export const ExtensionNetworkStates = {
+  online: "online",
+  offline: "offline",
+  synchronizing: "synchronizing",
+} as const;
+
+export const ExtensionRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 20,
+} as const;

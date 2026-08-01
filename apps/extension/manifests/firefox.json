@@ -2,7 +2,13 @@
   "manifest_version": 3,
   "name": "TrustChain",
   "version": "0.7.0",
-  "description": "TrustChain browser extension — verify documents via the public verification layer",
+  "description": "TrustChain browser extension — Firefox compatibility build",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "trustchain@trustchain.local",
+      "strict_min_version": "109.0"
+    }
+  },
   "action": {
     "default_popup": "src/popup/index.html",
     "default_title": "TrustChain",
@@ -13,15 +19,12 @@
     }
   },
   "background": {
-    "service_worker": "src/background/service-worker.ts",
+    "scripts": ["src/background/service-worker.ts"],
     "type": "module"
   },
   "options_ui": {
     "page": "src/options/index.html",
     "open_in_tab": true
-  },
-  "side_panel": {
-    "default_path": "src/sidepanel/index.html"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -35,9 +38,8 @@
     "tabs",
     "contextMenus",
     "notifications",
-    "sidePanel"
+    "clipboardRead"
   ],
-  "optional_permissions": ["clipboardRead", "clipboardWrite"],
   "host_permissions": ["http://localhost:3000/*", "https://verify.trustchain.com/*"],
   "content_scripts": [
     {
@@ -45,8 +47,5 @@
       "js": ["src/content/content-script.ts"],
       "run_at": "document_idle"
     }
-  ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:3000 https://verify.trustchain.com"
-  }
+  ]
 }
