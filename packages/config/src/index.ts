@@ -24,6 +24,8 @@ export const EnvKeys = {
   CHAIN_ENABLED: "CHAIN_ENABLED",
   CHAIN_DOCUMENT_REGISTRY_ADDRESS: "CHAIN_DOCUMENT_REGISTRY_ADDRESS",
   CHAIN_CONFIRMATIONS: "CHAIN_CONFIRMATIONS",
+  PUBLIC_VERIFY_SIGNING_SECRET: "PUBLIC_VERIFY_SIGNING_SECRET",
+  PUBLIC_VERIFY_BASE_URL: "PUBLIC_VERIFY_BASE_URL",
   JWT_ACCESS_SECRET: "JWT_ACCESS_SECRET",
   JWT_ACCESS_EXPIRES_IN: "JWT_ACCESS_EXPIRES_IN",
   JWT_REFRESH_EXPIRES_DAYS: "JWT_REFRESH_EXPIRES_DAYS",
@@ -189,3 +191,54 @@ export const VerificationRateLimit = {
   windowMs: 5 * 60 * 1000,
   maxRequests: 30,
 } as const;
+
+/** Wave 5 — document / link visibility levels. */
+export const VerificationVisibility = {
+  private: "private",
+  organization: "organization",
+  public: "public",
+  restricted: "restricted",
+} as const;
+
+/** Wave 5 — public link/token lifecycle. */
+export const PublicVerificationLinkStatuses = {
+  active: "active",
+  expired: "expired",
+  revoked: "revoked",
+  disabled: "disabled",
+} as const;
+
+export const PublicVerifyLookupTypes = {
+  verificationId: "verification_id",
+  hash: "hash",
+  tx: "tx",
+  document: "document",
+  link: "link",
+  body: "body",
+} as const;
+
+/** Canonical public URL path templates (host from PUBLIC_VERIFY_BASE_URL). */
+export const PublicVerifyUrlPaths = {
+  link: "/link/{token}",
+  hash: "/hash/{hash}",
+  verify: "/verify/{code}",
+  document: "/document/{publicVerifyCode}",
+  tx: "/tx/{transactionHash}",
+} as const;
+
+/** Public anonymous rate limit. */
+export const PublicVerifyRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 20,
+} as const;
+
+/** Abuse protection defaults. */
+export const PublicAbuseProtection = {
+  strikeThreshold: 5,
+  baseBlockMs: 60_000,
+  maxBlockMs: 60 * 60 * 1000,
+  reputationBlockScore: 10,
+} as const;
+
+/** Signed public report TTL (default 24h). */
+export const PublicReportTtlMs = 24 * 60 * 60 * 1000;

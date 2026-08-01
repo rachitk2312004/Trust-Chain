@@ -195,7 +195,13 @@ async function main() {
   testVerificationCodeFormat();
   testOutcomePrecedence();
   testReportProofFields();
-  console.log("Wave 1 + Wave 2 + Wave 3 + Wave 4 unit checks passed");
+  const { testPublicCodes, testReportSigning, testVisibilityAndLinkState } = await import(
+    "../dist/modules/public-verification/tests/publicVerification.unit.js"
+  );
+  testPublicCodes();
+  testReportSigning();
+  testVisibilityAndLinkState();
+  console.log("Wave 1–5 unit checks passed");
 }
 
 main().catch((error) => {

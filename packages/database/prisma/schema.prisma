@@ -28,17 +28,19 @@ model User {
   emailTokens              EmailToken[]
   roleBindings             RoleBinding[]
   memberships              Membership[]
-  invitationsSent          Invitation[]             @relation("InvitationInvitedBy")
+  invitationsSent          Invitation[]              @relation("InvitationInvitedBy")
   bulkImportJobs           BulkImportJob[]
   mfaLoginChallenges       MfaLoginChallenge[]
-  documentsCreated         Document[]               @relation("DocumentCreatedBy")
-  documentVersionsUploaded DocumentVersion[]        @relation("DocumentVersionUploadedBy")
-  documentSharesCreated    DocumentShare[]          @relation("DocumentShareCreatedBy")
-  documentSharesReceived   DocumentShare[]          @relation("DocumentShareRecipient")
-  documentAuditEntries     DocumentAuditEntry[]     @relation("DocumentAuditActor")
-  documentUploadSessions   DocumentUploadSession[]  @relation("DocumentUploadSessionCreator")
-  verificationRequests     VerificationRequest[]    @relation("VerificationRequestedBy")
-  verificationAuditEntries VerificationAuditEntry[] @relation("VerificationAuditActor")
+  documentsCreated         Document[]                @relation("DocumentCreatedBy")
+  documentVersionsUploaded DocumentVersion[]         @relation("DocumentVersionUploadedBy")
+  documentSharesCreated    DocumentShare[]           @relation("DocumentShareCreatedBy")
+  documentSharesReceived   DocumentShare[]           @relation("DocumentShareRecipient")
+  documentAuditEntries     DocumentAuditEntry[]      @relation("DocumentAuditActor")
+  documentUploadSessions   DocumentUploadSession[]   @relation("DocumentUploadSessionCreator")
+  verificationRequests     VerificationRequest[]     @relation("VerificationRequestedBy")
+  verificationAuditEntries VerificationAuditEntry[]  @relation("VerificationAuditActor")
+  publicVerificationTokens PublicVerificationToken[] @relation("PublicTokenCreatedBy")
+  publicVerificationLinks  PublicVerificationLink[]  @relation("PublicLinkCreatedBy")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -65,29 +67,34 @@ model Organization {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  parent                   Organization?                   @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
-  children                 Organization[]                  @relation("OrgHierarchy")
-  branches                 Branch[]
-  departments              Department[]
-  memberships              Membership[]
-  invitations              Invitation[]
-  roleBindings             RoleBinding[]
-  branding                 OrganizationBranding?
-  bulkImports              BulkImportJob[]
-  documents                Document[]
-  documentCategories       DocumentCategory[]
-  documentTags             DocumentTag[]
-  documentAuditEntries     DocumentAuditEntry[]
-  documentUploadSessions   DocumentUploadSession[]
-  blockchainTransactions   BlockchainTransaction[]
-  blockchainAnchors        BlockchainAnchor[]
-  blockchainRetryJobs      BlockchainRetryJob[]
-  chainRegistrations       OrganizationChainRegistration[]
-  chainIntentNonces        BlockchainIntentNonce[]
-  verificationRequests     VerificationRequest[]
-  verificationResults      VerificationResult[]
-  verificationAuditEntries VerificationAuditEntry[]
-  verificationCaches       VerificationCache[]
+  parent                      Organization?                   @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  children                    Organization[]                  @relation("OrgHierarchy")
+  branches                    Branch[]
+  departments                 Department[]
+  memberships                 Membership[]
+  invitations                 Invitation[]
+  roleBindings                RoleBinding[]
+  branding                    OrganizationBranding?
+  bulkImports                 BulkImportJob[]
+  documents                   Document[]
+  documentCategories          DocumentCategory[]
+  documentTags                DocumentTag[]
+  documentAuditEntries        DocumentAuditEntry[]
+  documentUploadSessions      DocumentUploadSession[]
+  blockchainTransactions      BlockchainTransaction[]
+  blockchainAnchors           BlockchainAnchor[]
+  blockchainRetryJobs         BlockchainRetryJob[]
+  chainRegistrations          OrganizationChainRegistration[]
+  chainIntentNonces           BlockchainIntentNonce[]
+  verificationRequests        VerificationRequest[]
+  verificationResults         VerificationResult[]
+  verificationAuditEntries    VerificationAuditEntry[]
+  verificationCaches          VerificationCache[]
+  publicVerificationTokens    PublicVerificationToken[]
+  publicVerificationLinks     PublicVerificationLink[]
+  publicVerificationEvents    PublicVerificationEvent[]
+  publicVerificationAnalytics PublicVerificationAnalytics[]
+  publicAbuseBlocks           PublicAbuseBlock[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -331,29 +338,38 @@ model Document {
   categoryId       String?   @map("category_id") @db.Uuid
   currentVersionId String?   @unique @map("current_version_id") @db.Uuid
   status           String    @default("pending_upload")
+  /// private | organization | public | restricted
+  visibility       String    @default("private")
+  publicVerifyCode String?   @unique @map("public_verify_code")
   expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
   archivedAt       DateTime? @map("archived_at") @db.Timestamptz(6)
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy              User                    @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  category               DocumentCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  currentVersion         DocumentVersion?        @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
-  versions               DocumentVersion[]       @relation("DocumentVersions")
-  tags                   DocumentTagOnDocument[]
-  shares                 DocumentShare[]
-  accessPolicies         DocumentAccessPolicy[]
-  auditEntries           DocumentAuditEntry[]
-  uploadSessions         DocumentUploadSession[]
-  blockchainTransactions BlockchainTransaction[]
-  blockchainAnchors      BlockchainAnchor[]
-  verificationRequests   VerificationRequest[]
-  verificationCaches     VerificationCache[]
+  organization                Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                   User                          @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  category                    DocumentCategory?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  currentVersion              DocumentVersion?              @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions                    DocumentVersion[]             @relation("DocumentVersions")
+  tags                        DocumentTagOnDocument[]
+  shares                      DocumentShare[]
+  accessPolicies              DocumentAccessPolicy[]
+  auditEntries                DocumentAuditEntry[]
+  uploadSessions              DocumentUploadSession[]
+  blockchainTransactions      BlockchainTransaction[]
+  blockchainAnchors           BlockchainAnchor[]
+  verificationRequests        VerificationRequest[]
+  verificationCaches          VerificationCache[]
+  publicVerificationTokens    PublicVerificationToken[]
+  publicVerificationLinks     PublicVerificationLink[]
+  publicVerificationEvents    PublicVerificationEvent[]
+  publicVerificationAnalytics PublicVerificationAnalytics[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
+  @@index([visibility], map: "documents_visibility_idx")
+  @@index([publicVerifyCode], map: "documents_public_verify_code_idx")
   @@index([deletedAt], map: "documents_deleted_at_idx")
   @@index([expiresAt], map: "documents_expires_at_idx")
   @@map("documents")
@@ -790,4 +806,136 @@ model VerificationCache {
   @@index([organizationId, documentId], map: "verification_caches_organization_id_document_id_idx")
   @@index([expiresAt], map: "verification_caches_expires_at_idx")
   @@map("verification_caches")
+}
+
+/// Wave 5 — Public verification layer
+
+model PublicVerificationToken {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode            String    @unique @map("public_code")
+  organizationId        String    @map("organization_id") @db.Uuid
+  documentId            String?   @map("document_id") @db.Uuid
+  documentVersionId     String?   @map("document_version_id") @db.Uuid
+  verificationRequestId String?   @map("verification_request_id") @db.Uuid
+  tokenHash             String    @unique @map("token_hash")
+  purpose               String    @default("link")
+  status                String    @default("active")
+  visibility            String    @default("public")
+  expiresAt             DateTime? @map("expires_at") @db.Timestamptz(6)
+  maxUses               Int?      @map("max_uses")
+  useCount              Int       @default(0) @map("use_count")
+  allowRehash           Boolean   @default(false) @map("allow_rehash")
+  requireAnchor         Boolean   @default(true) @map("require_anchor")
+  createdByUserId       String    @map("created_by_user_id") @db.Uuid
+  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(6)
+  disabledAt            DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation("PublicTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  links        PublicVerificationLink[]
+  events       PublicVerificationEvent[]
+
+  @@index([organizationId], map: "public_verification_tokens_organization_id_idx")
+  @@index([status], map: "public_verification_tokens_status_idx")
+  @@index([expiresAt], map: "public_verification_tokens_expires_at_idx")
+  @@map("public_verification_tokens")
+}
+
+model PublicVerificationLink {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode      String    @unique @map("public_code")
+  organizationId  String    @map("organization_id") @db.Uuid
+  documentId      String    @map("document_id") @db.Uuid
+  tokenId         String    @map("token_id") @db.Uuid
+  status          String    @default("active")
+  visibility      String    @default("public")
+  label           String?
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  snapshotJson    Json?     @map("snapshot_json")
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  disabledAt      DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token        PublicVerificationToken   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation("PublicLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  events       PublicVerificationEvent[]
+
+  @@index([organizationId, documentId], map: "public_verification_links_organization_id_document_id_idx")
+  @@index([status], map: "public_verification_links_status_idx")
+  @@map("public_verification_links")
+}
+
+model PublicVerificationEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String?  @map("organization_id") @db.Uuid
+  documentId       String?  @map("document_id") @db.Uuid
+  linkId           String?  @map("link_id") @db.Uuid
+  tokenId          String?  @map("token_id") @db.Uuid
+  verificationCode String?  @map("verification_code")
+  publicVerifyCode String?  @map("public_verify_code")
+  lookupType       String   @map("lookup_type")
+  lookupValueHash  String   @map("lookup_value_hash")
+  outcome          String?
+  success          Boolean  @default(false)
+  errorCode        String?  @map("error_code")
+  ipHash           String?  @map("ip_hash")
+  userAgentHash    String?  @map("user_agent_hash")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  document     Document?                @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  link         PublicVerificationLink?  @relation(fields: [linkId], references: [id], onDelete: SetNull)
+  token        PublicVerificationToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "public_verification_events_organization_id_created_at_idx")
+  @@index([lookupType, createdAt], map: "public_verification_events_lookup_type_created_at_idx")
+  @@index([ipHash, createdAt], map: "public_verification_events_ip_hash_created_at_idx")
+  @@map("public_verification_events")
+}
+
+model PublicVerificationAnalytics {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  documentId     String?  @map("document_id") @db.Uuid
+  day            DateTime @db.Date
+  totalLookups   Int      @default(0) @map("total_lookups")
+  validCount     Int      @default(0) @map("valid_count")
+  invalidCount   Int      @default(0) @map("invalid_count")
+  revokedCount   Int      @default(0) @map("revoked_count")
+  expiredCount   Int      @default(0) @map("expired_count")
+  missingCount   Int      @default(0) @map("missing_count")
+  tamperedCount  Int      @default(0) @map("tampered_count")
+  errorCount     Int      @default(0) @map("error_count")
+  blockedCount   Int      @default(0) @map("blocked_count")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, documentId, day], map: "public_verification_analytics_org_doc_day_key")
+  @@map("public_verification_analytics")
+}
+
+model PublicAbuseBlock {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ipHash          String   @map("ip_hash")
+  organizationId  String?  @map("organization_id") @db.Uuid
+  reason          String
+  strikeCount     Int      @default(1) @map("strike_count")
+  blockedUntil    DateTime @map("blocked_until") @db.Timestamptz(6)
+  reputationScore Int      @default(0) @map("reputation_score")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([ipHash, blockedUntil], map: "public_abuse_blocks_ip_hash_blocked_until_idx")
+  @@map("public_abuse_blocks")
 }
