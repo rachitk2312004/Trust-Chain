@@ -241,6 +241,29 @@ async function main() {
   await testHealthAndModelsViaMemoryClient();
   testGatewayDoesNotImportWorkers();
 
+  const {
+    testExpressRouteSurfaceWiring,
+    testCompatibilityIdPrefixesRemainValid,
+    testSecurityRbacAndForbiddenOps,
+    testAiModuleForbidsBlockchainVerificationImports,
+    testExecutionClientNetworkFailure,
+    testExecutionClientHttpErrorStatus,
+    testGatewayHealthModelsViaMemory,
+    testMemoryPipelineLoad,
+    testProductionConfigHardening,
+    testDeadCodeAuditMarkersAbsentFromGateway,
+  } = await import("../dist/modules/ai/tests/step7.unit.js");
+  testExpressRouteSurfaceWiring();
+  testCompatibilityIdPrefixesRemainValid();
+  testSecurityRbacAndForbiddenOps();
+  testAiModuleForbidsBlockchainVerificationImports();
+  await testExecutionClientNetworkFailure();
+  await testExecutionClientHttpErrorStatus();
+  await testGatewayHealthModelsViaMemory();
+  await testMemoryPipelineLoad();
+  testProductionConfigHardening();
+  testDeadCodeAuditMarkersAbsentFromGateway();
+
   const { testOpsPublicCodes, testOpsStatesAndScores, testForbiddenOpsOperations } = await import(
     "../dist/modules/ops/tests/ops.unit.js"
   );

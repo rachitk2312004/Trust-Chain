@@ -35,6 +35,19 @@ Production (`AI_EXECUTION_MODE=production` or `NODE_ENV=production`) never falls
 - Every adapter result requires: `advisoryOnly`, `modelId`, `modelVersion`, `executionTimeMs`, `lineageId`, `confidence`
 - Production fail-fast when missing: `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, and `REDIS_URL` or `AI_QUEUE_BACKEND=memory`
 
+## Step 7 (complete)
+
+Testing and hardening only (no new features / no schema or public contract changes):
+
+| Suite | Location |
+|-------|----------|
+| Unit + failure + retry + load | `services/ai/tests/test_step7_hardening.py` |
+| FastAPI integration (Express mapping) | `services/ai/tests/test_step7_integration.py` |
+| Express gateway hardening | `apps/backend/src/modules/ai/tests/step7.unit.ts` |
+| Dead-code audit | `docs/runbooks/phase2-ai-dead-code-audit.md` |
+
+Load metrics are written to `services/ai/tests/_step7_load_results.json` during pytest.
+
 ## Env
 
 | Variable | Purpose |
@@ -50,4 +63,4 @@ Production (`AI_EXECUTION_MODE=production` or `NODE_ENV=production`) never falls
 
 ## Next
 
-Step 7 — broader integration tests / docs polish / CI hardening (not started).
+Step 8 — docs polish / CI packaging (not started).

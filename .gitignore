@@ -63,3 +63,4 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
+services/ai/tests/_step7_load_results.json
