@@ -119,6 +119,13 @@ model Organization {
   aiLineages                  AiLineage[]
   aiAuditEvents               AiAuditEvent[]
   documentEmbeddings          DocumentEmbedding[]
+  aiQueues                    AiQueue[]
+  aiWorkers                   AiWorker[]
+  aiTasks                     AiTask[]
+  aiArtifacts                 AiArtifact[]
+  aiModels                    AiModel[]
+  aiEvaluations               AiEvaluation[]
+  aiCostRecords               AiCostRecord[]
   opsAlerts                   OpsAlert[]
   opsReports                  OpsReport[]
   investigations              Investigation[]
@@ -419,6 +426,8 @@ model Document {
   fraudAnalysisJobs           FraudAnalysisJob[]
   aiLineages                  AiLineage[]
   documentEmbeddings          DocumentEmbedding[]
+  aiTasks                     AiTask[]
+  aiArtifacts                 AiArtifact[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -1462,6 +1471,203 @@ model AiModelRegistryEntry {
 
   @@unique([provider, modelId, version, capability], map: "ai_model_registry_unique")
   @@map("ai_model_registry_entries")
+}
+
+/// Phase 2 — AI execution ledger (advisory; Redis is ephemeral coordination only)
+
+model AiQueue {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode           String   @unique @map("public_code")
+  organizationId       String?  @map("organization_id") @db.Uuid
+  name                 String
+  dlqName              String   @map("dlq_name")
+  maxAttempts          Int      @default(3) @map("max_attempts")
+  visibilityTimeoutMs  Int      @default(120000) @map("visibility_timeout_ms")
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tasks        AiTask[]
+
+  @@unique([name], map: "ai_queues_name_key")
+  @@index([organizationId], map: "ai_queues_organization_id_idx")
+  @@map("ai_queues")
+}
+
+model AiWorker {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode          String    @unique @map("public_code")
+  organizationId      String?   @map("organization_id") @db.Uuid
+  hostname            String    @default("unknown")
+  capabilitiesJson    Json      @default("[]") @map("capabilities_json")
+  status              String    @default("active")
+  leaseExpiration     DateTime? @map("lease_expiration") @db.Timestamptz(6)
+  heartbeatTimestamp  DateTime? @map("heartbeat_timestamp") @db.Timestamptz(6)
+  lastSeenAt          DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tasks        AiTask[]
+  attempts     AiTaskAttempt[]
+
+  @@index([status], map: "ai_workers_status_idx")
+  @@index([leaseExpiration], map: "ai_workers_lease_expiration_idx")
+  @@map("ai_workers")
+}
+
+model AiTask {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode            String    @unique @map("public_code")
+  organizationId        String    @map("organization_id") @db.Uuid
+  documentId            String?   @map("document_id") @db.Uuid
+  queueId               String?   @map("queue_id") @db.Uuid
+  queueName             String    @map("queue_name")
+  status                String    @default("pending")
+  attemptCount          Int       @default(0) @map("attempt_count")
+  maxAttempts           Int       @default(3) @map("max_attempts")
+  workerId              String?   @map("worker_id") @db.Uuid
+  leaseExpiration       DateTime? @map("lease_expiration") @db.Timestamptz(6)
+  heartbeatTimestamp    DateTime? @map("heartbeat_timestamp") @db.Timestamptz(6)
+  timeoutMs             Int       @default(120000) @map("timeout_ms")
+  payloadJson           Json      @map("payload_json")
+  resultJson            Json?     @map("result_json")
+  error                 String?
+  /// Wave 9 v1 compatibility — maps OCR-JOB / AI-JOB public codes
+  legacyJobPublicCode   String?   @map("legacy_job_public_code")
+  modelPublicCode       String?   @map("model_public_code")
+  modelVersionPublicCode String?  @map("model_version_public_code")
+  artifactPublicCode    String?   @map("artifact_public_code")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt           DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  queue        AiQueue?        @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  worker       AiWorker?       @relation(fields: [workerId], references: [id], onDelete: SetNull)
+  attempts     AiTaskAttempt[]
+
+  @@index([organizationId, createdAt], map: "ai_tasks_organization_id_created_at_idx")
+  @@index([queueName, status], map: "ai_tasks_queue_name_status_idx")
+  @@index([status], map: "ai_tasks_status_idx")
+  @@index([legacyJobPublicCode], map: "ai_tasks_legacy_job_public_code_idx")
+  @@index([leaseExpiration], map: "ai_tasks_lease_expiration_idx")
+  @@map("ai_tasks")
+}
+
+model AiTaskAttempt {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode   String    @unique @map("public_code")
+  taskId       String    @map("task_id") @db.Uuid
+  workerId     String?   @map("worker_id") @db.Uuid
+  attemptNumber Int      @map("attempt_number")
+  status       String    @default("processing")
+  error        String?
+  startedAt    DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  task   AiTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  worker AiWorker? @relation(fields: [workerId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, attemptNumber], map: "ai_task_attempts_task_id_attempt_number_idx")
+  @@map("ai_task_attempts")
+}
+
+model AiModel {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  organizationId String?  @map("organization_id") @db.Uuid
+  provider       String
+  name           String
+  capability     String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions     AiModelVersion[]
+  evaluations  AiEvaluation[]
+  costRecords  AiCostRecord[]
+
+  @@index([provider, capability], map: "ai_models_provider_capability_idx")
+  @@map("ai_models")
+}
+
+model AiModelVersion {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode String   @unique @map("public_code")
+  modelId    String   @map("model_id") @db.Uuid
+  version    String
+  checksum   String?
+  active     Boolean  @default(true)
+  metaJson   Json?    @map("meta_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  model AiModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, version], map: "ai_model_versions_model_id_version_key")
+  @@map("ai_model_versions")
+}
+
+model AiEvaluation {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  organizationId String?  @map("organization_id") @db.Uuid
+  modelId        String?  @map("model_id") @db.Uuid
+  capability     String
+  metricsJson    Json     @map("metrics_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  model        AiModel?      @relation(fields: [modelId], references: [id], onDelete: SetNull)
+
+  @@index([capability, createdAt], map: "ai_evaluations_capability_created_at_idx")
+  @@map("ai_evaluations")
+}
+
+model AiCostRecord {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  organizationId String?  @map("organization_id") @db.Uuid
+  modelId        String?  @map("model_id") @db.Uuid
+  taskPublicCode String?  @map("task_public_code")
+  tokenUsage     Int      @default(0) @map("token_usage")
+  computeUsageMs Int      @default(0) @map("compute_usage_ms")
+  estimatedCostUsd Float  @default(0) @map("estimated_cost_usd")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  model        AiModel?      @relation(fields: [modelId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "ai_cost_records_organization_id_created_at_idx")
+  @@map("ai_cost_records")
+}
+
+/// Artifact lineage: Document → Artifact → Embedding → Inference → Review
+model AiArtifact {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode       String   @unique @map("public_code")
+  organizationId   String   @map("organization_id") @db.Uuid
+  documentId       String?  @map("document_id") @db.Uuid
+  parentArtifactId String?  @map("parent_artifact_id") @db.Uuid
+  kind             String
+  /// document | artifact | embedding | inference | review
+  taskPublicCode   String?  @map("task_public_code")
+  contentHash      String?  @map("content_hash")
+  metaJson         Json?    @map("meta_json")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document       Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parentArtifact AiArtifact?  @relation("AiArtifactLineage", fields: [parentArtifactId], references: [id], onDelete: SetNull)
+  childArtifacts AiArtifact[] @relation("AiArtifactLineage")
+
+  @@index([organizationId, documentId], map: "ai_artifacts_org_doc_idx")
+  @@index([parentArtifactId], map: "ai_artifacts_parent_artifact_id_idx")
+  @@index([kind], map: "ai_artifacts_kind_idx")
+  @@map("ai_artifacts")
 }
 
 /// Wave 10 — Operational intelligence (never mutates trust sources)

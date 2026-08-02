@@ -358,6 +358,16 @@ export const AiIdPrefixes = {
   aiJob: "AI-JOB",
   embeddingJob: "EMBEDDING-JOB",
   lineage: "LINEAGE",
+  /** Phase 2 — gateway / worker ledger (v1 maps Wave 9 jobs → tasks). */
+  worker: "AI-WORKER",
+  queue: "AI-QUEUE",
+  task: "AI-TASK",
+  attempt: "AI-ATTEMPT",
+  model: "AI-MODEL",
+  modelVersion: "MODEL-VERSION",
+  artifact: "AI-ARTIFACT",
+  evaluation: "AI-EVAL",
+  costRecord: "AI-COST",
 } as const;
 
 export const AiJobStates = {
@@ -366,6 +376,27 @@ export const AiJobStates = {
   completed: "completed",
   failed: "failed",
   cancelled: "cancelled",
+  /** Phase 2 worker ledger */
+  retrying: "retrying",
+  deadLetter: "dead_letter",
+} as const;
+
+/** Phase 2 — dedicated capability queues (never a single shared queue). */
+export const AiQueueNames = {
+  ocr: "ocr",
+  classification: "classification",
+  extraction: "extraction",
+  embedding: "embedding",
+  fraud: "fraud",
+  evaluation: "evaluation",
+} as const;
+
+export const AiQueueDefaults = {
+  maxAttempts: 3,
+  visibilityTimeoutMs: 120_000,
+  leaseTtlMs: 60_000,
+  heartbeatIntervalMs: 15_000,
+  lockTtlMs: 30_000,
 } as const;
 
 export const AiReviewStates = {

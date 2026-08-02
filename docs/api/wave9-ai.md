@@ -15,12 +15,16 @@ Document → R2 → OCR → Extraction → Classification → AI analysis
 
 ```
 Clients → Express `/api/v1/ai/*` (auth, ACL, rate limit)
-        → services/ai FastAPI (internal; stub engines in CI)
+        → Execution manager (never workers directly)
+        → Queue manager (per-capability queues + DLQ)
+        → Workers (Step 3+) → FastAPI adapters
         → PostgreSQL (+ pgvector extension ready)
         → R2 via short-lived URLs issued by Express
 ```
 
-Redis/Celery are optional. CI and local default use an in-process executor.
+Redis is optional ephemeral coordination (queues, locks, leases, retries). CI defaults to an in-memory queue backend. Wave 9 v1 job public codes remain; Phase 2 maps them to `AI-TASK-*` via `legacyJobPublicCode`.
+
+See `docs/runbooks/phase2-ai-queue.md`.
 
 ## Identifiers
 

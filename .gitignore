@@ -55,3 +55,11 @@ infrastructure/docker/data/
 # Misc
 *.pem
 .cache/
+
+# Python (AI service)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
