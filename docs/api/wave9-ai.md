@@ -14,15 +14,14 @@ Document → R2 → OCR → Extraction → Classification → AI analysis
 ## Topology
 
 ```
-Clients → Express `/api/v1/ai/*` (auth, ACL, rate limit)
-        → Execution manager (never workers directly)
-        → Queue manager (per-capability queues + DLQ)
-        → Workers (Step 3+) → FastAPI adapters
-        → PostgreSQL (+ pgvector extension ready)
+Clients → Express `/api/v1/ai/*` (auth, ACL, rate limit, audit, persistence)
+        → Execution client → FastAPI `/internal/execution/*`
+        → Execution manager → Queue manager → Workers → Adapters → engines
+        → PostgreSQL task ledger (AiTask / AiArtifact) + Wave 9 job tables
         → R2 via short-lived URLs issued by Express
 ```
 
-Redis is optional ephemeral coordination (queues, locks, leases, retries). CI defaults to an in-memory queue backend. Wave 9 v1 job public codes remain; Phase 2 maps them to `AI-TASK-*` via `legacyJobPublicCode`.
+Redis is optional ephemeral coordination (queues, locks, leases, retries). CI defaults to an in-memory queue backend / Express memory execution client when `AI_SERVICE_URL` is unset. Wave 9 v1 job public codes remain; Phase 2 maps them to `AI-TASK-*` via `legacyJobPublicCode`.
 
 See `docs/runbooks/phase2-ai-queue.md`.
 
@@ -73,6 +72,8 @@ Auth: Bearer JWT + org membership + document ACL.
 | POST | `/api/v1/ai/search` |
 | POST | `/api/v1/ai/fraud` |
 | GET | `/api/v1/ai/jobs/:id?organizationId=` |
+| GET | `/api/v1/ai/models` |
+| GET | `/api/v1/ai/health` |
 
 Org-scoped aliases under `/api/v1/organizations/:id/ai/...` plus:
 

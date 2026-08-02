@@ -53,6 +53,15 @@ class ExecutionManager:
 
     def status(self, task_id: str) -> Dict[str, Any]:
         meta = self._queues.get_status(task_id)
+        raw_result = meta.get("result")
+        parsed_result = None
+        if raw_result:
+            try:
+                import json
+
+                parsed_result = json.loads(raw_result)
+            except (TypeError, json.JSONDecodeError):
+                parsed_result = raw_result
         return {
             "taskId": task_id,
             "status": meta.get("status", "unknown"),
@@ -60,6 +69,7 @@ class ExecutionManager:
             "attempt": meta.get("attempt"),
             "legacyJobPublicCode": meta.get("legacy_job_public_code"),
             "error": meta.get("error"),
+            "result": parsed_result,
             "advisoryOnly": True,
         }
 

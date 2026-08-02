@@ -24,6 +24,7 @@ import {
   stubFraudSignals,
   stubOcrText,
 } from "./processor.js";
+import { submitAiExecution, findTaskByLegacyCode } from "./orchestration.js";
 import { AI_ADVISORY_DISCLAIMER, assertSafeAiOperation } from "../utils/guards.js";
 import { generateAiPublicCode } from "../utils/ids.js";
 import { assertAiRateLimit } from "../utils/rateLimit.js";
@@ -256,7 +257,18 @@ export async function createOcrJob(
   aiAnalyticsInc("jobsCreated");
   aiAnalyticsInc("ocr");
 
-  schedule(() => completeOcrJob(ocrJob.id, parent.id, lineage.id, doc.id));
+  schedule(() =>
+    completeOcrJob({
+      ocrJobId: ocrJob.id,
+      aiJobId: parent.id,
+      lineageId: lineage.id,
+      documentId: doc.id,
+      organizationId,
+      userId,
+      legacyJobPublicCode: ocrJob.publicCode,
+      engine: ocrJob.engine,
+    }),
+  );
 
   return {
     job: publicJob({ ...parent, kind: "ocr" }),
@@ -265,31 +277,56 @@ export async function createOcrJob(
   };
 }
 
-async function completeOcrJob(
-  ocrJobId: string,
-  aiJobId: string,
-  lineageId: string,
-  documentId: string,
-): Promise<void> {
+async function completeOcrJob(input: {
+  ocrJobId: string;
+  aiJobId: string;
+  lineageId: string;
+  documentId: string;
+  organizationId: string;
+  userId: string;
+  legacyJobPublicCode: string;
+  engine: string;
+}): Promise<void> {
   await prisma.ocrJob.update({
-    where: { id: ocrJobId },
+    where: { id: input.ocrJobId },
     data: { status: AiJobStates.processing },
   });
   await prisma.aiJob.update({
-    where: { id: aiJobId },
+    where: { id: input.aiJobId },
     data: { status: AiJobStates.processing },
   });
 
   try {
-    const ocr = stubOcrText(documentId);
+    const executed = await submitAiExecution({
+      kind: "ocr",
+      organizationId: input.organizationId,
+      documentId: input.documentId,
+      actorUserId: input.userId,
+      legacyJobPublicCode: input.legacyJobPublicCode,
+      payload: {
+        documentId: input.documentId,
+        engine: input.engine,
+        imageData: input.documentId,
+      },
+      writeAudit: writeAiAudit,
+    });
+
+    if (executed.status !== AiJobStates.completed) {
+      throw new Error(executed.result?.error as string ?? `ocr_${executed.status}`);
+    }
+
+    const ocrText =
+      typeof executed.result?.text === "string"
+        ? executed.result.text
+        : stubOcrText(input.documentId).text;
     const meta = advisoryResultMeta("ocr");
     await prisma.ocrResult.create({
       data: {
-        ocrJobId,
-        text: ocr.text,
-        language: ocr.language,
-        handwritingLikely: ocr.handwritingLikely,
-        layoutJson: ocr.layoutJson,
+        ocrJobId: input.ocrJobId,
+        text: ocrText,
+        language: "en",
+        handwritingLikely: false,
+        layoutJson: { pages: 1, blocks: 1, taskPublicCode: executed.taskPublicCode },
         confidence: meta.confidence.confidence,
         confidenceLow: meta.confidence.confidenceLow,
         confidenceHigh: meta.confidence.confidenceHigh,
@@ -299,7 +336,7 @@ async function completeOcrJob(
       },
     });
     await prisma.ocrJob.update({
-      where: { id: ocrJobId },
+      where: { id: input.ocrJobId },
       data: {
         status: AiJobStates.completed,
         completedAt: new Date(),
@@ -315,7 +352,7 @@ async function completeOcrJob(
       },
     });
     await prisma.aiJob.update({
-      where: { id: aiJobId },
+      where: { id: input.aiJobId },
       data: {
         status: AiJobStates.completed,
         completedAt: new Date(),
@@ -329,26 +366,34 @@ async function completeOcrJob(
         storageUsageBytes: meta.cost.storageUsage,
         estimatedCostUsd: meta.cost.estimatedCost,
         resultJson: {
-          text: ocr.text,
-          language: ocr.language,
-          handwritingLikely: ocr.handwritingLikely,
+          text: ocrText,
+          taskPublicCode: executed.taskPublicCode,
+          mapping: executed.mapping,
         },
         explanationJson: meta.explanation as Prisma.InputJsonValue,
       },
     });
-    await appendLineageStep(lineageId, "ocr_result", ocrJobId);
+    await appendLineageStep(input.lineageId, "ocr_result", input.ocrJobId);
     aiAnalyticsInc("jobsCompleted");
     aiAnalyticsInc("tokenUsage", meta.cost.tokenUsage);
     aiAnalyticsInc("estimatedCostUsd", meta.cost.estimatedCost);
   } catch (error) {
     const message = error instanceof Error ? error.message : "ocr_failed";
     await prisma.ocrJob.update({
-      where: { id: ocrJobId },
+      where: { id: input.ocrJobId },
       data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
     });
     await prisma.aiJob.update({
-      where: { id: aiJobId },
+      where: { id: input.aiJobId },
       data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+    });
+    await writeAiAudit({
+      organizationId: input.organizationId,
+      actorUserId: input.userId,
+      jobPublicCode: input.legacyJobPublicCode,
+      action: "ai.ocr.failed",
+      success: false,
+      payload: { error: message },
     });
     aiAnalyticsInc("jobsFailed");
   }
@@ -400,29 +445,65 @@ export async function createExtractJob(
       where: { id: parent.id },
       data: { status: AiJobStates.processing },
     });
-    const text = await latestOcrText(organizationId, doc.id);
-    const entities = stubExtract(text);
-    const meta = advisoryResultMeta("extract");
-    await prisma.aiJob.update({
-      where: { id: parent.id },
-      data: {
-        status: AiJobStates.completed,
-        completedAt: new Date(),
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        tokenUsage: meta.cost.tokenUsage,
-        computeUsageMs: meta.cost.computeUsage,
-        storageUsageBytes: meta.cost.storageUsage,
-        estimatedCostUsd: meta.cost.estimatedCost,
-        resultJson: entities as Prisma.InputJsonValue,
-        explanationJson: meta.explanation as Prisma.InputJsonValue,
-      },
-    });
-    await appendLineageStep(lineage.id, "extraction_result", parent.publicCode);
-    aiAnalyticsInc("jobsCompleted");
+    try {
+      const text = await latestOcrText(organizationId, doc.id);
+      const executed = await submitAiExecution({
+        kind: "extract",
+        organizationId,
+        documentId: doc.id,
+        actorUserId: userId,
+        legacyJobPublicCode: parent.publicCode,
+        payload: { text, documentId: doc.id },
+        writeAudit: writeAiAudit,
+      });
+      if (executed.status !== AiJobStates.completed) {
+        throw new Error(`extract_${executed.status}`);
+      }
+      const entities =
+        executed.result && typeof executed.result === "object"
+          ? executed.result
+          : stubExtract(text);
+      const meta = advisoryResultMeta("extract");
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: {
+          status: AiJobStates.completed,
+          completedAt: new Date(),
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          tokenUsage: meta.cost.tokenUsage,
+          computeUsageMs: meta.cost.computeUsage,
+          storageUsageBytes: meta.cost.storageUsage,
+          estimatedCostUsd: meta.cost.estimatedCost,
+          resultJson: {
+            ...entities,
+            taskPublicCode: executed.taskPublicCode,
+            mapping: executed.mapping,
+          } as Prisma.InputJsonValue,
+          explanationJson: meta.explanation as Prisma.InputJsonValue,
+        },
+      });
+      await appendLineageStep(lineage.id, "extraction_result", parent.publicCode);
+      aiAnalyticsInc("jobsCompleted");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "extract_failed";
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+      });
+      await writeAiAudit({
+        organizationId,
+        actorUserId: userId,
+        jobPublicCode: parent.publicCode,
+        action: "ai.extract.failed",
+        success: false,
+        payload: { error: message },
+      });
+      aiAnalyticsInc("jobsFailed");
+    }
   });
 
   return {
@@ -451,7 +532,7 @@ export async function createClassifyJob(
   });
   const classifyJob = await prisma.classificationJob.create({
     data: {
-      publicCode: generateAiPublicCode("aiJob"),
+      publicCode: generateAiPublicCode("classificationJob"),
       organizationId,
       documentId: doc.id,
       lineageId: lineage.id,
@@ -482,58 +563,103 @@ export async function createClassifyJob(
       where: { id: parent.id },
       data: { status: AiJobStates.processing },
     });
-    const text = await latestOcrText(organizationId, doc.id);
-    const classified = stubClassify(text);
-    const meta = advisoryResultMeta("classify");
-    await prisma.classificationResult.create({
-      data: {
-        classificationJobId: classifyJob.id,
-        label: classified.label,
-        scoresJson: classified.scoresJson,
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        explanationJson: meta.explanation as Prisma.InputJsonValue,
-      },
-    });
-    await prisma.classificationJob.update({
-      where: { id: classifyJob.id },
-      data: {
-        status: AiJobStates.completed,
-        completedAt: new Date(),
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        tokenUsage: meta.cost.tokenUsage,
-        computeUsageMs: meta.cost.computeUsage,
-        storageUsageBytes: meta.cost.storageUsage,
-        estimatedCostUsd: meta.cost.estimatedCost,
-      },
-    });
-    await prisma.aiJob.update({
-      where: { id: parent.id },
-      data: {
-        status: AiJobStates.completed,
-        completedAt: new Date(),
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        tokenUsage: meta.cost.tokenUsage,
-        computeUsageMs: meta.cost.computeUsage,
-        storageUsageBytes: meta.cost.storageUsage,
-        estimatedCostUsd: meta.cost.estimatedCost,
-        resultJson: classified as Prisma.InputJsonValue,
-        explanationJson: meta.explanation as Prisma.InputJsonValue,
-      },
-    });
-    await appendLineageStep(lineage.id, "classification_result", classifyJob.publicCode);
-    aiAnalyticsInc("jobsCompleted");
+    try {
+      const text = await latestOcrText(organizationId, doc.id);
+      const executed = await submitAiExecution({
+        kind: "classify",
+        organizationId,
+        documentId: doc.id,
+        actorUserId: userId,
+        legacyJobPublicCode: classifyJob.publicCode,
+        payload: { text, documentId: doc.id },
+        writeAudit: writeAiAudit,
+      });
+      if (executed.status !== AiJobStates.completed) {
+        throw new Error(`classify_${executed.status}`);
+      }
+      const classified =
+        executed.result && typeof executed.result.label === "string"
+          ? {
+              label: String(executed.result.label),
+              scoresJson:
+                (executed.result.scoresJson as Record<string, number> | undefined) ??
+                ({ [String(executed.result.label)]: 0.8 } as Record<string, number>),
+            }
+          : stubClassify(text);
+      const meta = advisoryResultMeta("classify");
+      await prisma.classificationResult.create({
+        data: {
+          classificationJobId: classifyJob.id,
+          label: classified.label,
+          scoresJson: classified.scoresJson,
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          explanationJson: meta.explanation as Prisma.InputJsonValue,
+        },
+      });
+      await prisma.classificationJob.update({
+        where: { id: classifyJob.id },
+        data: {
+          status: AiJobStates.completed,
+          completedAt: new Date(),
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          tokenUsage: meta.cost.tokenUsage,
+          computeUsageMs: meta.cost.computeUsage,
+          storageUsageBytes: meta.cost.storageUsage,
+          estimatedCostUsd: meta.cost.estimatedCost,
+        },
+      });
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: {
+          status: AiJobStates.completed,
+          completedAt: new Date(),
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          tokenUsage: meta.cost.tokenUsage,
+          computeUsageMs: meta.cost.computeUsage,
+          storageUsageBytes: meta.cost.storageUsage,
+          estimatedCostUsd: meta.cost.estimatedCost,
+          resultJson: {
+            ...classified,
+            taskPublicCode: executed.taskPublicCode,
+            mapping: executed.mapping,
+          } as Prisma.InputJsonValue,
+          explanationJson: meta.explanation as Prisma.InputJsonValue,
+        },
+      });
+      await appendLineageStep(lineage.id, "classification_result", classifyJob.publicCode);
+      aiAnalyticsInc("jobsCompleted");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "classify_failed";
+      await prisma.classificationJob.update({
+        where: { id: classifyJob.id },
+        data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+      });
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+      });
+      await writeAiAudit({
+        organizationId,
+        actorUserId: userId,
+        jobPublicCode: parent.publicCode,
+        action: "ai.classify.failed",
+        success: false,
+        payload: { error: message },
+      });
+      aiAnalyticsInc("jobsFailed");
+    }
   });
 
   return {
@@ -575,7 +701,23 @@ export async function createSearchJob(
     });
 
     const text = await latestOcrText(organizationId, doc.id);
-    const chunks = stubEmbedChunks(text);
+    const executed = await submitAiExecution({
+      kind: "search",
+      organizationId,
+      documentId: doc.id,
+      actorUserId: userId,
+      legacyJobPublicCode: parent.publicCode,
+      payload: { text, documentId: doc.id, query: input.query },
+      writeAudit: writeAiAudit,
+    });
+    const chunks =
+      executed.result && Array.isArray(executed.result.chunks) && Array.isArray(executed.result.embeddings)
+        ? (executed.result.chunks as string[]).map((chunkText, chunkIndex) => ({
+            chunkIndex,
+            chunkText,
+            embedding: (executed.result!.embeddings as number[][])[chunkIndex] ?? stubEmbedChunks(chunkText)[0]!.embedding,
+          }))
+        : stubEmbedChunks(text);
     const embedJob = await prisma.embeddingJob.create({
       data: {
         publicCode: generateAiPublicCode("embeddingJob"),
@@ -608,7 +750,19 @@ export async function createSearchJob(
     await appendLineageStep(lineage.id, "embedding_result", embedJob.publicCode);
   }
 
-  const queryVec = stubEmbedChunks(input.query)[0]!.embedding;
+  const queryEmbed = await submitAiExecution({
+    kind: "embed",
+    organizationId,
+    documentId: input.documentId,
+    actorUserId: userId,
+    legacyJobPublicCode: parentCode ?? generateAiPublicCode("aiJob"),
+    payload: { text: input.query },
+    writeAudit: writeAiAudit,
+  });
+  const queryVec =
+    queryEmbed.result && Array.isArray(queryEmbed.result.embeddings) && queryEmbed.result.embeddings[0]
+      ? (queryEmbed.result.embeddings as number[][])[0]!
+      : stubEmbedChunks(input.query)[0]!.embedding;
   const embeddings = await prisma.documentEmbedding.findMany({
     where: { organizationId },
     take: 500,
@@ -641,6 +795,7 @@ export async function createSearchJob(
     explanation: meta.explanation,
     advisoryOnly: true,
     disclaimer: AI_ADVISORY_DISCLAIMER,
+    taskPublicCode: queryEmbed.taskPublicCode,
   };
 
   if (parentId && parentCode) {
@@ -742,55 +897,96 @@ export async function createFraudJob(
       where: { id: parent.id },
       data: { status: AiJobStates.processing },
     });
-    const text = await latestOcrText(organizationId, doc.id);
-    const fraud = stubFraudSignals(text);
-    const meta = advisoryResultMeta("fraud");
-    const result = {
-      ...fraud,
-      advisoryOnly: true,
-      neverMutatesVerification: true,
-      disclaimer: AI_ADVISORY_DISCLAIMER,
-    };
-    await prisma.fraudAnalysisJob.update({
-      where: { id: fraudJob.id },
-      data: {
-        status: AiJobStates.completed,
-        completedAt: new Date(),
-        riskScore: fraud.riskScore,
-        signalsJson: fraud.signalsJson as Prisma.InputJsonValue,
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        tokenUsage: meta.cost.tokenUsage,
-        computeUsageMs: meta.cost.computeUsage,
-        storageUsageBytes: meta.cost.storageUsage,
-        estimatedCostUsd: meta.cost.estimatedCost,
-        explanationJson: meta.explanation as Prisma.InputJsonValue,
+    try {
+      const text = await latestOcrText(organizationId, doc.id);
+      const executed = await submitAiExecution({
+        kind: "fraud",
+        organizationId,
+        documentId: doc.id,
+        actorUserId: userId,
+        legacyJobPublicCode: fraudJob.publicCode,
+        payload: { text, documentId: doc.id },
+        writeAudit: writeAiAudit,
+      });
+      if (executed.status !== AiJobStates.completed) {
+        throw new Error(`fraud_${executed.status}`);
+      }
+      const fraud =
+        executed.result && typeof executed.result.riskScore === "number"
+          ? {
+              riskScore: Number(executed.result.riskScore),
+              signalsJson: (executed.result.signalsJson as Record<string, unknown>) ?? {},
+            }
+          : stubFraudSignals(text);
+      const meta = advisoryResultMeta("fraud");
+      const result = {
+        ...fraud,
+        taskPublicCode: executed.taskPublicCode,
+        mapping: executed.mapping,
         advisoryOnly: true,
-      },
-    });
-    await prisma.aiJob.update({
-      where: { id: parent.id },
-      data: {
-        status: AiJobStates.completed,
-        completedAt: new Date(),
-        confidence: meta.confidence.confidence,
-        confidenceLow: meta.confidence.confidenceLow,
-        confidenceHigh: meta.confidence.confidenceHigh,
-        modelVersion: meta.confidence.modelVersion,
-        evaluationVersion: meta.confidence.evaluationVersion,
-        tokenUsage: meta.cost.tokenUsage,
-        computeUsageMs: meta.cost.computeUsage,
-        storageUsageBytes: meta.cost.storageUsage,
-        estimatedCostUsd: meta.cost.estimatedCost,
-        resultJson: result as Prisma.InputJsonValue,
-        explanationJson: meta.explanation as Prisma.InputJsonValue,
-      },
-    });
-    await appendLineageStep(lineage.id, "fraud_analysis", fraudJob.publicCode);
-    aiAnalyticsInc("jobsCompleted");
+        neverMutatesVerification: true,
+        disclaimer: AI_ADVISORY_DISCLAIMER,
+      };
+      await prisma.fraudAnalysisJob.update({
+        where: { id: fraudJob.id },
+        data: {
+          status: AiJobStates.completed,
+          completedAt: new Date(),
+          riskScore: fraud.riskScore,
+          signalsJson: fraud.signalsJson as Prisma.InputJsonValue,
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          tokenUsage: meta.cost.tokenUsage,
+          computeUsageMs: meta.cost.computeUsage,
+          storageUsageBytes: meta.cost.storageUsage,
+          estimatedCostUsd: meta.cost.estimatedCost,
+          explanationJson: meta.explanation as Prisma.InputJsonValue,
+          advisoryOnly: true,
+        },
+      });
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: {
+          status: AiJobStates.completed,
+          completedAt: new Date(),
+          confidence: meta.confidence.confidence,
+          confidenceLow: meta.confidence.confidenceLow,
+          confidenceHigh: meta.confidence.confidenceHigh,
+          modelVersion: meta.confidence.modelVersion,
+          evaluationVersion: meta.confidence.evaluationVersion,
+          tokenUsage: meta.cost.tokenUsage,
+          computeUsageMs: meta.cost.computeUsage,
+          storageUsageBytes: meta.cost.storageUsage,
+          estimatedCostUsd: meta.cost.estimatedCost,
+          resultJson: result as Prisma.InputJsonValue,
+          explanationJson: meta.explanation as Prisma.InputJsonValue,
+        },
+      });
+      await appendLineageStep(lineage.id, "fraud_analysis", fraudJob.publicCode);
+      aiAnalyticsInc("jobsCompleted");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "fraud_failed";
+      await prisma.fraudAnalysisJob.update({
+        where: { id: fraudJob.id },
+        data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+      });
+      await prisma.aiJob.update({
+        where: { id: parent.id },
+        data: { status: AiJobStates.failed, error: message, completedAt: new Date() },
+      });
+      await writeAiAudit({
+        organizationId,
+        actorUserId: userId,
+        jobPublicCode: parent.publicCode,
+        action: "ai.fraud.failed",
+        success: false,
+        payload: { error: message },
+      });
+      aiAnalyticsInc("jobsFailed");
+    }
   });
 
   return {
@@ -820,8 +1016,19 @@ export async function getAiJob(userId: string, organizationId: string, jobId: st
       const doc = await loadDocument(organizationId, aiJob.documentId);
       await assertDocumentPermission(userId, toAccessContext(doc), DocumentPermissions.view);
     }
+    const task = await findTaskByLegacyCode(aiJob.publicCode);
     return {
       job: publicJob({ ...aiJob, kind: aiJob.kind }),
+      task: task
+        ? {
+            publicCode: task.publicCode,
+            status: task.status,
+            queueName: task.queueName,
+            attemptCount: task.attemptCount,
+            legacyJobPublicCode: task.legacyJobPublicCode,
+            artifactPublicCode: task.artifactPublicCode,
+          }
+        : null,
       reviews: aiJob.humanReviews.map((r) => ({
         status: r.status,
         notes: r.notes,
@@ -840,6 +1047,7 @@ export async function getAiJob(userId: string, organizationId: string, jobId: st
   if (ocrJob) {
     const doc = await loadDocument(organizationId, ocrJob.documentId);
     await assertDocumentPermission(userId, toAccessContext(doc), DocumentPermissions.view);
+    const task = await findTaskByLegacyCode(ocrJob.publicCode);
     return {
       job: publicJob({
         ...ocrJob,
@@ -853,6 +1061,16 @@ export async function getAiJob(userId: string, organizationId: string, jobId: st
           : null,
         explanationJson: ocrJob.result?.explanationJson ?? null,
       }),
+      task: task
+        ? {
+            publicCode: task.publicCode,
+            status: task.status,
+            queueName: task.queueName,
+            attemptCount: task.attemptCount,
+            legacyJobPublicCode: task.legacyJobPublicCode,
+            artifactPublicCode: task.artifactPublicCode,
+          }
+        : null,
       lineage: ocrJob.lineage
         ? { publicCode: ocrJob.lineage.publicCode, steps: ocrJob.lineage.stepsJson }
         : null,

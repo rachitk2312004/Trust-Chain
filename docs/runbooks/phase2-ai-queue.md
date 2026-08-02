@@ -50,6 +50,22 @@ worker → executor → adapter (fallback chain) → FastAPI (/internal/*) → e
 - Executors no longer import engine modules; they call `AdapterFactory` only
 - Internal FastAPI routes added: `/internal/embed`, `/internal/evaluate`, `/internal/explain` (not public Express)
 
+## Step 5 (complete)
+
+Express gateway wires to the execution layer:
+
+```
+Client → Express (/api/v1/ai/*) → RBAC → validate → audit → Execution client
+         → FastAPI /internal/execution/* → Execution manager → Queue → Workers → Adapters
+```
+
+- New Express routes: `GET /api/v1/ai/models`, `GET /api/v1/ai/health`
+- Wave 9 job codes preserved; mapped to `AI-TASK-*` via `legacyJobPublicCode`
+- Classification jobs use `CLASSIFICATION-JOB-*`
+- Task ledger + artifact persistence in Postgres (`AiTask`, `AiArtifact`, attempts)
+- Audit events for submit / processing / completed / failed / retry / dead_letter / cancelled
+- When `AI_SERVICE_URL` unset, Express uses in-memory execution client (CI); set URL for real FastAPI
+
 ## Next
 
-Step 5 — Express gateway orchestration (auth, persistence, audit).
+Step 6 — Replace remaining stub processors / expand real engine adapters.

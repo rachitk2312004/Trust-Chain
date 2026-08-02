@@ -219,6 +219,22 @@ async function main() {
   testForbiddenOperations();
   testStubProcessors();
   testJobAndReviewStates();
+
+  const {
+    testRouteValidationSchemas,
+    testCompatibilityMapping,
+    testPhase2PublicCodePrefixes,
+    testMemoryExecutionClientQueueSubmit,
+    testHealthAndModelsViaMemoryClient,
+    testGatewayDoesNotImportWorkers,
+  } = await import("../dist/modules/ai/tests/gateway.unit.js");
+  testRouteValidationSchemas();
+  testCompatibilityMapping();
+  testPhase2PublicCodePrefixes();
+  await testMemoryExecutionClientQueueSubmit();
+  await testHealthAndModelsViaMemoryClient();
+  testGatewayDoesNotImportWorkers();
+
   const { testOpsPublicCodes, testOpsStatesAndScores, testForbiddenOpsOperations } = await import(
     "../dist/modules/ops/tests/ops.unit.js"
   );

@@ -358,6 +358,8 @@ export const AiIdPrefixes = {
   aiJob: "AI-JOB",
   embeddingJob: "EMBEDDING-JOB",
   lineage: "LINEAGE",
+  /** Wave 9 classification job public codes */
+  classificationJob: "CLASSIFICATION-JOB",
   /** Phase 2 — gateway / worker ledger (v1 maps Wave 9 jobs → tasks). */
   worker: "AI-WORKER",
   queue: "AI-QUEUE",

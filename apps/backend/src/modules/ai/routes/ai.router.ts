@@ -13,6 +13,8 @@ aiRouter.post("/extract", asyncHandler(controller.postExtract));
 aiRouter.post("/search", asyncHandler(controller.postSearch));
 aiRouter.post("/fraud", asyncHandler(controller.postFraud));
 aiRouter.get("/jobs/:jobId", asyncHandler(controller.getJob));
+aiRouter.get("/models", asyncHandler(controller.getModels));
+aiRouter.get("/health", asyncHandler(controller.getHealth));
 
 /** Org-scoped companions — parent mounts requireOrgMember */
 export const organizationAiRouter = Router({ mergeParams: true });

@@ -3,6 +3,7 @@ import { AppError } from "../../../lib/errors.js";
 import { parseBody, parseParams } from "../../../lib/validate.js";
 import { getAiAnalyticsSnapshot } from "../services/analytics.js";
 import * as svc from "../services/ai.service.js";
+import { getAiGatewayHealth, listAiModels } from "../services/gatewayHealth.js";
 import {
   aiDocumentBodySchema,
   aiReviewBodySchema,
@@ -94,4 +95,16 @@ export async function getAnalytics(req: Request, res: Response): Promise<void> {
   requireUser(req);
   parseParams(orgParamsSchema, req.params);
   res.status(200).json({ analytics: getAiAnalyticsSnapshot() });
+}
+
+export async function getModels(req: Request, res: Response): Promise<void> {
+  requireUser(req);
+  const result = await listAiModels();
+  res.status(200).json(result);
+}
+
+export async function getHealth(req: Request, res: Response): Promise<void> {
+  requireUser(req);
+  const result = await getAiGatewayHealth();
+  res.status(200).json(result);
 }
