@@ -3,6 +3,11 @@
  * Express never imports workers/engines — only this client.
  */
 import { AppError } from "../../../lib/errors.js";
+import {
+  allowMemoryExecutionClient,
+  isAiProductionMode,
+  requireGatewayOrThrow,
+} from "../utils/aiRuntime.js";
 
 export type ExecutionSubmitInput = {
   capability: string;
@@ -79,6 +84,9 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!root) {
     throw new AppError(503, "AI_SERVICE_UNAVAILABLE", "AI_SERVICE_URL is not configured");
   }
+  if (isAiProductionMode() && !process.env.AI_SERVICE_TOKEN?.trim()) {
+    throw new AppError(503, "AI_SERVICE_UNAVAILABLE", "AI_SERVICE_TOKEN is required in production");
+  }
   const response = await fetch(`${root}${path}`, {
     ...init,
     headers: {
@@ -125,11 +133,21 @@ export class HttpAiExecutionClient implements AiExecutionClient {
   }
 }
 
-/** In-memory client for unit tests / offline fallback (no model execution). */
+/**
+ * Memory client — CI / unit tests / local only.
+ * Forbidden when AI production mode is active.
+ */
 export class MemoryAiExecutionClient implements AiExecutionClient {
   private readonly tasks = new Map<string, ExecutionStatusResult & { payload?: unknown }>();
 
   async submit(input: ExecutionSubmitInput): Promise<ExecutionSubmitResult> {
+    if (isAiProductionMode()) {
+      throw new AppError(
+        503,
+        "AI_MEMORY_CLIENT_FORBIDDEN",
+        "Memory AI execution client is forbidden in production",
+      );
+    }
     const taskId = input.taskId ?? `AI-TASK-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
     this.tasks.set(taskId, {
       taskId,
@@ -154,14 +172,21 @@ export class MemoryAiExecutionClient implements AiExecutionClient {
     return row;
   }
 
-  /** Test helper — mark task completed with a result envelope. */
   complete(taskId: string, result: Record<string, unknown>): void {
     const row = this.tasks.get(taskId);
     if (!row) return;
     this.tasks.set(taskId, {
       ...row,
       status: "completed",
-      result: { ...result, advisoryOnly: true },
+      result: {
+        advisoryOnly: true,
+        modelId: "AI-MODEL-MEMORY01",
+        modelVersion: "MODEL-VERSION-MEMORY01",
+        executionTimeMs: 1,
+        lineageId: "LINEAGE-MEMORY01",
+        confidence: 0.7,
+        ...result,
+      },
     });
   }
 
@@ -179,12 +204,12 @@ export class MemoryAiExecutionClient implements AiExecutionClient {
     return {
       models: [
         {
-          modelId: "AI-MODEL-STUB0001",
-          modelVersion: "MODEL-VERSION-STUB0001",
+          modelId: "AI-MODEL-MEMORY01",
+          modelVersion: "MODEL-VERSION-MEMORY01",
           capability: "ocr",
-          provider: "stub",
+          provider: "local",
           healthStatus: "healthy",
-          fallback: ["primary", "secondary", "stub"],
+          fallback: ["primary", "secondary"],
           advisoryOnly: true,
         },
       ],
@@ -197,7 +222,18 @@ export class MemoryAiExecutionClient implements AiExecutionClient {
     let processed = 0;
     for (const [id, row] of this.tasks) {
       if (row.status === "pending") {
-        this.complete(id, { text: "memory-execution-stub", capability: row.queue });
+        const capability = row.queue ?? "ocr";
+        this.complete(id, {
+          text: typeof (row.payload as { text?: string })?.text === "string"
+            ? (row.payload as { text: string }).text
+            : `gateway-memory:${capability}`,
+          capability,
+          chunks: ["chunk-0"],
+          embeddings: [[0.1, 0.2, 0.3]],
+          label: "other",
+          riskScore: 0.1,
+          signalsJson: {},
+        });
         processed += 1;
       }
     }
@@ -209,10 +245,13 @@ let client: AiExecutionClient | null = null;
 
 export function getAiExecutionClient(): AiExecutionClient {
   if (client) return client;
+  requireGatewayOrThrow();
   if (process.env.AI_SERVICE_URL?.trim()) {
     client = new HttpAiExecutionClient();
-  } else {
+  } else if (allowMemoryExecutionClient()) {
     client = new MemoryAiExecutionClient();
+  } else {
+    throw new AppError(503, "AI_SERVICE_UNAVAILABLE", "AI_SERVICE_URL is required");
   }
   return client;
 }

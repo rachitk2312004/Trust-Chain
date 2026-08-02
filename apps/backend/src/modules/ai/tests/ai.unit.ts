@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AiIdPrefixes, AiJobStates, AiReviewStates } from "@trustchain/config";
 import { AppError } from "../../../lib/errors.js";
 import { buildConfidence, buildCost } from "../utils/confidence.js";
@@ -8,12 +11,18 @@ import {
   AI_ADVISORY_DISCLAIMER,
 } from "../utils/guards.js";
 import { generateAiPublicCode } from "../utils/ids.js";
+import { cosineSimilarity, metaFromExecutionResult } from "../services/processor.js";
 import {
-  cosineSimilarity,
-  stubClassify,
-  stubExtract,
-  stubFraudSignals,
-} from "../services/processor.js";
+  allowMemoryExecutionClient,
+  allowStubAdapterFallback,
+  assertAiProductionConfig,
+  isAiProductionMode,
+} from "../utils/aiRuntime.js";
+import {
+  MemoryAiExecutionClient,
+  getAiExecutionClient,
+  setAiExecutionClientForTests,
+} from "../services/executionClient.js";
 
 export function testAiPublicCodes(): void {
   assert.match(generateAiPublicCode("ocrJob"), new RegExp(`^${AiIdPrefixes.ocrJob}-[0-9A-F]{8}$`));
@@ -57,15 +66,41 @@ export function testForbiddenOperations(): void {
   assert.ok(AI_ADVISORY_DISCLAIMER.includes("advisory"));
 }
 
-export function testStubProcessors(): void {
-  const entities = stubExtract("Invoice #42 dated 2026-08-01");
-  assert.ok(entities.dates.includes("2026-08-01"));
-  assert.ok(entities.identifiers.includes("#42"));
-  const classified = stubClassify("This is an invoice for services");
-  assert.equal(classified.label, "invoice");
-  const fraud = stubFraudSignals("short");
-  assert.ok(fraud.riskScore >= 0);
+/** Step 6 — Express no longer ships stub OCR/extract/classify/fraud processors. */
+export function testStubProcessorsRemoved(): void {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, "../services/processor.ts"),
+    join(here, "../services/processor.js"),
+    join(here, "../../../../src/modules/ai/services/processor.ts"),
+  ];
+  const path = candidates.find((p) => {
+    try {
+      readFileSync(p);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  assert.ok(path, "processor source not found");
+  const source = readFileSync(path!, "utf8");
+  assert.equal(source.includes("export function stubExtract"), false);
+  assert.equal(source.includes("export function stubClassify"), false);
+  assert.equal(source.includes("export function stubFraudSignals"), false);
+  assert.equal(source.includes("export function stubOcrText"), false);
+  assert.equal(source.includes("export function stubEmbedChunks"), false);
+  assert.equal(source.includes("setImmediate"), false);
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);
+  const meta = metaFromExecutionResult("ocr", {
+    advisoryOnly: true,
+    confidence: 0.91,
+    modelVersion: "MODEL-VERSION-OCR00001",
+    provider: "local",
+    executionTimeMs: 12,
+    lineageId: "LINEAGE-AABBCCDD",
+  });
+  assert.equal(meta.confidence.confidence, 0.91);
+  assert.equal(meta.modelProvider, "local");
 }
 
 export function testJobAndReviewStates(): void {
@@ -78,4 +113,84 @@ export function testJobAndReviewStates(): void {
   assert.equal(AiReviewStates.approved, "approved");
   assert.equal(AiReviewStates.rejected, "rejected");
   assert.equal(AiReviewStates.escalated, "escalated");
+}
+
+export function testProductionConfigValidation(): void {
+  const prev = {
+    NODE_ENV: process.env.NODE_ENV,
+    AI_EXECUTION_MODE: process.env.AI_EXECUTION_MODE,
+    AI_SERVICE_URL: process.env.AI_SERVICE_URL,
+    AI_SERVICE_TOKEN: process.env.AI_SERVICE_TOKEN,
+    REDIS_URL: process.env.REDIS_URL,
+    AI_QUEUE_BACKEND: process.env.AI_QUEUE_BACKEND,
+    AI_ALLOW_STUB_FALLBACK: process.env.AI_ALLOW_STUB_FALLBACK,
+    AI_EXECUTION_ALLOW_MEMORY: process.env.AI_EXECUTION_ALLOW_MEMORY,
+  };
+  try {
+    process.env.AI_EXECUTION_MODE = "production";
+    delete process.env.AI_SERVICE_URL;
+    delete process.env.AI_SERVICE_TOKEN;
+    delete process.env.REDIS_URL;
+    delete process.env.AI_QUEUE_BACKEND;
+    assert.equal(isAiProductionMode(), true);
+    assert.equal(allowMemoryExecutionClient(), false);
+    assert.equal(allowStubAdapterFallback(), false);
+    assert.throws(() => assertAiProductionConfig(), /AI production configuration incomplete/);
+
+    process.env.AI_SERVICE_URL = "http://127.0.0.1:8090";
+    process.env.AI_SERVICE_TOKEN = "token";
+    process.env.REDIS_URL = "redis://127.0.0.1:6379";
+    assertAiProductionConfig();
+  } finally {
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+export async function testMemoryClientForbiddenInProduction(): Promise<void> {
+  const prevMode = process.env.AI_EXECUTION_MODE;
+  const prevUrl = process.env.AI_SERVICE_URL;
+  try {
+    process.env.AI_EXECUTION_MODE = "production";
+    delete process.env.AI_SERVICE_URL;
+    setAiExecutionClientForTests(null);
+    assert.throws(() => getAiExecutionClient(), (error: unknown) => {
+      return error instanceof AppError && error.code === "AI_SERVICE_UNAVAILABLE";
+    });
+    const memory = new MemoryAiExecutionClient();
+    await assert.rejects(
+      () => memory.submit({ capability: "ocr", payload: {} }),
+      (error: unknown) =>
+        error instanceof AppError && error.code === "AI_MEMORY_CLIENT_FORBIDDEN",
+    );
+  } finally {
+    if (prevMode === undefined) delete process.env.AI_EXECUTION_MODE;
+    else process.env.AI_EXECUTION_MODE = prevMode;
+    if (prevUrl === undefined) delete process.env.AI_SERVICE_URL;
+    else process.env.AI_SERVICE_URL = prevUrl;
+    setAiExecutionClientForTests(null);
+  }
+}
+
+export async function testLineageAndValidationFields(): Promise<void> {
+  const client = new MemoryAiExecutionClient();
+  setAiExecutionClientForTests(client);
+  const submitted = await client.submit({
+    capability: "ocr",
+    payload: { imageData: "ab" },
+    taskId: "AI-TASK-LINEAGE1",
+  });
+  await client.drain(["ocr"]);
+  const status = await client.status(submitted.taskId);
+  assert.equal(status.status, "completed");
+  const result = status.result as Record<string, unknown>;
+  assert.equal(result.advisoryOnly, true);
+  assert.ok(typeof result.modelId === "string");
+  assert.ok(typeof result.modelVersion === "string");
+  assert.ok(typeof result.executionTimeMs === "number");
+  assert.ok(typeof result.lineageId === "string");
+  assert.ok(typeof result.confidence === "number");
+  setAiExecutionClientForTests(null);
 }

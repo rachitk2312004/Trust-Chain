@@ -2,6 +2,8 @@
  * Fail-fast startup checks for required secrets.
  * PUBLIC_VERIFY_SIGNING_SECRET must never fall back to another secret.
  */
+import { assertAiProductionConfig } from "../modules/ai/utils/aiRuntime.js";
+
 export function assertRequiredRuntimeSecrets(): void {
   const missing: string[] = [];
   if (!process.env.PUBLIC_VERIFY_SIGNING_SECRET?.trim()) {
@@ -18,6 +20,7 @@ export function assertRequiredRuntimeSecrets(): void {
       `Missing required environment variables: ${missing.join(", ")}. Refusing to start.`,
     );
   }
+  assertAiProductionConfig();
 }
 
 export function getPublicVerifySigningSecret(): string {

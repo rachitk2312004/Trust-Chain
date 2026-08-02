@@ -1,12 +1,21 @@
-"""Fallback chain: primary → secondary → stub → failure."""
+"""Fallback chain: primary → secondary → stub (non-prod only) → failure."""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import os
 
 from .base_adapter import BaseAdapter
 from .errors import AdapterExhaustedError, CircuitOpenError
 from .routing import AdapterRoute, resolve_route
+
+
+def stub_fallback_allowed() -> bool:
+    mode = (os.environ.get("AI_EXECUTION_MODE") or os.environ.get("NODE_ENV") or "").lower()
+    if mode in {"production", "gateway"}:
+        return False
+    flag = (os.environ.get("AI_ALLOW_STUB_FALLBACK") or "true").lower()
+    return flag in {"1", "true", "yes"}
 
 
 class FallbackAdapter(BaseAdapter):
@@ -27,7 +36,10 @@ class FallbackAdapter(BaseAdapter):
 
     def invoke(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         errors: List[str] = []
-        for slot in self._route.chain():
+        chain = list(self._route.chain())
+        if not stub_fallback_allowed():
+            chain = [slot for slot in chain if slot != "stub"]
+        for slot in chain:
             adapter = self._adapters.get(slot)
             if adapter is None:
                 errors.append(f"{slot}:missing")
@@ -52,5 +64,6 @@ class FallbackAdapter(BaseAdapter):
             "name": self.name,
             "capability": self.capability,
             "route": self._route.chain(),
+            "stubFallbackAllowed": stub_fallback_allowed(),
             "adapters": {k: v.health_check() for k, v in self._adapters.items()},
         }

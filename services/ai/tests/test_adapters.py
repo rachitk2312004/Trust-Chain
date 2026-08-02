@@ -61,7 +61,11 @@ def test_all_capability_adapters() -> None:
         assert result["capability"] == capability
 
 
-def test_fallback_to_stub_when_primary_fails() -> None:
+def test_fallback_to_stub_when_primary_fails(monkeypatch) -> None:
+    monkeypatch.setenv("AI_ALLOW_STUB_FALLBACK", "true")
+    monkeypatch.delenv("AI_EXECUTION_MODE", raising=False)
+    monkeypatch.setenv("NODE_ENV", "test")
+
     class BoomAdapter(BaseAdapter):
         name = "boom"
         capability = "ocr"
@@ -83,6 +87,47 @@ def test_fallback_to_stub_when_primary_fails() -> None:
     result = chain.execute({"imageData": "x"})
     assert result["fallbackSlot"] == "stub"
     assert result["text"] == "stub"
+
+
+def test_production_skips_stub_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("AI_EXECUTION_MODE", "production")
+    monkeypatch.setenv("AI_ALLOW_STUB_FALLBACK", "true")
+
+    class BoomAdapter(BaseAdapter):
+        name = "boom"
+        capability = "ocr"
+
+        def invoke(self, payload):
+            raise RuntimeError("primary down")
+
+    class StubOk(BaseAdapter):
+        name = "stub-ok"
+        capability = "ocr"
+
+        def invoke(self, payload):
+            return {"advisoryOnly": True, "text": "stub"}
+
+    chain = FallbackAdapter(
+        "ocr",
+        {"primary": BoomAdapter(), "secondary": BoomAdapter(), "stub": StubOk()},
+    )
+    with pytest.raises(AdapterExhaustedError):
+        chain.execute({"imageData": "x"})
+
+
+def test_adapter_result_validation_fields() -> None:
+    factory = get_adapter_factory()
+    result = factory.execute("ocr", {"imageData": "deadbeef", "engine": "stub"})
+    for key in (
+        "advisoryOnly",
+        "modelId",
+        "modelVersion",
+        "executionTimeMs",
+        "lineageId",
+        "confidence",
+    ):
+        assert key in result
+    assert result["advisoryOnly"] is True
 
 
 def test_fallback_exhausted() -> None:

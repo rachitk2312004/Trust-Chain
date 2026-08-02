@@ -29,7 +29,7 @@ export function buildConfidence(input?: {
     confidenceInterval: { low, high },
     confidenceLow: low,
     confidenceHigh: high,
-    modelVersion: input?.modelVersion ?? "stub-1.0.0",
+    modelVersion: input?.modelVersion ?? "MODEL-VERSION-LOCAL001",
     evaluationVersion: input?.evaluationVersion ?? "eval-1.0.0",
   };
 }

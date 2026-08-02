@@ -211,14 +211,20 @@ async function main() {
     testAiPublicCodes,
     testConfidenceAndCost,
     testForbiddenOperations,
-    testStubProcessors,
+    testStubProcessorsRemoved,
     testJobAndReviewStates,
+    testProductionConfigValidation,
+    testMemoryClientForbiddenInProduction,
+    testLineageAndValidationFields,
   } = await import("../dist/modules/ai/tests/ai.unit.js");
   testAiPublicCodes();
   testConfidenceAndCost();
   testForbiddenOperations();
-  testStubProcessors();
+  testStubProcessorsRemoved();
   testJobAndReviewStates();
+  testProductionConfigValidation();
+  await testMemoryClientForbiddenInProduction();
+  await testLineageAndValidationFields();
 
   const {
     testRouteValidationSchemas,

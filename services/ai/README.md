@@ -2,22 +2,18 @@
 
 Advisory-only AI/OCR microservice. Never revokes certificates, executes blockchain transactions, mutates verification results, runs autonomous agents, or self-modifies prompts.
 
-## Topology (Phase 2 Step 2)
+## Topology (Phase 2 Step 6)
 
 ```
-Express (public) → Execution manager → Queue manager → Workers → Adapters → FastAPI /internal/*
-                         │
-                         ▼
-              Redis or in-memory backend
-              queues: ocr | classification | extraction | embedding | fraud | evaluation
-              + paired dead-letter queues
+Express (public) → Execution client → FastAPI /internal/execution/*
+  → Execution manager → Queue manager → Workers → Adapters → engines
 ```
 
-Express must never talk to workers directly. Redis is ephemeral only (queues, locks, leases, retries).
+Express must never talk to workers or engines directly. Redis is ephemeral only (queues, locks, leases, retries). Stub adapter fallback is CI/local only.
 
 Queue package path: `services/ai/task_queue/` (named to avoid shadowing Python stdlib `queue`).
 Workers: `services/ai/workers/` — lease, heartbeat, retry, timeout, lineage, metrics.
-Adapters: `services/ai/adapters/` — FastAPI clients + primary/secondary/stub fallback (Step 4).
+Adapters: `services/ai/adapters/` — FastAPI clients + primary/secondary/(stub*) fallback.
 
 ## Run tests
 

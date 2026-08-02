@@ -45,12 +45,12 @@ export async function listAiModels() {
     return {
       models: [
         {
-          modelId: "AI-MODEL-STUB0001",
-          modelVersion: "MODEL-VERSION-STUB0001",
+          modelId: "AI-MODEL-LOCAL001",
+          modelVersion: "MODEL-VERSION-LOCAL001",
           capability: "ocr",
-          provider: "stub",
+          provider: "local",
           healthStatus: "degraded",
-          fallback: ["primary", "secondary", "stub"],
+          fallback: ["primary", "secondary"],
         },
       ],
       advisoryOnly: true,

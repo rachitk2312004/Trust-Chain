@@ -121,14 +121,18 @@ AI must never:
 
 Enforced in Express (`assertSafeAiOperation`) and FastAPI (`security/guard.py`).
 
-## Env (optional)
+## Env
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_SERVICE_URL` | Internal FastAPI base URL |
-| `AI_SERVICE_TOKEN` | Service auth token |
+| `AI_SERVICE_URL` | FastAPI base URL (**required in production**) |
+| `AI_SERVICE_TOKEN` | Service auth token (**required in production**) |
+| `REDIS_URL` | Queue backend (**required in production** unless `AI_QUEUE_BACKEND=memory`) |
+| `AI_EXECUTION_MODE` | `production` / `development` / `test` / `ci` |
+| `AI_ALLOW_STUB_FALLBACK` | Stub adapter slot outside production only |
 | `OPENAI_API_KEY` | Optional LLM/embeddings |
-| `REDIS_URL` / `CELERY_BROKER_URL` | Optional async workers |
+
+Production never silently uses the Express memory client or stub adapter fallback.
 
 ## Run AI service
 

@@ -110,7 +110,13 @@ def execution_health() -> Dict[str, Any]:
 
 @router.get("/models")
 def list_models() -> Dict[str, Any]:
-    """Catalog of adapter-backed capabilities (stub/fallback configuration)."""
+    """Catalog of adapter-backed capabilities (fallback configuration)."""
+    from adapters.fallback import stub_fallback_allowed
+
+    allow_stub = stub_fallback_allowed()
+    fallback = (
+        ["primary", "secondary", "stub"] if allow_stub else ["primary", "secondary"]
+    )
     models = []
     for capability in sorted(CAPABILITY_QUEUES) + ["explainability"]:
         models.append(
@@ -118,9 +124,9 @@ def list_models() -> Dict[str, Any]:
                 "modelId": f"AI-MODEL-{capability.upper()[:8]}",
                 "modelVersion": f"MODEL-VERSION-{capability.upper()[:8]}",
                 "capability": capability,
-                "provider": "stub",
+                "provider": "local",
                 "healthStatus": "healthy",
-                "fallback": ["primary", "secondary", "stub"],
+                "fallback": fallback,
                 "advisoryOnly": True,
             }
         )
