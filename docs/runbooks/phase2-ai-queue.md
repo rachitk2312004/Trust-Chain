@@ -36,6 +36,20 @@ Workers never import blockchain, verification, Express, or frontend code. AI rem
 |----------|---------|
 | `REDIS_URL` | Optional. When unset or unreachable, in-memory backend is used. |
 
+## Step 4 (complete)
+
+Adapter layer under `services/ai/adapters/`:
+
+```
+worker → executor → adapter (fallback chain) → FastAPI (/internal/*) → engine → result
+```
+
+- Clients: OCR, extraction, classification, embedding, fraud, evaluation, explainability
+- Fallback: primary → secondary → stub → failure
+- Health: circuit breaker, timeout/retry helper, response validation (`advisoryOnly`)
+- Executors no longer import engine modules; they call `AdapterFactory` only
+- Internal FastAPI routes added: `/internal/embed`, `/internal/evaluate`, `/internal/explain` (not public Express)
+
 ## Next
 
-Step 4 — FastAPI adapters (replace stub engines behind the worker interface).
+Step 5 — Express gateway orchestration (auth, persistence, audit).

@@ -1,4 +1,4 @@
-"""Base worker — claim → execute stub engine → ack / retry / dead-letter."""
+"""Base worker — claim → adapter executor → ack / retry / dead-letter."""
 
 from __future__ import annotations
 

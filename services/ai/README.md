@@ -5,7 +5,7 @@ Advisory-only AI/OCR microservice. Never revokes certificates, executes blockcha
 ## Topology (Phase 2 Step 2)
 
 ```
-Express (public) → Execution manager → Queue manager → Workers → stub engines
+Express (public) → Execution manager → Queue manager → Workers → Adapters → FastAPI /internal/*
                          │
                          ▼
               Redis or in-memory backend
@@ -16,7 +16,8 @@ Express (public) → Execution manager → Queue manager → Workers → stub en
 Express must never talk to workers directly. Redis is ephemeral only (queues, locks, leases, retries).
 
 Queue package path: `services/ai/task_queue/` (named to avoid shadowing Python stdlib `queue`).
-Workers: `services/ai/workers/` (Step 3) — lease, heartbeat, retry, timeout, lineage, metrics.
+Workers: `services/ai/workers/` — lease, heartbeat, retry, timeout, lineage, metrics.
+Adapters: `services/ai/adapters/` — FastAPI clients + primary/secondary/stub fallback (Step 4).
 
 ## Run tests
 
@@ -35,6 +36,6 @@ PYTHONPATH=. uvicorn api.app:app --reload --port 8090
 ```
 
 Health: `GET /health`  
-Internal: `/internal/ocr`, `/internal/extract`, `/internal/classify`, `/internal/search`, `/internal/fraud`, `/internal/pipeline`, `/internal/jobs/{job_id}`
+Internal: `/internal/ocr`, `/internal/extract`, `/internal/classify`, `/internal/search`, `/internal/fraud`, `/internal/embed`, `/internal/evaluate`, `/internal/explain`, `/internal/pipeline`, `/internal/jobs/{job_id}`
 
 Optional: `REDIS_URL` for real Redis; CI defaults to in-memory queue backend.

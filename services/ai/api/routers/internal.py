@@ -123,6 +123,74 @@ def fraud_endpoint(body: TextRequest) -> Dict[str, Any]:
     return assess_fraud_risk(body.text, provider=body.provider)
 
 
+class EmbedRequest(BaseModel):
+    text: str = ""
+    operation: str = "embed"
+
+
+class EvaluateRequest(BaseModel):
+    predicted: float = 0.0
+    reference: float = 0.0
+    operation: str = "evaluate"
+
+
+class ExplainRequest(BaseModel):
+    text: str = ""
+    kind: str = "generic"
+    operation: str = "explain"
+
+
+@router.post("/embed")
+def embed_endpoint(body: EmbedRequest) -> Dict[str, Any]:
+    _guard(body.operation)
+    get_analytics().increment("embed")
+    chunks = chunk_text(body.text) if body.text else []
+    vectors = [deterministic_embedding(c) for c in chunks] if chunks else []
+    if not vectors and body.text:
+        vectors = [deterministic_embedding(body.text)]
+        chunks = [body.text]
+    return {
+        "chunks": chunks,
+        "embeddings": vectors,
+        "count": len(vectors),
+        "advisoryOnly": True,
+        "reviewState": DEFAULT_REVIEW_STATE.value,
+    }
+
+
+@router.post("/evaluate")
+def evaluate_endpoint(body: EvaluateRequest) -> Dict[str, Any]:
+    from evaluation.metrics import evaluate_confidence
+
+    _guard(body.operation)
+    get_analytics().increment("evaluate")
+    result = evaluate_confidence(body.predicted, body.reference)
+    result["advisoryOnly"] = True
+    result["reviewState"] = DEFAULT_REVIEW_STATE.value
+    return result
+
+
+@router.post("/explain")
+def explain_endpoint(body: ExplainRequest) -> Dict[str, Any]:
+    from explainability.attribution.attribution import build_attribution
+    from explainability.evidence.evidence import build_evidence
+    from explainability.reasoning.reasoning import build_reasoning
+    from explainability.summaries.summaries import build_summary
+
+    _guard(body.operation)
+    get_analytics().increment("explain")
+    summary = build_summary(body.text)
+    return {
+        "kind": body.kind,
+        "evidence": build_evidence(body.kind, spans=[{"text": body.text[:80]}]),
+        "attribution": build_attribution(["text"], [1.0]),
+        "reasoning": build_reasoning([f"Explain {body.kind}"], summary["summary"]),
+        "summary": summary,
+        "advisoryOnly": True,
+        "reviewState": DEFAULT_REVIEW_STATE.value,
+    }
+
+
 @router.post("/pipeline")
 def pipeline_endpoint(body: PipelineRequest) -> Dict[str, Any]:
     _guard(body.operation)
