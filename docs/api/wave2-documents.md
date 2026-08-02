@@ -31,9 +31,17 @@ Object storage: **Cloudflare R2 only**. PostgreSQL (Prisma) is the source of tru
 |--------|------|-------|
 | POST | `/organizations/:id/documents` | Creates shell with status `pending_upload` |
 | POST | `/organizations/:id/documents/:documentId/upload-url` | Creates `DocumentUploadSession` + R2 presigned PUT |
-| POST | `/organizations/:id/documents/:documentId/versions/confirm` | Confirms upload; SHA-256 + MIME/size; transitions off `pending_upload` |
-| GET | `/organizations/:id/documents/:documentId/download-url` | Presigned GET for current version |
+| POST | `/organizations/:id/documents/:documentId/versions/confirm` | Confirms upload; **server streams R2 object through SHA-256** (constant memory) and rejects client hash mismatch; optional envelope encryption |
+| GET | `/organizations/:id/documents/:documentId/download-url` | Presigned GET for plaintext versions; proxy hint when encrypted |
 | GET | `/organizations/:id/documents/:documentId/versions/:versionId/download-url` | Presigned GET for a version |
+| GET | `/organizations/:id/documents/:documentId/content` | Streams decrypted bytes for envelope-encrypted objects |
+
+### Integrity & encryption (Phase 1)
+
+- Confirm always re-hashes via `streamSha256Object` — do not trust client `contentHash` alone.
+- When `DOCUMENT_ENCRYPTION_ENABLED=true`, ciphertext is written to `{objectKey}.enc` with metadata on `DocumentVersion` (`encrypted`, `encryptionAlgorithm`, `keyVersion`, `wrappedDek`, `iv`, `authTag`, `encryptionMetadata`).
+- Keys: `DOCUMENT_KEY_V1|V2|V3` + `DOCUMENT_ACTIVE_KEY_VERSION`.
+- Malware: `MALWARE_SCANNER=mock|http|clamav` via adapter interface.
 
 ### Confirm body
 

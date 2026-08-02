@@ -1,6 +1,8 @@
 import { Router } from "express";
+import { AuthRateLimit } from "@trustchain/config";
 import { asyncHandler } from "../../lib/asyncHandler.js";
 import { AppError } from "../../lib/errors.js";
+import { assertRateLimit } from "../../lib/rateLimit.js";
 import { parseBody, parseParams } from "../../lib/validate.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { z } from "zod";
@@ -31,9 +33,21 @@ import { completeMfaLogin, disableMfa, enableMfa, setupMfa } from "./mfa.service
 
 export const authRouter = Router();
 
+async function authRateLimit(req: { ip?: string }, action: string): Promise<void> {
+  const ip = typeof req.ip === "string" && req.ip.length > 0 ? req.ip : "unknown";
+  await assertRateLimit({
+    key: `auth:${action}:${ip}`,
+    maxRequests: AuthRateLimit.maxRequests,
+    windowMs: AuthRateLimit.windowMs,
+    errorCode: "AUTH_RATE_LIMITED",
+    message: "Too many authentication attempts",
+  });
+}
+
 authRouter.post(
   "/register",
   asyncHandler(async (req, res) => {
+    await authRateLimit(req, "register");
     const body = parseBody(registerBodySchema, req.body);
     const user = await registerUser(body);
     res.status(201).json({ user });
@@ -43,6 +57,7 @@ authRouter.post(
 authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
+    await authRateLimit(req, "login");
     const body = parseBody(loginBodySchema, req.body);
     const meta = getRequestMeta(req);
     const result = await loginWithPassword({
@@ -142,6 +157,7 @@ authRouter.post(
 authRouter.post(
   "/email/resend",
   asyncHandler(async (req, res) => {
+    await authRateLimit(req, "email_resend");
     const body = parseBody(resendVerificationBodySchema, req.body);
     await resendEmailVerification(body.email);
     res.status(200).json({ ok: true });
@@ -151,6 +167,7 @@ authRouter.post(
 authRouter.post(
   "/password/forgot",
   asyncHandler(async (req, res) => {
+    await authRateLimit(req, "password_forgot");
     const body = parseBody(forgotPasswordBodySchema, req.body);
     await requestPasswordReset(body.email);
     res.status(200).json({ ok: true });
@@ -160,6 +177,7 @@ authRouter.post(
 authRouter.post(
   "/password/reset",
   asyncHandler(async (req, res) => {
+    await authRateLimit(req, "password_reset");
     const body = parseBody(resetPasswordBodySchema, req.body);
     const user = await resetPassword(body);
     res.status(200).json({ user });

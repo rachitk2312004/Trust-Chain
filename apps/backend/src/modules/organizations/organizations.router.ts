@@ -4,6 +4,7 @@ import { asyncHandler } from "../../lib/asyncHandler.js";
 import { AppError } from "../../lib/errors.js";
 import { parseBody, parseParams } from "../../lib/validate.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+import { requireOrgMember } from "../../middleware/requireRole.js";
 import {
   createOrganizationBodySchema,
   organizationIdParamsSchema,
@@ -42,6 +43,8 @@ import { organizationAiRouter } from "../ai/routes/ai.router.js";
 export const organizationsRouter = Router();
 
 organizationsRouter.use(requireAuth);
+/** Central RBAC: auth → org membership → controllers */
+organizationsRouter.use("/:id", requireOrgMember);
 organizationsRouter.use("/:id", documentsRouter);
 organizationsRouter.use("/:id", organizationBlockchainRouter);
 organizationsRouter.use("/:id", organizationVerificationRouter);

@@ -30,6 +30,15 @@ export const EnvKeys = {
   JWT_ACCESS_EXPIRES_IN: "JWT_ACCESS_EXPIRES_IN",
   JWT_REFRESH_EXPIRES_DAYS: "JWT_REFRESH_EXPIRES_DAYS",
   MFA_ENCRYPTION_KEY: "MFA_ENCRYPTION_KEY",
+  DOCUMENT_KEY_V1: "DOCUMENT_KEY_V1",
+  DOCUMENT_KEY_V2: "DOCUMENT_KEY_V2",
+  DOCUMENT_KEY_V3: "DOCUMENT_KEY_V3",
+  DOCUMENT_ACTIVE_KEY_VERSION: "DOCUMENT_ACTIVE_KEY_VERSION",
+  DOCUMENT_ENCRYPTION_ENABLED: "DOCUMENT_ENCRYPTION_ENABLED",
+  MALWARE_SCANNER: "MALWARE_SCANNER",
+  MALWARE_SCAN_URL: "MALWARE_SCAN_URL",
+  MALWARE_CLAMD_HOST: "MALWARE_CLAMD_HOST",
+  MALWARE_CLAMD_PORT: "MALWARE_CLAMD_PORT",
 } as const;
 
 export type EnvKey = (typeof EnvKeys)[keyof typeof EnvKeys];
@@ -390,6 +399,25 @@ export const AiEmbeddingDefaults = {
   dimensions: 1536,
   chunkSize: 800,
   chunkOverlap: 100,
+} as const;
+
+/** Document envelope encryption key versions (Phase 1). */
+export const DocumentEncryption = {
+  algorithm: "aes-256-gcm",
+  keyVersions: [1, 2, 3] as const,
+  envKeyPrefix: "DOCUMENT_KEY_V",
+  activeVersionEnv: "DOCUMENT_ACTIVE_KEY_VERSION",
+} as const;
+
+export const AuthRateLimit = {
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 20,
+} as const;
+
+export const MalwareScanners = {
+  mock: "mock",
+  http: "http",
+  clamav: "clamav",
 } as const;
 
 /** Wave 10 — Operational intelligence platform. */

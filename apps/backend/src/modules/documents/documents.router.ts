@@ -225,6 +225,34 @@ documentsRouter.get(
   }),
 );
 
+documentsRouter.get(
+  "/documents/:documentId/content",
+  asyncHandler(async (req, res) => {
+    const userId = requireUser(req);
+    const { id: orgId, documentId } = parseParams(orgDocumentParamsSchema, req.params);
+    const versionId =
+      typeof req.query.versionId === "string" && req.query.versionId.length > 0
+        ? req.query.versionId
+        : undefined;
+
+    let headersSent = false;
+    await documents.streamDocumentContent(userId, orgId, documentId, versionId, (chunk, meta) => {
+      if (!headersSent) {
+        res.setHeader("Content-Type", meta.mimeType);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${meta.fileName.replace(/"/g, "")}"`,
+        );
+        res.setHeader("X-TrustChain-Encrypted", meta.encrypted ? "1" : "0");
+        res.status(200);
+        headersSent = true;
+      }
+      res.write(chunk);
+    });
+    res.end();
+  }),
+);
+
 documentsRouter.post(
   "/documents/:documentId/archive",
   asyncHandler(async (req, res) => {

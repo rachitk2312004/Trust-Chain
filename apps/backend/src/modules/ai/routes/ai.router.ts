@@ -6,6 +6,7 @@ import * as controller from "../controllers/ai.controller.js";
 /** Authenticated AI gateway — mounted at /api/v1/ai */
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
+
 aiRouter.post("/ocr", asyncHandler(controller.postOcr));
 aiRouter.post("/classify", asyncHandler(controller.postClassify));
 aiRouter.post("/extract", asyncHandler(controller.postExtract));
@@ -13,7 +14,7 @@ aiRouter.post("/search", asyncHandler(controller.postSearch));
 aiRouter.post("/fraud", asyncHandler(controller.postFraud));
 aiRouter.get("/jobs/:jobId", asyncHandler(controller.getJob));
 
-/** Org-scoped companions — mounted under /organizations/:id */
+/** Org-scoped companions — parent mounts requireOrgMember */
 export const organizationAiRouter = Router({ mergeParams: true });
 organizationAiRouter.post("/ai/ocr", asyncHandler(controller.postOcr));
 organizationAiRouter.post("/ai/classify", asyncHandler(controller.postClassify));

@@ -225,7 +225,30 @@ async function main() {
   testOpsPublicCodes();
   testOpsStatesAndScores();
   testForbiddenOpsOperations();
-  console.log("Wave 1–10 unit checks passed");
+
+  process.env.PUBLIC_VERIFY_SIGNING_SECRET ??= "test-public-verify-signing-secret";
+  process.env.JWT_ACCESS_SECRET ??= "test-jwt-access-secret";
+  process.env.DATABASE_URL ??= "postgresql://trustchain:trustchain@127.0.0.1:5432/trustchain";
+  process.env.DOCUMENT_KEY_V1 ??= "a".repeat(64);
+  process.env.DOCUMENT_ACTIVE_KEY_VERSION ??= "1";
+  process.env.MALWARE_SCANNER ??= "mock";
+
+  const {
+    testStreamingHashHelperShape,
+    testEnvelopeKeyWrap,
+    testMalwareAdapterInterface,
+    testPublicVerifySecretNoFallback,
+    testLayeredRateLimitMemoryFallback,
+    testEvidenceImmutableGuard,
+  } = await import("../dist/modules/documents/tests/phase1.security.unit.js");
+  testStreamingHashHelperShape();
+  testEnvelopeKeyWrap();
+  testMalwareAdapterInterface();
+  testPublicVerifySecretNoFallback();
+  await testLayeredRateLimitMemoryFallback();
+  testEvidenceImmutableGuard();
+
+  console.log("Wave 1–10 + Phase 1 security unit checks passed");
 }
 
 main().catch((error) => {

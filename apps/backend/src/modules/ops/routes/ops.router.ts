@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { asyncHandler } from "../../../lib/asyncHandler.js";
 import { requireAuth } from "../../../middleware/requireAuth.js";
+import { requireOpsAdmin } from "../../../middleware/requireRole.js";
 import * as controller from "../controllers/ops.controller.js";
 
 /** Wave 10 ops gateway — mounted at /api/v1 */
 export const opsRouter = Router();
 opsRouter.use(requireAuth);
+opsRouter.use(requireOpsAdmin);
 
 opsRouter.post("/reports", asyncHandler(controller.postReport));
 opsRouter.get("/reports/:id", asyncHandler(controller.getReport));

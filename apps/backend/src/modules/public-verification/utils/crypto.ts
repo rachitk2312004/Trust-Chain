@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { PublicReportTtlMs, PublicVerifyUrlPaths } from "@trustchain/config";
 
+import { getPublicVerifySigningSecret } from "../../../lib/runtimeSecrets.js";
+
 export function generatePublicCode(prefix: "PUB-VERIFY" | "PUB-LINK"): string {
   const suffix = randomBytes(4).toString("hex").toUpperCase();
   return `${prefix}-${suffix}`;
@@ -22,12 +24,9 @@ export function getPublicVerifyBaseUrl(): string {
   return (process.env.PUBLIC_VERIFY_BASE_URL ?? "https://verify.trustchain.com").replace(/\/$/, "");
 }
 
+/** No fallback secrets — PUBLIC_VERIFY_SIGNING_SECRET only. */
 export function getSigningSecret(): string {
-  const secret = process.env.PUBLIC_VERIFY_SIGNING_SECRET ?? process.env.JWT_ACCESS_SECRET;
-  if (!secret) {
-    throw new Error("PUBLIC_VERIFY_SIGNING_SECRET or JWT_ACCESS_SECRET is required");
-  }
-  return secret;
+  return getPublicVerifySigningSecret();
 }
 
 export function buildPublicUrls(input: {

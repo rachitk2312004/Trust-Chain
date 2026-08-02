@@ -5,6 +5,9 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { Readable, Transform, PassThrough } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { ObjectStorageProvider } from "@trustchain/config";
 
 /**
@@ -12,7 +15,7 @@ import { ObjectStorageProvider } from "@trustchain/config";
  * Stores uploaded files only (PDFs, images, certificates, QR assets, import CSVs).
  * PostgreSQL remains the metadata source of truth.
  */
-function getBucket(): string {
+export function getBucket(): string {
   const bucket = process.env.R2_BUCKET;
   if (!bucket) {
     throw new Error("R2_BUCKET is required");
@@ -37,7 +40,7 @@ function createClient(): S3Client {
 
 let client: S3Client | undefined;
 
-function getClient(): S3Client {
+export function getClient(): S3Client {
   if (!client) {
     client = createClient();
   }
@@ -188,4 +191,129 @@ export async function putObjectBuffer(input: {
     provider: ObjectStorageProvider,
     bucket: getBucket(),
   };
+}
+
+/** Stream R2 object through SHA-256 with constant memory footprint. */
+export async function streamSha256Object(objectKey: string): Promise<{
+  hash: string;
+  bytesRead: number;
+}> {
+  const result = await getClient().send(
+    new GetObjectCommand({
+      Bucket: getBucket(),
+      Key: objectKey,
+    }),
+  );
+  if (!result.Body) {
+    throw new Error(`Object body missing for ${objectKey}`);
+  }
+
+  const hash = createHash("sha256");
+  let bytesRead = 0;
+  const body = result.Body as AsyncIterable<Uint8Array>;
+  for await (const chunk of body) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    hash.update(buf);
+    bytesRead += buf.length;
+  }
+  return { hash: hash.digest("hex"), bytesRead };
+}
+
+/**
+ * Stream-encrypt source → dest with AES-256-GCM (chunked; constant memory).
+ * Returns IV and auth tag for DocumentVersion metadata.
+ */
+export async function streamEncryptObjectToKey(input: {
+  sourceKey: string;
+  destKey: string;
+  contentType: string;
+  dek: Buffer;
+}): Promise<{ iv: string; authTag: string; bytesRead: number }> {
+  const result = await getClient().send(
+    new GetObjectCommand({
+      Bucket: getBucket(),
+      Key: input.sourceKey,
+    }),
+  );
+  if (!result.Body) {
+    throw new Error(`Object body missing for ${input.sourceKey}`);
+  }
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", input.dek, iv);
+  let bytesRead = 0;
+
+  const encryptTransform = new Transform({
+    transform(chunk, _enc, cb) {
+      try {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bytesRead += buf.length;
+        cb(null, cipher.update(buf));
+      } catch (error) {
+        cb(error as Error);
+      }
+    },
+    flush(cb) {
+      try {
+        const final = cipher.final();
+        cb(null, final.length ? final : undefined);
+      } catch (error) {
+        cb(error as Error);
+      }
+    },
+  });
+
+  const source = Readable.from(result.Body as AsyncIterable<Uint8Array>);
+  const pass = new PassThrough();
+  const uploadPromise = getClient().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: input.destKey,
+      Body: pass,
+      ContentType: input.contentType,
+    }),
+  );
+
+  await pipeline(source, encryptTransform, pass);
+  await uploadPromise;
+
+  return {
+    iv: iv.toString("base64url"),
+    authTag: cipher.getAuthTag().toString("base64url"),
+    bytesRead,
+  };
+}
+
+/** Stream-decrypt ciphertext object, invoking onChunk for each plaintext chunk. */
+export async function streamDecryptObject(input: {
+  objectKey: string;
+  dek: Buffer;
+  iv: string;
+  authTag: string;
+  onChunk: (chunk: Buffer) => void;
+}): Promise<{ bytesRead: number }> {
+  const result = await getClient().send(
+    new GetObjectCommand({
+      Bucket: getBucket(),
+      Key: input.objectKey,
+    }),
+  );
+  if (!result.Body) {
+    throw new Error(`Object body missing for ${input.objectKey}`);
+  }
+
+  const decipher = createDecipheriv("aes-256-gcm", input.dek, Buffer.from(input.iv, "base64url"));
+  decipher.setAuthTag(Buffer.from(input.authTag, "base64url"));
+
+  let bytesRead = 0;
+  const body = result.Body as AsyncIterable<Uint8Array>;
+  for await (const chunk of body) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytesRead += buf.length;
+    const plain = decipher.update(buf);
+    if (plain.length) input.onChunk(plain);
+  }
+  const final = decipher.final();
+  if (final.length) input.onChunk(final);
+  return { bytesRead };
 }

@@ -1,6 +1,9 @@
 import "./loadEnv.js";
 import { createApp, getPort } from "./app.js";
 import { bootstrapSuperAdmin } from "./bootstrap/superAdmin.js";
+import { assertRequiredRuntimeSecrets } from "./lib/runtimeSecrets.js";
+
+assertRequiredRuntimeSecrets();
 
 const app = createApp();
 const port = getPort();

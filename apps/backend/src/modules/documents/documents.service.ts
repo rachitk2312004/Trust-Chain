@@ -10,6 +10,7 @@ import {
   createDownloadUrl,
   createUploadUrl,
   headObject,
+  streamSha256Object,
 } from "../../integrations/objectStorage.js";
 import { userHasRole } from "../auth/rbac.repository.js";
 import {
@@ -507,6 +508,22 @@ export async function confirmDocumentVersion(
     });
   }
 
+  // Server-side streaming SHA-256 — constant memory; never trust client hash alone.
+  const digest = await streamSha256Object(session.objectKey);
+  if (digest.hash !== contentHash) {
+    throw new AppError(400, "DOC_HASH_MISMATCH", "Server content hash does not match client hash", {
+      serverHash: digest.hash,
+      clientHash: contentHash,
+      bytesRead: digest.bytesRead,
+    });
+  }
+  if (digest.bytesRead !== input.sizeBytes) {
+    throw new AppError(400, "DOC_HASH_MISMATCH", "Hashed byte count does not match reported size", {
+      bytesRead: digest.bytesRead,
+      reported: input.sizeBytes,
+    });
+  }
+
   const scan = await scanDocumentObject({
     objectKey: session.objectKey,
     mimeType: input.mimeType,
@@ -572,6 +589,15 @@ export async function confirmDocumentVersion(
         sizeBytes: BigInt(input.sizeBytes),
         originalFileName: input.originalFileName,
         uploadedById: userId,
+        encrypted: encrypted.encrypted,
+        encryptionAlgorithm: encrypted.encrypted ? encrypted.encryptionAlgorithm : null,
+        keyVersion: encrypted.encrypted ? encrypted.keyVersion : null,
+        wrappedDek: encrypted.encrypted ? encrypted.wrappedDek : null,
+        iv: encrypted.encrypted ? encrypted.iv : null,
+        authTag: encrypted.encrypted ? encrypted.authTag : null,
+        encryptionMetadata: encrypted.encrypted
+          ? (encrypted.encryptionMetadata as Prisma.InputJsonValue)
+          : undefined,
       },
     });
 
@@ -947,6 +973,27 @@ export async function createDocumentDownloadUrl(
     throw new AppError(404, "DOC_NOT_FOUND", "Document version not found");
   }
 
+  if (version.encrypted) {
+    await writeAudit({
+      documentId,
+      organizationId,
+      actorUserId: userId,
+      action: "document.download_url.created",
+      metadata: { versionId: version.id, encrypted: true, mode: "proxy" },
+    });
+    return {
+      downloadMode: "proxy" as const,
+      encrypted: true,
+      proxyPath: `/api/v1/organizations/${organizationId}/documents/${documentId}/content${
+        versionId ? `?versionId=${versionId}` : ""
+      }`,
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      contentHash: version.contentHash,
+      message: "Envelope-encrypted object; use proxyPath to stream decrypted content",
+    };
+  }
+
   const download = await createDownloadUrl({
     objectKey: version.objectKey,
     fileName: version.originalFileName,
@@ -957,15 +1004,73 @@ export async function createDocumentDownloadUrl(
     organizationId,
     actorUserId: userId,
     action: "document.download_url.created",
-    metadata: { versionId: version.id },
+    metadata: { versionId: version.id, encrypted: false },
   });
 
   return {
     ...download,
+    downloadMode: "presigned" as const,
+    encrypted: false,
     versionId: version.id,
     versionNumber: version.versionNumber,
     contentHash: version.contentHash,
   };
+}
+
+/**
+ * Stream decrypted plaintext for envelope-encrypted versions (authorized download).
+ * onChunk receives each plaintext chunk plus stable response metadata on every call.
+ */
+export async function streamDocumentContent(
+  userId: string,
+  organizationId: string,
+  documentId: string,
+  versionId: string | undefined,
+  onChunk: (
+    chunk: Buffer,
+    meta: { mimeType: string; fileName: string; encrypted: boolean },
+  ) => void,
+): Promise<void> {
+  const doc = await loadDocument(organizationId, documentId);
+  await assertDownloadAllowed(userId, doc);
+
+  const version = versionId
+    ? await prisma.documentVersion.findFirst({ where: { id: versionId, documentId } })
+    : doc.currentVersion;
+  if (!version) {
+    throw new AppError(404, "DOC_NOT_FOUND", "Document version not found");
+  }
+
+  const meta = {
+    mimeType: version.mimeType,
+    fileName: version.originalFileName,
+    encrypted: version.encrypted,
+  };
+
+  if (!version.encrypted) {
+    const { getObjectBuffer } = await import("../../integrations/objectStorage.js");
+    const obj = await getObjectBuffer(version.objectKey);
+    if (!obj.exists || !obj.body) {
+      throw new AppError(404, "DOC_NOT_FOUND", "Object not found in storage");
+    }
+    onChunk(obj.body, meta);
+    return;
+  }
+
+  if (!version.wrappedDek || !version.iv || !version.authTag || version.keyVersion == null) {
+    throw new AppError(500, "DOC_ENCRYPTION_CORRUPT", "Missing encryption metadata");
+  }
+
+  const { unwrapDek } = await import("./encryption.js");
+  const { streamDecryptObject } = await import("../../integrations/objectStorage.js");
+  const dek = unwrapDek(version.wrappedDek, version.keyVersion);
+  await streamDecryptObject({
+    objectKey: version.objectKey,
+    dek,
+    iv: version.iv,
+    authTag: version.authTag,
+    onChunk: (chunk) => onChunk(chunk, meta),
+  });
 }
 
 // --- Sharing & policies ---
