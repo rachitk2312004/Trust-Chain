@@ -35,6 +35,17 @@ function getTransporter(): nodemailer.Transporter {
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
   const from = process.env.SMTP_FROM ?? "noreply@trustchain.local";
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  // Local/dev without SMTP credentials: log instead of failing registration flows.
+  if (!user || !pass) {
+    console.info(
+      `[mailer:dev] to=${input.to} subject=${input.subject}\n${input.text}`,
+    );
+    return;
+  }
+
   await getTransporter().sendMail({
     from,
     to: input.to,

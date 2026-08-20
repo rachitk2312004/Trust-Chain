@@ -1,7 +1,7 @@
 import { RoleKeys } from "@trustchain/config";
 import { AppError } from "../../lib/errors.js";
 import { putObjectBuffer } from "../../integrations/objectStorage.js";
-import { bindRoleToUser } from "../auth/roles.repository.js";
+import { bindStaffRoleToUser } from "../auth/roles.repository.js";
 import { findUserByEmail } from "../auth/users.repository.js";
 import { userHasRole } from "../auth/rbac.repository.js";
 import { createMembership } from "./memberships.repository.js";
@@ -100,7 +100,7 @@ export async function runBulkImport(actorUserId: string, organizationId: string,
           title: row.title,
           status: "active",
         });
-        await bindRoleToUser({
+        await bindStaffRoleToUser({
           userId: existing.id,
           roleKey: row.roleKey,
           organizationId,

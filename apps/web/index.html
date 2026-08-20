@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP recommendation (enforce at the reverse proxy / CDN in production).
+      Tighten connect-src to your API and object-storage hosts.
+      script-src should remain 'self' (no inline scripts) once hashes/nonces are configured.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' http://localhost:* https:; script-src 'self'; worker-src 'self' blob:;"
+    />
     <title>TrustChain</title>
   </head>
   <body>

@@ -1,7 +1,9 @@
 import type { Request } from "express";
+import { AuditEventSources } from "@trustchain/config";
 import { AppError } from "../../lib/errors.js";
 import { generateOpaqueToken, hashToken } from "../../lib/crypto.js";
 import { getRefreshExpiresAt, signAccessToken } from "../../lib/tokens.js";
+import { writeAuditEvent } from "../audit/audit.service.js";
 import { upsertDevice } from "./devices.repository.js";
 import {
   createSession,
@@ -47,6 +49,16 @@ export async function issueSessionForUser(
   });
 
   const accessToken = signAccessToken({ userId: user.id, sessionId: session.id });
+
+  await writeAuditEvent({
+    source: AuditEventSources.platform,
+    action: "auth.login",
+    actorUserId: user.id,
+    actorIp: meta.ip ?? null,
+    resourceType: "session",
+    resourceId: session.id,
+    meta: { email: user.email },
+  }).catch(() => undefined);
 
   return {
     user: toPublicUser(user),

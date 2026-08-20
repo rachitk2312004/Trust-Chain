@@ -1,0 +1,26 @@
+{
+  "name": "@trustchain/sdk",
+  "version": "0.1.0",
+  "languages": [
+    "typescript",
+    "javascript",
+    "python"
+  ],
+  "packages": {
+    "typescript": "@trustchain/sdk",
+    "javascript": "@trustchain/sdk",
+    "python": "trustchain-sdk"
+  },
+  "publicBasePath": "/api/public/v1",
+  "operationIds": [
+    "createCertificate",
+    "createDocument",
+    "createSignature",
+    "getCertificate",
+    "getDocument",
+    "getHealth",
+    "getSignature",
+    "getUsage"
+  ],
+  "generatedAt": "2026-08-03T18:44:51.394Z"
+}

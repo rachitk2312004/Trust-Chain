@@ -28,9 +28,12 @@ model User {
   emailTokens              EmailToken[]
   roleBindings             RoleBinding[]
   memberships              Membership[]
+  membershipRequests       MembershipRequest[]       @relation("MembershipRequestUser")
+  membershipRequestsReviewed MembershipRequest[]     @relation("MembershipRequestReviewer")
   invitationsSent          Invitation[]              @relation("InvitationInvitedBy")
   bulkImportJobs           BulkImportJob[]
   mfaLoginChallenges       MfaLoginChallenge[]
+  certificateBulkJobsCreated CertificateBulkJob[] @relation("CertificateBulkJobCreatedBy")
   documentsCreated         Document[]                @relation("DocumentCreatedBy")
   documentVersionsUploaded DocumentVersion[]         @relation("DocumentVersionUploadedBy")
   documentSharesCreated    DocumentShare[]           @relation("DocumentShareCreatedBy")
@@ -52,6 +55,80 @@ model User {
   policyApprovals          PolicyApproval[]          @relation("PolicyApprovalActor")
   deploymentsCreated       DeploymentRecord[]        @relation("DeploymentCreatedBy")
   qrBatchJobsCreated       QrBatchJob[]              @relation("QrBatchCreatedBy")
+  notifications            Notification[]
+  notificationPreferences  NotificationPreference[]
+  notificationOutbox       NotificationOutbox[]
+  certificateTemplatesCreated CertificateTemplate[] @relation("CertificateTemplateCreatedBy")
+  certificatesIssued          Certificate[]         @relation("CertificateIssuedBy")
+  certificatesRevoked         Certificate[]         @relation("CertificateRevokedBy")
+  certificateEvents           CertificateEvent[]    @relation("CertificateEventActor")
+  signaturesCreated           Signature[]           @relation("SignatureCreatedBy")
+  signaturesRevoked           Signature[]           @relation("SignatureRevokedBy")
+  signatureEvents             SignatureEvent[]      @relation("SignatureEventActor")
+  signatureWorkflowsCreated   SignatureWorkflow[]   @relation("SignatureWorkflowCreatedBy")
+  signatureWorkflowsCancelled SignatureWorkflow[]   @relation("SignatureWorkflowCancelledBy")
+  signatureApprovals          SignatureApproval[]   @relation("SignatureApprovalReviewer")
+  signatureApprovalEvents     SignatureApprovalEvent[] @relation("SignatureApprovalEventActor")
+  adminAuditLogs              AdminAuditLog[]       @relation("AdminAuditActor")
+  systemConfigurationsUpdated SystemConfiguration[] @relation("SystemConfigurationUpdatedBy")
+  tenantQuotasUpdated         TenantQuota[]         @relation("TenantQuotaUpdatedBy")
+  tenantLifecycleEvents       TenantLifecycleEvent[] @relation("TenantLifecycleActor")
+  policyDefinitionsCreated    PolicyDefinition[]    @relation("PolicyDefinitionCreatedBy")
+  policyAssignmentsCreated    PolicyAssignment[]    @relation("PolicyAssignmentCreatedBy")
+  policyEvaluationEvents      PolicyEvaluationEvent[] @relation("PolicyEvaluationActor")
+  serviceAccountsCreated      ServiceAccount[]      @relation("ServiceAccountCreatedBy")
+  apiKeysCreated              ApiKey[]              @relation("ApiKeyCreatedBy")
+  webhookEndpointsCreated     WebhookEndpoint[]     @relation("WebhookEndpointCreatedBy")
+  developerApiQuotasUpdated   DeveloperApiQuota[]   @relation("DeveloperApiQuotaUpdatedBy")
+  searchReindexesTriggered    SearchIndexJob[]      @relation("SearchIndexJobTriggeredBy")
+  platformAuditEvents         PlatformAuditEvent[]  @relation("PlatformAuditActor")
+  auditExportsTriggered       AuditExportJob[]      @relation("AuditExportJobTriggeredBy")
+  complianceAssessmentsRun    ComplianceAssessment[] @relation("ComplianceAssessmentTriggeredBy")
+  complianceRemediationsOwned ComplianceRemediation[] @relation("ComplianceRemediationOwner")
+  complianceEvidenceCreated   ComplianceEvidence[]    @relation("ComplianceEvidenceCreatedBy")
+  complianceEvidenceCustody   ComplianceEvidenceCustody[] @relation("ComplianceEvidenceCustodyActor")
+  complianceEvidenceExports   ComplianceEvidenceExport[] @relation("ComplianceEvidenceExportTriggeredBy")
+  retentionPoliciesCreated    RetentionPolicy[]       @relation("RetentionPolicyCreatedBy")
+  legalHoldsCreated           LegalHold[]             @relation("LegalHoldCreatedBy")
+  retentionRunsTriggered      RetentionRun[]          @relation("RetentionRunTriggeredBy")
+  retentionCustody            RetentionCustodyEvent[] @relation("RetentionCustodyActor")
+  enterpriseSamlUpdated       EnterpriseSamlConfig[]  @relation("EnterpriseSamlUpdatedBy")
+  enterpriseScimUpdated       EnterpriseScimConfig[]  @relation("EnterpriseScimUpdatedBy")
+  enterpriseRolesCreated      EnterpriseRole[]        @relation("EnterpriseRoleCreatedBy")
+  enterpriseAbacCreated       EnterpriseAbacPolicy[]  @relation("EnterpriseAbacCreatedBy")
+  enterpriseDelegatesGranted  EnterpriseDelegateAdmin[] @relation("EnterpriseDelegateGrantedBy")
+  enterpriseDelegatesAsDelegate EnterpriseDelegateAdmin[] @relation("EnterpriseDelegateUser")
+  enterpriseReviewsCreated    EnterpriseAccessReview[] @relation("EnterpriseAccessReviewCreatedBy")
+  enterpriseReviewItems       EnterpriseAccessReviewItem[] @relation("EnterpriseAccessReviewSubject")
+  orgDepartmentsOwned         Department[]            @relation("DepartmentOwner")
+  orgBusinessUnitsOwned       OrgBusinessUnit[]       @relation("OrgBusinessUnitOwner")
+  orgCostCentersOwned         OrgCostCenter[]         @relation("OrgCostCenterOwner")
+  orgApprovalsCreated         OrgApprovalWorkflow[]   @relation("OrgApprovalCreatedBy")
+  platformRegionsCreated      PlatformRegion[]        @relation("PlatformRegionCreatedBy")
+  regionFailoversTriggered    RegionFailoverEvent[]   @relation("RegionFailoverTriggeredBy")
+  recoveryPoliciesCreated     RecoveryBackupPolicy[]  @relation("RecoveryPolicyCreatedBy")
+  recoveryBackupsTriggered    RecoveryBackupJob[]     @relation("RecoveryBackupTriggeredBy")
+  recoveryRestoresTriggered   RecoveryRestoreJob[]    @relation("RecoveryRestoreTriggeredBy")
+  recoveryFailbacksTriggered  RecoveryFailbackJob[]   @relation("RecoveryFailbackTriggeredBy")
+  governancePoliciesOwned     GovernancePolicy[]      @relation("GovernancePolicyOwner")
+  governancePoliciesCreated   GovernancePolicy[]      @relation("GovernancePolicyCreatedBy")
+  governanceRisksOwned        GovernanceRisk[]        @relation("GovernanceRiskOwner")
+  governanceRisksCreated      GovernanceRisk[]        @relation("GovernanceRiskCreatedBy")
+  governanceAssessmentsOwned  GovernanceControlAssessment[] @relation("GovernanceAssessmentAssessor")
+  walletLinks                 WalletLink[]            @relation("WalletLinkOwner")
+  walletChallenges            WalletChallenge[]       @relation("WalletChallengeUser")
+  walletSyncJobsTriggered     WalletSyncJob[]         @relation("WalletSyncTriggeredBy")
+  walletOwnershipEvents       WalletOwnershipEvent[]  @relation("WalletOwnershipActor")
+  integrationsCreated         EcosystemIntegration[]  @relation("IntegrationCreatedBy")
+  integrationSyncJobsTriggered IntegrationSyncJob[]   @relation("IntegrationSyncTriggeredBy")
+  integrationOAuthSessions    IntegrationOAuthSession[] @relation("IntegrationOAuthUser")
+  marketplaceListingsPublished MarketplaceListing[]   @relation("MarketplaceListingPublisher")
+  marketplaceInstalls         MarketplaceInstallation[] @relation("MarketplaceInstallActor")
+  marketplaceReviews          MarketplaceReview[]     @relation("MarketplaceReviewAuthor")
+  reputationProfilesUpdated   ReputationProfile[]     @relation("ReputationProfileUpdatedBy")
+  reputationAlertsResolved    ReputationAlert[]       @relation("ReputationAlertResolver")
+  platformConfigsUpdated      PlatformConfiguration[] @relation("PlatformConfigurationUpdatedBy")
+  platformReadinessTriggered  PlatformReadinessReport[] @relation("PlatformReadinessTriggeredBy")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -83,6 +160,7 @@ model Organization {
   branches                    Branch[]
   departments                 Department[]
   memberships                 Membership[]
+  membershipRequests          MembershipRequest[]
   invitations                 Invitation[]
   roleBindings                RoleBinding[]
   branding                    OrganizationBranding?
@@ -146,6 +224,84 @@ model Organization {
   serviceRegistryEntries      ServiceRegistryEntry[]
   secretAuditEvents           SecretAuditEvent[]
   platformEvents              PlatformEvent[]
+  notifications               Notification[]
+  notificationPreferences     NotificationPreference[]
+  notificationOutbox          NotificationOutbox[]
+  certificateTemplates        CertificateTemplate[]
+  certificates                Certificate[]
+  certificateEvents           CertificateEvent[]
+  certificateBulkJobs         CertificateBulkJob[]
+  signatures                  Signature[]
+  signatureEvents             SignatureEvent[]
+  signatureArtifacts          SignatureArtifact[]
+  signatureWorkflows          SignatureWorkflow[]
+  signatureApprovals          SignatureApproval[]
+  signatureApprovalEvents     SignatureApprovalEvent[]
+  tenantQuota                 TenantQuota?
+  tenantLifecycleEvents       TenantLifecycleEvent[]
+  policyAssignments           PolicyAssignment[]
+  policyEvaluationEvents      PolicyEvaluationEvent[]
+  serviceAccounts             ServiceAccount[]
+  apiKeys                     ApiKey[]
+  webhookEndpoints            WebhookEndpoint[]
+  webhookDeliveries           WebhookDelivery[]
+  apiUsageEvents              ApiUsageEvent[]
+  apiIdempotencyRecords       ApiIdempotencyRecord[]
+  developerApiQuota           DeveloperApiQuota?
+  searchIndexEntries          SearchIndexEntry[]
+  searchIndexJobs             SearchIndexJob[]
+  platformAuditEvents         PlatformAuditEvent[]
+  auditExportJobs             AuditExportJob[]
+  complianceAssessments       ComplianceAssessment[]
+  complianceViolations        ComplianceViolation[]
+  complianceRemediations      ComplianceRemediation[]
+  complianceReports           ComplianceReport[]
+  complianceEvidence          ComplianceEvidence[]
+  complianceEvidenceExports   ComplianceEvidenceExport[]
+  retentionPolicies           RetentionPolicy[]
+  legalHolds                  LegalHold[]
+  retentionRuns               RetentionRun[]
+  retentionArchives           RetentionArchive[]
+  retentionCustodyEvents      RetentionCustodyEvent[]
+  enterpriseSamlConfig        EnterpriseSamlConfig?
+  enterpriseScimConfig        EnterpriseScimConfig?
+  enterpriseRoles             EnterpriseRole[]
+  enterpriseAbacPolicies      EnterpriseAbacPolicy[]
+  enterpriseDelegates         EnterpriseDelegateAdmin[]
+  enterpriseAccessReviews     EnterpriseAccessReview[]
+  orgBusinessUnits             OrgBusinessUnit[]
+  orgCostCenters              OrgCostCenter[]
+  orgApprovalWorkflows        OrgApprovalWorkflow[]
+  orgResidencyPolicy          OrgResidencyPolicy?
+  orgRoutingPolicy            OrgRoutingPolicy?
+  orgReplicationPolicy        OrgReplicationPolicy?
+  orgFailoverPolicy           OrgFailoverPolicy?
+  regionFailoverEvents        RegionFailoverEvent[]
+  recoveryBackupPolicies      RecoveryBackupPolicy[]
+  recoveryBackupJobs          RecoveryBackupJob[]
+  recoveryRestoreJobs         RecoveryRestoreJob[]
+  recoveryFailbackJobs        RecoveryFailbackJob[]
+  recoveryReports             RecoveryContinuityReport[]
+  governancePolicies          GovernancePolicy[]
+  governanceRisks             GovernanceRisk[]
+  governanceAssessments       GovernanceControlAssessment[]
+  governanceReports           GovernanceExecutiveReport[]
+  walletLinks                 WalletLink[]
+  walletChallenges            WalletChallenge[]
+  walletSyncJobs              WalletSyncJob[]
+  walletOwnershipEvents       WalletOwnershipEvent[]
+  ecosystemIntegrations       EcosystemIntegration[]
+  integrationCredentials      IntegrationCredential[]
+  integrationOAuthSessions    IntegrationOAuthSession[]
+  integrationSyncJobs         IntegrationSyncJob[]
+  integrationSubscriptions    IntegrationEventSubscription[]
+  integrationEvents           IntegrationEventLog[]
+  marketplaceListings         MarketplaceListing[]    @relation("MarketplaceListingPublisherOrg")
+  marketplaceInstallations    MarketplaceInstallation[]
+  marketplaceReviews          MarketplaceReview[]
+  reputationProfiles          ReputationProfile[]
+  reputationHistory           ReputationHistoryEvent[]
+  reputationAlerts            ReputationAlert[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -279,21 +435,36 @@ model Branch {
 }
 
 model Department {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  branchId       String?  @map("branch_id") @db.Uuid
-  name           String
-  code           String?
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  branchId            String?  @map("branch_id") @db.Uuid
+  name                String
+  code                String?
+  /// Phase H Step 2 — hierarchy + ownership + cost allocation
+  parentDepartmentId  String?  @map("parent_department_id") @db.Uuid
+  businessUnitId      String?  @map("business_unit_id") @db.Uuid
+  costCenterId        String?  @map("cost_center_id") @db.Uuid
+  ownerUserId         String?  @map("owner_user_id") @db.Uuid
+  /// Local policy overlays inherited from ancestors
+  policyJson          Json     @default("{}") @map("policy_json")
+  status              String   @default("active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  memberships  Membership[]
-  invitations  Invitation[]
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch           Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  parentDepartment Department?     @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
+  childDepartments Department[]    @relation("DepartmentHierarchy")
+  businessUnit     OrgBusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  costCenter       OrgCostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  owner            User?           @relation("DepartmentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  memberships      Membership[]
+  invitations      Invitation[]
 
   @@index([organizationId], map: "departments_organization_id_idx")
   @@index([branchId], map: "departments_branch_id_idx")
+  @@index([parentDepartmentId], map: "departments_parent_idx")
+  @@index([businessUnitId], map: "departments_business_unit_idx")
   @@map("departments")
 }
 
@@ -342,6 +513,28 @@ model Invitation {
   @@index([organizationId], map: "invitations_organization_id_idx")
   @@index([tokenHash], map: "invitations_token_hash_idx")
   @@map("invitations")
+}
+
+model MembershipRequest {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  message        String?
+  requestedRole  String    @default("employee") @map("requested_role")
+  status         String    @default("pending")
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  reviewNote     String?   @map("review_note")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("MembershipRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer     User?        @relation("MembershipRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status], map: "membership_requests_organization_id_status_idx")
+  @@index([userId], map: "membership_requests_user_id_idx")
+  @@map("membership_requests")
 }
 
 model OrganizationBranding {
@@ -428,6 +621,8 @@ model Document {
   documentEmbeddings          DocumentEmbedding[]
   aiTasks                     AiTask[]
   aiArtifacts                 AiArtifact[]
+  certificates                Certificate[]
+  signatures                  Signature[]
 
   @@index([organizationId], map: "documents_organization_id_idx")
   @@index([status], map: "documents_status_idx")
@@ -2047,5 +2242,2126 @@ model PlatformEvent {
   @@index([topic, createdAt], map: "platform_events_topic_created_at_idx")
   @@index([organizationId, createdAt], map: "platform_events_org_created_at_idx")
   @@map("platform_events")
+}
+
+/// Phase B — in-app + email notification inbox
+model Notification {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  eventType      String    @map("event_type")
+  title          String
+  body           String
+  payloadJson    Json?     @map("payload_json")
+  channel        String    @default("in_app")
+  emailStatus    String?   @map("email_status")
+  readAt         DateTime? @map("read_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outbox       NotificationOutbox[]
+
+  @@index([userId, createdAt], map: "notifications_user_created_at_idx")
+  @@index([userId, readAt], map: "notifications_user_read_at_idx")
+  @@index([userId, eventType], map: "notifications_user_event_type_idx")
+  @@index([organizationId, createdAt], map: "notifications_org_created_at_idx")
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  inAppEnabled   Boolean  @default(true) @map("in_app_enabled")
+  emailEnabled   Boolean  @default(true) @map("email_enabled")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, eventType], map: "notification_preferences_user_org_event_unique")
+  @@index([userId], map: "notification_preferences_user_id_idx")
+  @@map("notification_preferences")
+}
+
+model NotificationOutbox {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notificationId String?   @map("notification_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  channel        String    @default("email")
+  eventType      String    @map("event_type")
+  payloadJson    Json      @map("payload_json")
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error")
+  scheduledAt    DateTime  @default(now()) @map("scheduled_at") @db.Timestamptz(6)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt], map: "notification_outbox_status_scheduled_at_idx")
+  @@index([userId, createdAt], map: "notification_outbox_user_created_at_idx")
+  @@map("notification_outbox")
+}
+
+/// Phase C Step 1 — certificate foundation
+
+model CertificateTemplate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  /// Simple layout config (fields, title) — not a drag-and-drop editor.
+  layoutJson     Json     @default("{}") @map("layout_json")
+  status         String   @default("active")
+  createdById    String   @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CertificateTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  certificates Certificate[]
+
+  @@unique([organizationId, code], map: "certificate_templates_org_code_unique")
+  @@index([organizationId, status], map: "certificate_templates_org_status_idx")
+  @@map("certificate_templates")
+}
+
+model Certificate {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Human-readable public identifier (CERT-...).
+  publicId         String    @unique @map("public_id")
+  organizationId   String    @map("organization_id") @db.Uuid
+  templateId       String?   @map("template_id") @db.Uuid
+  documentId       String?   @map("document_id") @db.Uuid
+  title            String
+  description      String?
+  recipientName    String    @map("recipient_name")
+  recipientEmail   String?   @map("recipient_email")
+  recipientUserId  String?   @map("recipient_user_id") @db.Uuid
+  status           String    @default("draft")
+  issuedAt         DateTime? @map("issued_at") @db.Timestamptz(6)
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  metadataJson     Json?     @map("metadata_json")
+  integrityHash    String    @map("integrity_hash")
+  verificationUrl  String    @map("verification_url")
+  /// Optional DocumentQrCode.publicCode when linked to QR.
+  qrPublicCode     String?   @map("qr_public_code")
+  issuedById       String    @map("issued_by_id") @db.Uuid
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedById      String?   @map("revoked_by_id") @db.Uuid
+  revokeReason     String?   @map("revoke_reason")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template     CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  document     Document?            @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  issuedBy     User                 @relation("CertificateIssuedBy", fields: [issuedById], references: [id], onDelete: Restrict)
+  revokedBy    User?                @relation("CertificateRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  events       CertificateEvent[]
+  signatures   Signature[]
+
+  @@index([organizationId, createdAt], map: "certificates_org_created_at_idx")
+  @@index([organizationId, status], map: "certificates_org_status_idx")
+  @@index([documentId], map: "certificates_document_id_idx")
+  @@index([publicId], map: "certificates_public_id_idx")
+  @@map("certificates")
+}
+
+model CertificateEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certificateId  String   @map("certificate_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  actorId        String?  @map("actor_id") @db.Uuid
+  payloadJson    Json?    @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  certificate  Certificate  @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("CertificateEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([certificateId, createdAt], map: "certificate_events_certificate_created_at_idx")
+  @@index([organizationId, createdAt], map: "certificate_events_org_created_at_idx")
+  @@map("certificate_events")
+}
+
+/// Phase C Step 4 — bulk certificate issuance jobs
+model CertificateBulkJob {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String    @map("organization_id") @db.Uuid
+  createdById           String    @map("created_by_id") @db.Uuid
+  status                String    @default("pending")
+  format                String
+  /// Normalized import rows ready for issuance.
+  rowsJson              Json      @default("[]") @map("rows_json")
+  /// Per-row validation / issuance errors.
+  errorsJson            Json      @default("[]") @map("errors_json")
+  /// Certificate IDs successfully issued in this job (for rollback).
+  issuedCertificateIds  Json      @default("[]") @map("issued_certificate_ids")
+  totalRows             Int       @default(0) @map("total_rows")
+  processedRows         Int       @default(0) @map("processed_rows")
+  successRows           Int       @default(0) @map("success_rows")
+  failedRows            Int       @default(0) @map("failed_rows")
+  skippedRows           Int       @default(0) @map("skipped_rows")
+  rolledBackCount       Int       @default(0) @map("rolled_back_count")
+  cancelRequested       Boolean   @default(false) @map("cancel_requested")
+  rollbackOnCancel      Boolean   @default(true) @map("rollback_on_cancel")
+  defaultTitle          String?   @map("default_title")
+  defaultTemplateId     String?   @map("default_template_id") @db.Uuid
+  startedAt             DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CertificateBulkJobCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt], map: "certificate_bulk_jobs_org_created_at_idx")
+  @@index([organizationId, status], map: "certificate_bulk_jobs_org_status_idx")
+  @@map("certificate_bulk_jobs")
+}
+
+/// Phase D Step 1 — digital signature foundation
+
+model Signature {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Human-readable public identifier (SIG-...).
+  publicId         String    @unique @map("public_id")
+  organizationId   String    @map("organization_id") @db.Uuid
+  signerId         String    @map("signer_id") @db.Uuid
+  documentId       String?   @map("document_id") @db.Uuid
+  certificateId    String?   @map("certificate_id") @db.Uuid
+  algorithm        String
+  status           String    @default("active")
+  /// PEM-encoded public key used for verification.
+  publicKeyPem     String    @map("public_key_pem")
+  /// Base64-encoded cryptographic signature over the canonical payload.
+  signatureValue   String    @map("signature_value")
+  /// SHA-256 of canonical payload bytes.
+  payloadHash      String    @map("payload_hash")
+  /// Integrity hash of the signature record fields.
+  integrityHash    String    @map("integrity_hash")
+  signedAt         DateTime  @map("signed_at") @db.Timestamptz(6)
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  metadataJson     Json?     @map("metadata_json")
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedById      String?   @map("revoked_by_id") @db.Uuid
+  revokeReason     String?   @map("revoke_reason")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  signer       User                 @relation("SignatureCreatedBy", fields: [signerId], references: [id], onDelete: Restrict)
+  revokedBy    User?                @relation("SignatureRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  document     Document?            @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  certificate  Certificate?         @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+  events       SignatureEvent[]
+  artifacts    SignatureArtifact[]
+  workflows    SignatureWorkflow[]
+
+  @@index([organizationId, createdAt], map: "signatures_org_created_at_idx")
+  @@index([organizationId, status], map: "signatures_org_status_idx")
+  @@index([documentId], map: "signatures_document_id_idx")
+  @@index([certificateId], map: "signatures_certificate_id_idx")
+  @@index([signerId], map: "signatures_signer_id_idx")
+  @@map("signatures")
+}
+
+model SignatureEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  signatureId    String   @map("signature_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  actorId        String?  @map("actor_id") @db.Uuid
+  payloadJson    Json?    @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  signature    Signature    @relation(fields: [signatureId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("SignatureEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([signatureId, createdAt], map: "signature_events_signature_created_at_idx")
+  @@index([organizationId, createdAt], map: "signature_events_org_created_at_idx")
+  @@map("signature_events")
+}
+
+model SignatureArtifact {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  signatureId    String   @map("signature_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  kind           String
+  /// Inline content (PEM/JSON/base64) — no object-storage dependency for foundation.
+  content        String
+  contentType    String   @default("text/plain") @map("content_type")
+  metadataJson   Json?    @map("metadata_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  signature    Signature    @relation(fields: [signatureId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([signatureId, kind], map: "signature_artifacts_signature_kind_idx")
+  @@index([organizationId, createdAt], map: "signature_artifacts_org_created_at_idx")
+  @@map("signature_artifacts")
+}
+
+/// Phase D Step 4 — multi-party approval workflows
+
+model SignatureWorkflow {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Human-readable public identifier (WF-...).
+  publicId         String    @unique @map("public_id")
+  organizationId   String    @map("organization_id") @db.Uuid
+  signatureId      String?   @map("signature_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  title            String
+  description      String?
+  /// sequential | parallel | threshold
+  workflowType     String    @map("workflow_type")
+  /// pending | approved | rejected | cancelled | expired
+  status           String    @default("pending")
+  /// Required approvals for threshold workflows.
+  thresholdCount   Int?      @map("threshold_count")
+  /// Active step for sequential workflows (1-based).
+  currentStep      Int       @default(1) @map("current_step")
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  cancelledAt      DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelledById    String?   @map("cancelled_by_id") @db.Uuid
+  cancelReason     String?   @map("cancel_reason")
+  metadataJson     Json?     @map("metadata_json")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  signature    Signature?              @relation(fields: [signatureId], references: [id], onDelete: SetNull)
+  createdBy    User                    @relation("SignatureWorkflowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy  User?                   @relation("SignatureWorkflowCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  approvals    SignatureApproval[]
+  events       SignatureApprovalEvent[]
+
+  @@index([organizationId, createdAt], map: "signature_workflows_org_created_at_idx")
+  @@index([organizationId, status], map: "signature_workflows_org_status_idx")
+  @@index([signatureId], map: "signature_workflows_signature_id_idx")
+  @@index([createdById], map: "signature_workflows_created_by_id_idx")
+  @@map("signature_workflows")
+}
+
+model SignatureApproval {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId     String    @map("workflow_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  reviewerId     String    @map("reviewer_id") @db.Uuid
+  /// 1-based order for sequential; typically 1 for parallel/threshold.
+  stepOrder      Int       @default(1) @map("step_order")
+  /// pending | approved | rejected | skipped | expired
+  status         String    @default("pending")
+  comment        String?
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workflow     SignatureWorkflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewer     User                      @relation("SignatureApprovalReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  events       SignatureApprovalEvent[]
+
+  @@unique([workflowId, reviewerId, stepOrder], map: "signature_approvals_workflow_reviewer_step_key")
+  @@index([workflowId, stepOrder], map: "signature_approvals_workflow_step_idx")
+  @@index([organizationId, status], map: "signature_approvals_org_status_idx")
+  @@index([reviewerId], map: "signature_approvals_reviewer_id_idx")
+  @@map("signature_approvals")
+}
+
+model SignatureApprovalEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId     String   @map("workflow_id") @db.Uuid
+  approvalId     String?  @map("approval_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  actorId        String?  @map("actor_id") @db.Uuid
+  payloadJson    Json?    @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workflow     SignatureWorkflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  approval     SignatureApproval? @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?              @relation("SignatureApprovalEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workflowId, createdAt], map: "signature_approval_events_workflow_created_at_idx")
+  @@index([organizationId, createdAt], map: "signature_approval_events_org_created_at_idx")
+  @@map("signature_approval_events")
+}
+
+/// Phase E Step 1 — platform administration audit trail (distinct from OpsAuditEvent).
+model AdminAuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  targetType     String?  @map("target_type")
+  targetId       String?  @map("target_id")
+  organizationId String?  @map("organization_id") @db.Uuid
+  success        Boolean  @default(true)
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor User? @relation("AdminAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt], map: "admin_audit_logs_created_at_idx")
+  @@index([actorUserId, createdAt], map: "admin_audit_logs_actor_created_at_idx")
+  @@index([action, createdAt], map: "admin_audit_logs_action_created_at_idx")
+  @@map("admin_audit_logs")
+}
+
+/// Phase E Step 1 — global system configuration key/value store.
+model SystemConfiguration {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  valueJson   Json     @map("value_json")
+  description String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("SystemConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("system_configurations")
+}
+
+/// Phase E Step 2 — per-tenant (organization) quota limits + cached usage.
+model TenantQuota {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  /// { users, organizations, documents, certificates, signatures, storageBytes }
+  limitsJson     Json     @map("limits_json")
+  usageJson      Json?    @map("usage_json")
+  updatedById    String?  @map("updated_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("TenantQuotaUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("tenant_quotas")
+}
+
+/// Phase E Step 2 — tenant lifecycle history (suspend / restore / archive / transfer).
+model TenantLifecycleEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  fromStatus     String?  @map("from_status")
+  toStatus       String?  @map("to_status")
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  metaJson       Json?    @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("TenantLifecycleActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "tenant_lifecycle_events_org_created_at_idx")
+  @@index([eventType, createdAt], map: "tenant_lifecycle_events_type_created_at_idx")
+  @@map("tenant_lifecycle_events")
+}
+
+/// Phase E Step 4 — centralized policy definition (permission / quota / retention / workflow / feature / organization).
+model PolicyDefinition {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicCode     String   @unique @map("public_code")
+  name           String
+  description    String?
+  policyType     String   @map("policy_type")
+  status         String   @default("draft")
+  priority       Int      @default(100)
+  parentPolicyId String?  @map("parent_policy_id") @db.Uuid
+  rulesJson      Json     @map("rules_json")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent       PolicyDefinition?      @relation("PolicyInheritance", fields: [parentPolicyId], references: [id], onDelete: SetNull)
+  children     PolicyDefinition[]     @relation("PolicyInheritance")
+  createdBy    User?                  @relation("PolicyDefinitionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignments  PolicyAssignment[]
+  evaluations  PolicyEvaluationEvent[]
+
+  @@index([policyType, status], map: "policy_definitions_type_status_idx")
+  @@index([parentPolicyId], map: "policy_definitions_parent_idx")
+  @@index([createdAt], map: "policy_definitions_created_at_idx")
+  @@map("policy_definitions")
+}
+
+/// Phase E Step 4 — assign a policy to an organization (optionally inherited by children).
+model PolicyAssignment {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyId          String   @map("policy_id") @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  inheritToChildren Boolean  @default(true) @map("inherit_to_children")
+  enabled           Boolean  @default(true)
+  createdById       String?  @map("created_by_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  policy       PolicyDefinition @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?            @relation("PolicyAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([policyId, organizationId], map: "policy_assignments_policy_org_unique_idx")
+  @@index([organizationId], map: "policy_assignments_org_idx")
+  @@map("policy_assignments")
+}
+
+/// Phase E Step 4 — policy evaluation audit trail.
+model PolicyEvaluationEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyId       String?  @map("policy_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  policyType     String?  @map("policy_type")
+  decision       String
+  contextJson    Json?    @map("context_json")
+  resultJson     Json?    @map("result_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  policy       PolicyDefinition? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?             @relation("PolicyEvaluationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "policy_evaluation_events_org_created_at_idx")
+  @@index([policyType, createdAt], map: "policy_evaluation_events_type_created_at_idx")
+  @@index([decision, createdAt], map: "policy_evaluation_events_decision_created_at_idx")
+  @@map("policy_evaluation_events")
+}
+
+/// Phase F Step 1 — machine identity for developer integrations (org-scoped).
+model ServiceAccount {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  publicCode     String    @unique @map("public_code")
+  name           String
+  description    String?
+  status         String    @default("active")
+  secretHash     String?   @map("secret_hash")
+  secretPrefix   String?   @map("secret_prefix")
+  lastRotatedAt  DateTime? @map("last_rotated_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("ServiceAccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  apiKeys      ApiKey[]
+  usageEvents  ApiUsageEvent[]
+
+  @@index([organizationId, status], map: "service_accounts_org_status_idx")
+  @@index([createdAt], map: "service_accounts_created_at_idx")
+  @@map("service_accounts")
+}
+
+/// Phase F Step 1 — organization API keys (hashed; plaintext returned only on create/rotate).
+model ApiKey {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  serviceAccountId String?   @map("service_account_id") @db.Uuid
+  publicCode       String    @unique @map("public_code")
+  name             String
+  keyPrefix        String    @map("key_prefix")
+  keyHash          String    @map("key_hash")
+  scopesJson       Json      @map("scopes_json")
+  status           String    @default("active")
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(6)
+  rotatedFromId    String?   @map("rotated_from_id") @db.Uuid
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  rateLimitJson    Json?     @map("rate_limit_json")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  serviceAccount ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: SetNull)
+  createdBy      User?           @relation("ApiKeyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  rotatedFrom    ApiKey?         @relation("ApiKeyRotation", fields: [rotatedFromId], references: [id], onDelete: SetNull)
+  rotations      ApiKey[]        @relation("ApiKeyRotation")
+  usageEvents    ApiUsageEvent[]
+  idempotencyRecords ApiIdempotencyRecord[]
+
+  @@index([organizationId, status], map: "api_keys_org_status_idx")
+  @@index([keyHash], map: "api_keys_key_hash_idx")
+  @@index([keyPrefix], map: "api_keys_key_prefix_idx")
+  @@index([createdAt], map: "api_keys_created_at_idx")
+  @@map("api_keys")
+}
+
+/// Phase F — webhook endpoint registration with recoverable encrypted signing secret.
+model WebhookEndpoint {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  publicCode      String    @unique @map("public_code")
+  name            String
+  url             String
+  secretHash      String    @map("secret_hash")
+  secretPrefix    String    @map("secret_prefix")
+  eventsJson      Json      @map("events_json")
+  status          String    @default("active")
+  retryPolicyJson Json      @map("retry_policy_json")
+  failureCount    Int       @default(0) @map("failure_count")
+  lastDeliveredAt DateTime? @map("last_delivered_at") @db.Timestamptz(6)
+  createdById     String?   @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?             @relation("WebhookEndpointCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries   WebhookDelivery[]
+
+  @@index([organizationId, status], map: "webhook_endpoints_org_status_idx")
+  @@index([createdAt], map: "webhook_endpoints_created_at_idx")
+  @@map("webhook_endpoints")
+}
+
+/// Phase F — webhook delivery attempt log with retry / dead-letter support.
+model WebhookDelivery {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webhookEndpointId String    @map("webhook_endpoint_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  eventType         String    @map("event_type")
+  payloadJson       Json?     @map("payload_json")
+  status            String    @default("pending")
+  attemptCount      Int       @default(0) @map("attempt_count")
+  nextRetryAt       DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  responseStatus    Int?      @map("response_status")
+  responseBody      String?   @map("response_body")
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  webhookEndpoint WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([webhookEndpointId, createdAt], map: "webhook_deliveries_endpoint_created_at_idx")
+  @@index([organizationId, createdAt], map: "webhook_deliveries_org_created_at_idx")
+  @@index([status, nextRetryAt], map: "webhook_deliveries_status_retry_idx")
+  @@map("webhook_deliveries")
+}
+
+/// Phase F Step 3 — public API usage / request metrics.
+model ApiUsageEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  apiKeyId         String?  @map("api_key_id") @db.Uuid
+  serviceAccountId String?  @map("service_account_id") @db.Uuid
+  method           String
+  path             String
+  statusCode       Int      @map("status_code")
+  scope            String?
+  requestId        String?  @map("request_id")
+  durationMs       Int?     @map("duration_ms")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?         @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  serviceAccount ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "api_usage_events_org_created_at_idx")
+  @@index([apiKeyId, createdAt], map: "api_usage_events_key_created_at_idx")
+  @@index([statusCode], map: "api_usage_events_status_idx")
+  @@map("api_usage_events")
+}
+
+/// Phase F Step 3 — idempotency cache for public API mutating requests.
+model ApiIdempotencyRecord {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  apiKeyId       String   @map("api_key_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key")
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKey       ApiKey       @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, apiKeyId, idempotencyKey], map: "api_idempotency_unique_idx")
+  @@index([expiresAt], map: "api_idempotency_expires_at_idx")
+  @@map("api_idempotency_records")
+}
+
+/// Phase F Step 5 — per-tenant developer API quotas (requests + resource caps).
+model DeveloperApiQuota {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @unique @map("organization_id") @db.Uuid
+  /// { requestsPerDay, requestsPerMonth, maxApiKeys, maxWebhooks, maxServiceAccounts }
+  limitsJson     Json      @map("limits_json")
+  /// Cached usage snapshot { requestsToday, requestsMonth, apiKeys, webhooks, serviceAccounts }
+  usageJson      Json?     @map("usage_json")
+  exhaustedAt    DateTime? @map("exhausted_at") @db.Timestamptz(6)
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("DeveloperApiQuotaUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("developer_api_quotas")
+}
+
+/// Phase G Step 1 — denormalized search index for keyword / fuzzy search.
+model SearchIndexEntry {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// document | certificate | signature | user | organization | audit_event
+  entityType     String    @map("entity_type")
+  entityId       String    @map("entity_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  title          String
+  subtitle       String?
+  status         String?
+  /// Lowercased concatenated tokens for contains / keyword match.
+  keywords       String
+  /// Exact identifiers (ids, emails, public codes) space-separated lowercase.
+  exactKeys      String    @map("exact_keys")
+  /// Source entity createdAt (for date filters / sorting).
+  createdAtRef   DateTime  @map("created_at_ref") @db.Timestamptz(6)
+  indexedAt      DateTime  @default(now()) @map("indexed_at") @db.Timestamptz(6)
+  metaJson       Json?     @map("meta_json")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId], map: "search_index_entries_entity_unique")
+  @@index([organizationId, entityType], map: "search_index_entries_org_type_idx")
+  @@index([createdAtRef], map: "search_index_entries_created_at_ref_idx")
+  @@index([status], map: "search_index_entries_status_idx")
+  @@map("search_index_entries")
+}
+
+/// Phase G Step 1 — reindex job / status tracking.
+model SearchIndexJob {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String?   @map("organization_id") @db.Uuid
+  status           String    @default("pending")
+  entityTypesJson  Json      @map("entity_types_json")
+  indexedCount     Int       @default(0) @map("indexed_count")
+  errorMessage     String?   @map("error_message")
+  triggeredById    String?   @map("triggered_by_id") @db.Uuid
+  startedAt        DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt       DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?         @relation("SearchIndexJobTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "search_index_jobs_org_created_at_idx")
+  @@map("search_index_jobs")
+}
+
+/// Phase G Step 2 — immutable centralized platform audit log (append-only).
+model PlatformAuditEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stable correlation id linking related events (request / workflow / replay chain).
+  correlationId  String   @map("correlation_id")
+  /// Optional HTTP / API request id.
+  requestId      String?  @map("request_id")
+  /// admin | document | verification | developer | certificate | signature | search | platform
+  source         String   @default("platform")
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorIp        String?  @map("actor_ip")
+  organizationId String?  @map("organization_id") @db.Uuid
+  resourceType   String?  @map("resource_type")
+  resourceId     String?  @map("resource_id")
+  success        Boolean  @default(true)
+  metaJson       Json?    @map("meta_json")
+  /// SHA-256 of canonical event payload (immutability / replay verification).
+  integrityHash  String   @map("integrity_hash")
+  /// Previous event integrity hash in the same correlation chain (optional).
+  previousHash   String?  @map("previous_hash")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor        User?         @relation("PlatformAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "platform_audit_events_org_created_at_idx")
+  @@index([correlationId, createdAt], map: "platform_audit_events_correlation_created_at_idx")
+  @@index([actorUserId, createdAt], map: "platform_audit_events_actor_created_at_idx")
+  @@index([resourceType, resourceId], map: "platform_audit_events_resource_idx")
+  @@index([action, createdAt], map: "platform_audit_events_action_created_at_idx")
+  @@index([requestId], map: "platform_audit_events_request_id_idx")
+  @@map("platform_audit_events")
+}
+
+/// Phase G Step 2 — audit export job records.
+model AuditExportJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  format         String
+  status         String    @default("pending")
+  filtersJson    Json      @map("filters_json")
+  rowCount       Int       @default(0) @map("row_count")
+  /// Inline export payload for foundation (JSON/CSV text); replace with object storage later.
+  contentText    String?   @map("content_text")
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?         @relation("AuditExportJobTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "audit_export_jobs_org_created_at_idx")
+  @@map("audit_export_jobs")
+}
+
+/// Phase G Step 3 — compliance assessment run for an org + framework.
+model ComplianceAssessment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// soc2 | iso27001 | gdpr | hipaa
+  framework      String
+  status         String    @default("pending")
+  score          Float     @default(0)
+  passedRules    Int       @default(0) @map("passed_rules")
+  failedRules    Int       @default(0) @map("failed_rules")
+  totalRules     Int       @default(0) @map("total_rules")
+  summaryJson    Json?     @map("summary_json")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  scheduled      Boolean   @default(false)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?                     @relation("ComplianceAssessmentTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+  ruleResults  ComplianceRuleResult[]
+  violations   ComplianceViolation[]
+  reports      ComplianceReport[]
+
+  @@index([organizationId, framework, createdAt], map: "compliance_assessments_org_fw_created_idx")
+  @@index([status, createdAt], map: "compliance_assessments_status_created_idx")
+  @@map("compliance_assessments")
+}
+
+/// Phase G Step 3 — per-rule evaluation result within an assessment.
+model ComplianceRuleResult {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId   String   @map("assessment_id") @db.Uuid
+  ruleKey        String   @map("rule_key")
+  framework      String
+  title          String
+  severity       String   @default("medium")
+  passed         Boolean
+  score          Float    @default(0)
+  evidenceJson   Json?    @map("evidence_json")
+  message        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  assessment ComplianceAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId], map: "compliance_rule_results_assessment_idx")
+  @@index([ruleKey], map: "compliance_rule_results_rule_key_idx")
+  @@map("compliance_rule_results")
+}
+
+/// Phase G Step 3 — open/closed compliance violations.
+model ComplianceViolation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  assessmentId   String?   @map("assessment_id") @db.Uuid
+  framework      String
+  ruleKey        String    @map("rule_key")
+  title          String
+  severity       String    @default("medium")
+  status         String    @default("open")
+  detailsJson    Json?     @map("details_json")
+  detectedAt     DateTime  @default(now()) @map("detected_at") @db.Timestamptz(6)
+  remediatedAt   DateTime? @map("remediated_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment   ComplianceAssessment?  @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  remediations ComplianceRemediation[]
+
+  @@index([organizationId, status], map: "compliance_violations_org_status_idx")
+  @@index([framework, ruleKey], map: "compliance_violations_fw_rule_idx")
+  @@map("compliance_violations")
+}
+
+/// Phase G Step 3 — remediation workflow items for violations.
+model ComplianceRemediation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  violationId    String    @map("violation_id") @db.Uuid
+  title          String
+  status         String    @default("pending")
+  ownerUserId    String?   @map("owner_user_id") @db.Uuid
+  dueAt          DateTime? @map("due_at") @db.Timestamptz(6)
+  notes          String?
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  violation    ComplianceViolation @relation(fields: [violationId], references: [id], onDelete: Cascade)
+  owner        User?               @relation("ComplianceRemediationOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status], map: "compliance_remediations_org_status_idx")
+  @@index([violationId], map: "compliance_remediations_violation_idx")
+  @@map("compliance_remediations")
+}
+
+/// Phase G Step 3 — generated compliance reports.
+model ComplianceReport {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  assessmentId   String?  @map("assessment_id") @db.Uuid
+  framework      String
+  title          String
+  score          Float
+  status         String   @default("ready")
+  reportJson     Json     @map("report_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment   ComplianceAssessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "compliance_reports_org_created_idx")
+  @@map("compliance_reports")
+}
+
+/// Phase G Step 4 — compliance evidence package (versioned, linked, custody-tracked).
+model ComplianceEvidence {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  publicCode       String    @unique @map("public_code")
+  title            String
+  description      String?
+  status           String    @default("draft")
+  /// Current version number (starts at 1).
+  currentVersion   Int       @default(1) @map("current_version")
+  /// SHA-256 of current content/payload.
+  checksumSha256   String    @map("checksum_sha256")
+  mimeType         String?   @map("mime_type")
+  fileName         String?   @map("file_name")
+  sizeBytes        Int       @default(0) @map("size_bytes")
+  /// Comma-normalized tags for filtering.
+  tagsJson         Json      @default("[]") @map("tags_json")
+  /// Mapped frameworks e.g. ["soc2","gdpr"].
+  frameworksJson   Json      @default("[]") @map("frameworks_json")
+  /// Extracted / user metadata.
+  metadataJson     Json?     @map("metadata_json")
+  /// Optional inline content for foundation (text/base64); large blobs use objectKey later.
+  contentText      String?   @map("content_text")
+  objectKey        String?   @map("object_key")
+  validationJson   Json?     @map("validation_json")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?                      @relation("ComplianceEvidenceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  versions     ComplianceEvidenceVersion[]
+  links        ComplianceEvidenceLink[]
+  custody      ComplianceEvidenceCustody[]
+
+  @@index([organizationId, createdAt], map: "compliance_evidence_org_created_idx")
+  @@index([organizationId, status], map: "compliance_evidence_org_status_idx")
+  @@index([checksumSha256], map: "compliance_evidence_checksum_idx")
+  @@map("compliance_evidence")
+}
+
+model ComplianceEvidenceVersion {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId     String   @map("evidence_id") @db.Uuid
+  version        Int
+  checksumSha256 String   @map("checksum_sha256")
+  mimeType       String?  @map("mime_type")
+  fileName       String?  @map("file_name")
+  sizeBytes      Int      @default(0) @map("size_bytes")
+  contentText    String?  @map("content_text")
+  objectKey      String?  @map("object_key")
+  metadataJson   Json?    @map("metadata_json")
+  changeNote     String?  @map("change_note")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence ComplianceEvidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, version], map: "compliance_evidence_versions_unique")
+  @@index([evidenceId], map: "compliance_evidence_versions_evidence_idx")
+  @@map("compliance_evidence_versions")
+}
+
+model ComplianceEvidenceLink {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId   String   @map("evidence_id") @db.Uuid
+  /// assessment | violation | remediation | report | document | audit_event | control
+  targetType   String   @map("target_type")
+  targetId     String   @map("target_id")
+  label        String?
+  createdById  String?  @map("created_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence ComplianceEvidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, targetType, targetId], map: "compliance_evidence_links_unique")
+  @@index([targetType, targetId], map: "compliance_evidence_links_target_idx")
+  @@map("compliance_evidence_links")
+}
+
+/// Append-only chain-of-custody events for an evidence item.
+model ComplianceEvidenceCustody {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId     String   @map("evidence_id") @db.Uuid
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorIp        String?  @map("actor_ip")
+  previousHash   String?  @map("previous_hash")
+  integrityHash  String   @map("integrity_hash")
+  detailsJson    Json?    @map("details_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence ComplianceEvidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  actor    User?              @relation("ComplianceEvidenceCustodyActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([evidenceId, createdAt], map: "compliance_evidence_custody_evidence_created_idx")
+  @@map("compliance_evidence_custody")
+}
+
+model ComplianceEvidenceExport {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  format         String
+  status         String    @default("pending")
+  filtersJson    Json      @map("filters_json")
+  rowCount       Int       @default(0) @map("row_count")
+  contentText    String?   @map("content_text")
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?        @relation("ComplianceEvidenceExportTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "compliance_evidence_exports_org_created_idx")
+  @@map("compliance_evidence_exports")
+}
+
+/// Phase G Step 5 — org retention policy for a target type.
+model RetentionPolicy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  /// document | certificate | signature | audit_event | evidence | report
+  targetType     String   @map("target_type")
+  retentionDays  Int      @map("retention_days")
+  /// archive | purge
+  disposition    String
+  status         String   @default("active")
+  priority       Int      @default(100)
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("RetentionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, targetType, status], map: "retention_policies_org_target_status_idx")
+  @@index([organizationId, createdAt], map: "retention_policies_org_created_idx")
+  @@map("retention_policies")
+}
+
+/// Legal hold that blocks archive/purge for matching targets.
+model LegalHold {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  reason         String
+  status         String    @default("active")
+  /// all | target_type | targets
+  scope          String    @default("all")
+  targetType     String?   @map("target_type")
+  /// Specific resource ids when scope=targets
+  targetIdsJson  Json      @default("[]") @map("target_ids_json")
+  startsAt       DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  endsAt         DateTime? @map("ends_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("LegalHoldCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status], map: "legal_holds_org_status_idx")
+  @@index([organizationId, createdAt], map: "legal_holds_org_created_idx")
+  @@map("legal_holds")
+}
+
+model RetentionRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  status         String    @default("pending")
+  dryRun         Boolean   @default(false) @map("dry_run")
+  summaryJson    Json?     @map("summary_json")
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?        @relation("RetentionRunTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "retention_runs_org_created_idx")
+  @@map("retention_runs")
+}
+
+/// Archived snapshot with integrity hash for chain preservation.
+model RetentionArchive {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  targetType     String    @map("target_type")
+  targetId       String    @map("target_id")
+  policyId       String?   @map("policy_id") @db.Uuid
+  status         String    @default("archived")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  archivedAt     DateTime  @default(now()) @map("archived_at") @db.Timestamptz(6)
+  purgedAt       DateTime? @map("purged_at") @db.Timestamptz(6)
+  snapshotJson   Json      @map("snapshot_json")
+  integrityHash  String    @map("integrity_hash")
+  previousHash   String?   @map("previous_hash")
+  holdBlocked    Boolean   @default(false) @map("hold_blocked")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, targetType, targetId], map: "retention_archives_org_target_unique")
+  @@index([organizationId, status, expiresAt], map: "retention_archives_org_status_expires_idx")
+  @@index([organizationId, createdAt], map: "retention_archives_org_created_idx")
+  @@map("retention_archives")
+}
+
+/// Append-only retention custody / chain events.
+model RetentionCustodyEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  targetType     String   @map("target_type")
+  targetId       String   @map("target_id")
+  action         String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  previousHash   String?  @map("previous_hash")
+  integrityHash  String   @map("integrity_hash")
+  detailsJson    Json?    @map("details_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("RetentionCustodyActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, targetType, targetId, createdAt], map: "retention_custody_target_created_idx")
+  @@index([organizationId, createdAt], map: "retention_custody_org_created_idx")
+  @@map("retention_custody_events")
+}
+
+/// Phase H Step 1 — enterprise SAML SSO configuration (one per org).
+model EnterpriseSamlConfig {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String   @unique @map("organization_id") @db.Uuid
+  status             String   @default("draft")
+  entityId           String   @map("entity_id")
+  acsUrl             String   @map("acs_url")
+  idpEntityId        String   @map("idp_entity_id")
+  idpSsoUrl          String   @map("idp_sso_url")
+  idpCertificatePem  String   @map("idp_certificate_pem")
+  attributeMappingJson Json   @default("{}") @map("attribute_mapping_json")
+  metadataXml        String?  @map("metadata_xml")
+  updatedById        String?  @map("updated_by_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("EnterpriseSamlUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("enterprise_saml_configs")
+}
+
+model EnterpriseScimConfig {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @unique @map("organization_id") @db.Uuid
+  status          String   @default("draft")
+  baseUrl         String   @map("base_url")
+  bearerTokenHash String   @map("bearer_token_hash")
+  /// Last 4 chars for UI display
+  tokenHint       String   @map("token_hint")
+  userMappingJson Json     @default("{}") @map("user_mapping_json")
+  updatedById     String?  @map("updated_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("EnterpriseScimUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("enterprise_scim_configs")
+}
+
+/// Org-scoped enterprise roles with optional parent for inheritance.
+model EnterpriseRole {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  key            String
+  name           String
+  description    String?
+  parentRoleId   String?  @map("parent_role_id") @db.Uuid
+  permissionsJson Json    @default("[]") @map("permissions_json")
+  status         String   @default("active")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentRole   EnterpriseRole?  @relation("EnterpriseRoleInheritance", fields: [parentRoleId], references: [id], onDelete: SetNull)
+  childRoles   EnterpriseRole[] @relation("EnterpriseRoleInheritance")
+  createdBy    User?            @relation("EnterpriseRoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, key], map: "enterprise_roles_org_key_unique")
+  @@index([organizationId, status], map: "enterprise_roles_org_status_idx")
+  @@map("enterprise_roles")
+}
+
+model EnterpriseAbacPolicy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  effect         String
+  /// Attribute rules: [{ attribute, operator, value }]
+  rulesJson      Json     @map("rules_json")
+  resourceType   String?  @map("resource_type")
+  priority       Int      @default(100)
+  status         String   @default("active")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("EnterpriseAbacCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, priority], map: "enterprise_abac_org_status_priority_idx")
+  @@map("enterprise_abac_policies")
+}
+
+model EnterpriseDelegateAdmin {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  delegateUserId  String    @map("delegate_user_id") @db.Uuid
+  scopeJson       Json      @default("[]") @map("scope_json")
+  status          String    @default("active")
+  grantedById     String?   @map("granted_by_id") @db.Uuid
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  delegate     User         @relation("EnterpriseDelegateUser", fields: [delegateUserId], references: [id], onDelete: Cascade)
+  grantedBy    User?        @relation("EnterpriseDelegateGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, delegateUserId], map: "enterprise_delegates_org_user_unique")
+  @@index([organizationId, status], map: "enterprise_delegates_org_status_idx")
+  @@map("enterprise_delegate_admins")
+}
+
+model EnterpriseAccessReview {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  title          String
+  status         String    @default("open")
+  dueAt          DateTime? @map("due_at") @db.Timestamptz(6)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?                        @relation("EnterpriseAccessReviewCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items        EnterpriseAccessReviewItem[]
+
+  @@index([organizationId, status, createdAt], map: "enterprise_access_reviews_org_status_idx")
+  @@map("enterprise_access_reviews")
+}
+
+model EnterpriseAccessReviewItem {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId       String    @map("review_id") @db.Uuid
+  subjectUserId  String    @map("subject_user_id") @db.Uuid
+  roleKey        String    @map("role_key")
+  decision       String    @default("pending")
+  notes          String?
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  review  EnterpriseAccessReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  subject User                   @relation("EnterpriseAccessReviewSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId], map: "enterprise_access_review_items_review_idx")
+  @@map("enterprise_access_review_items")
+}
+
+/// Phase H Step 2 — business unit within an organization.
+model OrgBusinessUnit {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  key            String
+  name           String
+  description    String?
+  parentUnitId   String?  @map("parent_unit_id") @db.Uuid
+  ownerUserId    String?  @map("owner_user_id") @db.Uuid
+  policyJson     Json     @default("{}") @map("policy_json")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentUnit   OrgBusinessUnit?  @relation("BusinessUnitHierarchy", fields: [parentUnitId], references: [id], onDelete: SetNull)
+  childUnits   OrgBusinessUnit[] @relation("BusinessUnitHierarchy")
+  owner        User?             @relation("OrgBusinessUnitOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  departments  Department[]
+  costCenters  OrgCostCenter[]
+
+  @@unique([organizationId, key], map: "org_business_units_org_key_unique")
+  @@index([organizationId, status], map: "org_business_units_org_status_idx")
+  @@map("org_business_units")
+}
+
+model OrgCostCenter {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  code            String
+  name            String
+  businessUnitId  String?  @map("business_unit_id") @db.Uuid
+  ownerUserId     String?  @map("owner_user_id") @db.Uuid
+  allocationPct   Float    @default(100) @map("allocation_pct")
+  status          String   @default("active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit OrgBusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  owner        User?            @relation("OrgCostCenterOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  departments  Department[]
+
+  @@unique([organizationId, code], map: "org_cost_centers_org_code_unique")
+  @@index([organizationId, status], map: "org_cost_centers_org_status_idx")
+  @@map("org_cost_centers")
+}
+
+model OrgApprovalWorkflow {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  /// department | business_unit | cost_center | document | spend
+  resourceType   String   @map("resource_type")
+  status         String   @default("active")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?              @relation("OrgApprovalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  steps        OrgApprovalStep[]
+
+  @@index([organizationId, resourceType, status], map: "org_approval_workflows_org_resource_idx")
+  @@map("org_approval_workflows")
+}
+
+model OrgApprovalStep {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId  String  @map("workflow_id") @db.Uuid
+  stepOrder   Int     @map("step_order")
+  /// owner | role | user | manager
+  approverType String @map("approver_type")
+  approverRef  String @map("approver_ref")
+  name         String?
+
+  workflow OrgApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, stepOrder], map: "org_approval_steps_workflow_order_unique")
+  @@index([workflowId], map: "org_approval_steps_workflow_idx")
+  @@map("org_approval_steps")
+}
+
+/// Phase H Step 3 — platform deployment region.
+model PlatformRegion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique
+  name            String
+  /// e.g. EU, US, APAC
+  jurisdiction    String
+  endpointUrl     String   @map("endpoint_url")
+  status          String   @default("active")
+  priority        Int      @default(100)
+  /// Approximate latency weight (lower is nearer for nearest routing)
+  latencyWeight   Int      @default(100) @map("latency_weight")
+  metadataJson    Json?    @map("metadata_json")
+  createdById     String?  @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy User? @relation("PlatformRegionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, priority], map: "platform_regions_status_priority_idx")
+  @@map("platform_regions")
+}
+
+model OrgResidencyPolicy {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @unique @map("organization_id") @db.Uuid
+  homeRegionCode   String   @map("home_region_code")
+  /// strict | preferred | unrestricted
+  mode             String   @default("strict")
+  allowedRegionsJson Json   @default("[]") @map("allowed_regions_json")
+  /// Data classes that must stay in home (e.g. ["pii","phi"])
+  lockedClassesJson Json    @default("[]") @map("locked_classes_json")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_residency_policies")
+}
+
+model OrgRoutingPolicy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @unique @map("organization_id") @db.Uuid
+  /// home | nearest | latency | sticky
+  strategy       String   @default("home")
+  stickyTtlSeconds Int    @default(3600) @map("sticky_ttl_seconds")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_routing_policies")
+}
+
+model OrgReplicationPolicy {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @unique @map("organization_id") @db.Uuid
+  /// none | async | sync
+  mode             String   @default("async")
+  targetRegionsJson Json    @default("[]") @map("target_regions_json")
+  lagSecondsMax    Int      @default(300) @map("lag_seconds_max")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_replication_policies")
+}
+
+model OrgFailoverPolicy {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @unique @map("organization_id") @db.Uuid
+  /// manual | automatic
+  mode             String   @default("manual")
+  primaryRegionCode String  @map("primary_region_code")
+  standbyRegionsJson Json   @default("[]") @map("standby_regions_json")
+  healthFailThreshold Int   @default(3) @map("health_fail_threshold")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_failover_policies")
+}
+
+model RegionFailoverEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  fromRegionCode   String   @map("from_region_code")
+  toRegionCode     String   @map("to_region_code")
+  reason           String
+  status           String   @default("completed")
+  triggeredById    String?  @map("triggered_by_id") @db.Uuid
+  detailsJson      Json?    @map("details_json")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?        @relation("RegionFailoverTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "region_failover_events_org_created_idx")
+  @@map("region_failover_events")
+}
+
+/// Phase H Step 4 — disaster recovery backup policy.
+model RecoveryBackupPolicy {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  name            String
+  frequency       String
+  /// Target RPO in minutes
+  rpoMinutes      Int      @map("rpo_minutes")
+  /// Target RTO in minutes
+  rtoMinutes      Int      @map("rto_minutes")
+  retentionDays   Int      @map("retention_days")
+  regionCode      String   @map("region_code")
+  /// Scope labels e.g. ["database","documents","audit"]
+  scopesJson      Json     @default("[]") @map("scopes_json")
+  enabled         Boolean  @default(true)
+  createdById     String?  @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?              @relation("RecoveryPolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  backups      RecoveryBackupJob[]
+
+  @@index([organizationId, enabled], map: "recovery_backup_policies_org_enabled_idx")
+  @@map("recovery_backup_policies")
+}
+
+model RecoveryBackupJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  policyId       String?   @map("policy_id") @db.Uuid
+  status         String    @default("pending")
+  regionCode     String    @map("region_code")
+  checksumSha256 String?   @map("checksum_sha256")
+  sizeBytes      Int       @default(0) @map("size_bytes")
+  scopesJson     Json      @default("[]") @map("scopes_json")
+  snapshotJson   Json?     @map("snapshot_json")
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policy       RecoveryBackupPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  triggeredBy  User?                @relation("RecoveryBackupTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+  restores     RecoveryRestoreJob[]
+
+  @@index([organizationId, createdAt], map: "recovery_backup_jobs_org_created_idx")
+  @@index([organizationId, status], map: "recovery_backup_jobs_org_status_idx")
+  @@map("recovery_backup_jobs")
+}
+
+model RecoveryRestoreJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  backupJobId    String    @map("backup_job_id") @db.Uuid
+  status         String    @default("pending")
+  targetRegionCode String  @map("target_region_code")
+  validationJson Json?     @map("validation_json")
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  backup       RecoveryBackupJob @relation(fields: [backupJobId], references: [id], onDelete: Cascade)
+  triggeredBy  User?            @relation("RecoveryRestoreTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "recovery_restore_jobs_org_created_idx")
+  @@map("recovery_restore_jobs")
+}
+
+model RecoveryFailbackJob {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  fromRegionCode   String    @map("from_region_code")
+  toRegionCode     String    @map("to_region_code")
+  status           String    @default("pending")
+  reason           String
+  stepsJson        Json      @default("[]") @map("steps_json")
+  startedAt        DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  errorMessage     String?   @map("error_message")
+  triggeredById    String?   @map("triggered_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?        @relation("RecoveryFailbackTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "recovery_failback_jobs_org_created_idx")
+  @@map("recovery_failback_jobs")
+}
+
+model RecoveryContinuityReport {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  score          Float
+  summaryJson    Json     @map("summary_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "recovery_continuity_reports_org_created_idx")
+  @@map("recovery_continuity_reports")
+}
+
+/// Phase H Step 5 — governance policy.
+model GovernancePolicy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  framework      String
+  key            String
+  title          String
+  description    String?
+  status         String   @default("draft")
+  ownerUserId    String?  @map("owner_user_id") @db.Uuid
+  version        Int      @default(1)
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User?        @relation("GovernancePolicyOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("GovernancePolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, key], map: "governance_policies_org_key_unique_idx")
+  @@index([organizationId, framework], map: "governance_policies_org_framework_idx")
+  @@index([organizationId, status], map: "governance_policies_org_status_idx")
+  @@map("governance_policies")
+}
+
+model GovernanceRisk {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  key                 String
+  title               String
+  description         String?
+  category            String
+  framework           String?
+  likelihood          Int
+  impact              Int
+  residualLikelihood  Int      @map("residual_likelihood")
+  residualImpact      Int      @map("residual_impact")
+  inherentScore       Int      @map("inherent_score")
+  residualScore       Int      @map("residual_score")
+  status              String   @default("open")
+  ownerUserId         String?  @map("owner_user_id") @db.Uuid
+  controlKeysJson     Json     @default("[]") @map("control_keys_json")
+  createdById         String?  @map("created_by_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User?        @relation("GovernanceRiskOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("GovernanceRiskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, key], map: "governance_risks_org_key_unique_idx")
+  @@index([organizationId, status], map: "governance_risks_org_status_idx")
+  @@index([organizationId, residualScore], map: "governance_risks_org_residual_idx")
+  @@map("governance_risks")
+}
+
+model GovernanceControlAssessment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  framework      String
+  controlKey     String    @map("control_key")
+  controlTitle   String    @map("control_title")
+  status         String    @default("pending")
+  score          Float     @default(0)
+  findingsJson   Json      @default("{}") @map("findings_json")
+  assessorUserId String?   @map("assessor_user_id") @db.Uuid
+  assessedAt     DateTime? @map("assessed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessor     User?        @relation("GovernanceAssessmentAssessor", fields: [assessorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, framework], map: "governance_assessments_org_framework_idx")
+  @@index([organizationId, status], map: "governance_assessments_org_status_idx")
+  @@map("governance_control_assessments")
+}
+
+model GovernanceExecutiveReport {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  score          Float
+  summaryJson    Json     @map("summary_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "governance_executive_reports_org_created_idx")
+  @@map("governance_executive_reports")
+}
+
+/// Phase I Step 1 — external wallet link.
+model WalletLink {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  provider         String
+  address          String
+  addressNormalized String   @map("address_normalized")
+  label            String?
+  status           String    @default("pending")
+  isPrimary        Boolean   @default(false) @map("is_primary")
+  chainHint        String?   @map("chain_hint")
+  lastSyncedAt     DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  verifiedAt       DateTime? @map("verified_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  metadataJson     Json      @default("{}") @map("metadata_json")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("WalletLinkOwner", fields: [userId], references: [id], onDelete: Cascade)
+  challenges   WalletChallenge[]
+  syncJobs     WalletSyncJob[]
+  events       WalletOwnershipEvent[]
+
+  @@unique([organizationId, addressNormalized], map: "wallet_links_org_address_unique_idx")
+  @@index([organizationId, userId], map: "wallet_links_org_user_idx")
+  @@index([organizationId, status], map: "wallet_links_org_status_idx")
+  @@map("wallet_links")
+}
+
+model WalletChallenge {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  walletLinkId   String    @map("wallet_link_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  nonce          String
+  message        String
+  expectedProof  String    @map("expected_proof")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  walletLink   WalletLink   @relation(fields: [walletLinkId], references: [id], onDelete: Cascade)
+  user         User         @relation("WalletChallengeUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([walletLinkId, createdAt], map: "wallet_challenges_link_created_idx")
+  @@index([organizationId, expiresAt], map: "wallet_challenges_org_expires_idx")
+  @@map("wallet_challenges")
+}
+
+model WalletSyncJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  walletLinkId   String?   @map("wallet_link_id") @db.Uuid
+  status         String    @default("pending")
+  scheduledFor   DateTime  @map("scheduled_for") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  resultJson     Json?     @map("result_json")
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  walletLink   WalletLink?  @relation(fields: [walletLinkId], references: [id], onDelete: SetNull)
+  triggeredBy  User?        @relation("WalletSyncTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "wallet_sync_jobs_org_created_idx")
+  @@index([organizationId, status], map: "wallet_sync_jobs_org_status_idx")
+  @@map("wallet_sync_jobs")
+}
+
+model WalletOwnershipEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  walletLinkId   String?  @map("wallet_link_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  eventType      String   @map("event_type")
+  address        String?
+  summary        String
+  metaJson       Json     @default("{}") @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  walletLink   WalletLink?  @relation(fields: [walletLinkId], references: [id], onDelete: SetNull)
+  user         User?        @relation("WalletOwnershipActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "wallet_ownership_events_org_created_idx")
+  @@index([walletLinkId, createdAt], map: "wallet_ownership_events_link_created_idx")
+  @@map("wallet_ownership_events")
+}
+
+/// Phase I Step 2 — ecosystem connector instance.
+model EcosystemIntegration {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  connectorKey     String    @map("connector_key")
+  name             String
+  status           String    @default("draft")
+  authMode         String    @map("auth_mode")
+  syncIntervalMinutes Int    @default(60) @map("sync_interval_minutes")
+  syncMode         String    @default("incremental") @map("sync_mode")
+  scopesJson       Json      @default("[]") @map("scopes_json")
+  configJson       Json      @default("{}") @map("config_json")
+  lastSyncedAt     DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  lastError        String?   @map("last_error")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy     User?        @relation("IntegrationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  credentials   IntegrationCredential[]
+  oauthSessions IntegrationOAuthSession[]
+  syncJobs      IntegrationSyncJob[]
+  subscriptions IntegrationEventSubscription[]
+  events        IntegrationEventLog[]
+
+  @@unique([organizationId, connectorKey, name], map: "ecosystem_integrations_org_connector_name_unique_idx")
+  @@index([organizationId, status], map: "ecosystem_integrations_org_status_idx")
+  @@index([organizationId, connectorKey], map: "ecosystem_integrations_org_connector_idx")
+  @@map("ecosystem_integrations")
+}
+
+model IntegrationCredential {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  integrationId  String    @map("integration_id") @db.Uuid
+  kind           String
+  version        Int       @default(1)
+  /// Fingerprint / hash only — never store raw secrets in clear fields for API responses
+  secretHash     String    @map("secret_hash")
+  secretLast4    String    @map("secret_last4")
+  /// Opaque encrypted blob (foundation: base64 of token material)
+  secretCipher   String    @map("secret_cipher")
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+  rotatedAt      DateTime? @map("rotated_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  EcosystemIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, version], map: "integration_credentials_integration_version_idx")
+  @@index([organizationId, kind], map: "integration_credentials_org_kind_idx")
+  @@map("integration_credentials")
+}
+
+model IntegrationOAuthSession {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  integrationId  String    @map("integration_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  state          String    @unique
+  codeVerifier   String?   @map("code_verifier")
+  redirectUri    String    @map("redirect_uri")
+  scopesJson     Json      @default("[]") @map("scopes_json")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  EcosystemIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  user         User                 @relation("IntegrationOAuthUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "integration_oauth_sessions_org_created_idx")
+  @@map("integration_oauth_sessions")
+}
+
+model IntegrationSyncJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  integrationId  String    @map("integration_id") @db.Uuid
+  status         String    @default("pending")
+  mode           String    @default("incremental")
+  scheduledFor   DateTime  @map("scheduled_for") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  resultJson     Json?     @map("result_json")
+  errorMessage   String?   @map("error_message")
+  triggeredById  String?   @map("triggered_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  EcosystemIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  triggeredBy  User?                @relation("IntegrationSyncTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt], map: "integration_sync_jobs_org_created_idx")
+  @@index([integrationId, status], map: "integration_sync_jobs_integration_status_idx")
+  @@map("integration_sync_jobs")
+}
+
+model IntegrationEventSubscription {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  integrationId  String   @map("integration_id") @db.Uuid
+  eventType      String   @map("event_type")
+  enabled        Boolean  @default(true)
+  filterJson     Json     @default("{}") @map("filter_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  EcosystemIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, eventType], map: "integration_event_subscriptions_unique_idx")
+  @@index([organizationId, enabled], map: "integration_event_subscriptions_org_enabled_idx")
+  @@map("integration_event_subscriptions")
+}
+
+model IntegrationEventLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  integrationId  String   @map("integration_id") @db.Uuid
+  eventType      String   @map("event_type")
+  payloadJson    Json     @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  EcosystemIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "integration_event_logs_org_created_idx")
+  @@index([integrationId, eventType], map: "integration_event_logs_integration_type_idx")
+  @@map("integration_event_logs")
+}
+
+/// Phase I Step 3 — marketplace connector listing.
+model MarketplaceListing {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publisherOrgId     String   @map("publisher_org_id") @db.Uuid
+  publishedById      String?  @map("published_by_id") @db.Uuid
+  slug               String
+  name               String
+  summary            String
+  description        String?
+  category           String
+  connectorKey       String?  @map("connector_key")
+  authMode           String   @map("auth_mode")
+  status             String   @default("draft")
+  latestVersion      String?  @map("latest_version")
+  installCount       Int      @default(0) @map("install_count")
+  averageRating      Float    @default(0) @map("average_rating")
+  reviewCount        Int      @default(0) @map("review_count")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  publisherOrg Organization @relation("MarketplaceListingPublisherOrg", fields: [publisherOrgId], references: [id], onDelete: Cascade)
+  publishedBy  User?        @relation("MarketplaceListingPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+  versions     MarketplaceListingVersion[]
+  installations MarketplaceInstallation[]
+  reviews      MarketplaceReview[]
+
+  @@unique([slug], map: "marketplace_listings_slug_unique_idx")
+  @@index([publisherOrgId, status], map: "marketplace_listings_publisher_status_idx")
+  @@index([category, status], map: "marketplace_listings_category_status_idx")
+  @@map("marketplace_listings")
+}
+
+model MarketplaceListingVersion {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId          String    @map("listing_id") @db.Uuid
+  version            String
+  changelog          String?
+  minPlatformVersion String    @map("min_platform_version")
+  maxPlatformVersion String?   @map("max_platform_version")
+  compatibilityJson  Json      @default("{}") @map("compatibility_json")
+  isLatest           Boolean   @default(false) @map("is_latest")
+  publishedAt        DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  listing        MarketplaceListing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  installations  MarketplaceInstallation[]
+
+  @@unique([listingId, version], map: "marketplace_listing_versions_unique_idx")
+  @@index([listingId, isLatest], map: "marketplace_listing_versions_latest_idx")
+  @@map("marketplace_listing_versions")
+}
+
+model MarketplaceInstallation {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String    @map("organization_id") @db.Uuid
+  listingId              String    @map("listing_id") @db.Uuid
+  versionId              String    @map("version_id") @db.Uuid
+  status                 String    @default("pending")
+  installedVersion       String    @map("installed_version")
+  ecosystemIntegrationId String?   @map("ecosystem_integration_id") @db.Uuid
+  installedById          String?   @map("installed_by_id") @db.Uuid
+  installedAt            DateTime? @map("installed_at") @db.Timestamptz(6)
+  uninstalledAt          DateTime? @map("uninstalled_at") @db.Timestamptz(6)
+  errorMessage           String?   @map("error_message")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      MarketplaceListing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  version      MarketplaceListingVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  installedBy  User?                    @relation("MarketplaceInstallActor", fields: [installedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, listingId], map: "marketplace_installations_org_listing_unique_idx")
+  @@index([organizationId, status], map: "marketplace_installations_org_status_idx")
+  @@map("marketplace_installations")
+}
+
+model MarketplaceReview {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  listingId      String   @map("listing_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  rating         Int
+  title          String
+  body           String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user         User               @relation("MarketplaceReviewAuthor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, userId], map: "marketplace_reviews_listing_user_unique_idx")
+  @@index([listingId, createdAt], map: "marketplace_reviews_listing_created_idx")
+  @@index([organizationId, createdAt], map: "marketplace_reviews_org_created_idx")
+  @@map("marketplace_reviews")
+}
+
+/// Phase I Step 4 — reputation profile for ecosystem subjects.
+model ReputationProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  subjectType        String   @map("subject_type")
+  subjectId          String   @map("subject_id")
+  label              String?
+  status             String   @default("active")
+  trustScore         Float    @default(0.5) @map("trust_score")
+  contributionScore  Float    @default(0) @map("contribution_score")
+  fraudScore         Float    @default(0) @map("fraud_score")
+  overallScore       Float    @default(0.5) @map("overall_score")
+  signalsJson        Json     @default("{}") @map("signals_json")
+  lastScoredAt       DateTime? @map("last_scored_at") @db.Timestamptz(6)
+  updatedById        String?  @map("updated_by_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("ReputationProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  history      ReputationHistoryEvent[]
+  alerts       ReputationAlert[]
+
+  @@unique([organizationId, subjectType, subjectId], map: "reputation_profiles_org_subject_unique_idx")
+  @@index([organizationId, overallScore], map: "reputation_profiles_org_overall_idx")
+  @@index([organizationId, subjectType], map: "reputation_profiles_org_type_idx")
+  @@index([organizationId, status], map: "reputation_profiles_org_status_idx")
+  @@map("reputation_profiles")
+}
+
+model ReputationHistoryEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  profileId      String   @map("profile_id") @db.Uuid
+  trustScore     Float    @map("trust_score")
+  contributionScore Float @map("contribution_score")
+  fraudScore     Float    @map("fraud_score")
+  overallScore   Float    @map("overall_score")
+  reason         String
+  metaJson       Json     @default("{}") @map("meta_json")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      ReputationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt], map: "reputation_history_profile_created_idx")
+  @@index([organizationId, createdAt], map: "reputation_history_org_created_idx")
+  @@map("reputation_history_events")
+}
+
+model ReputationAlert {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  profileId      String?   @map("profile_id") @db.Uuid
+  severity       String
+  status         String    @default("open")
+  alertType      String    @map("alert_type")
+  title          String
+  detail         String
+  scoreSnapshot  Float?    @map("score_snapshot")
+  resolvedById   String?   @map("resolved_by_id") @db.Uuid
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      ReputationProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  resolvedBy   User?             @relation("ReputationAlertResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status], map: "reputation_alerts_org_status_idx")
+  @@index([organizationId, createdAt], map: "reputation_alerts_org_created_idx")
+  @@map("reputation_alerts")
+}
+
+/// Phase I Step 5 — platform hardening configuration (rate limits, tracing, gates).
+model PlatformConfiguration {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  valueJson   Json     @map("value_json")
+  description String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("PlatformConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("platform_configurations")
+}
+
+/// Phase I Step 5 — readiness verification report.
+model PlatformReadinessReport {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status         String
+  score          Float    @default(0)
+  checksJson     Json     @map("checks_json")
+  blockersJson   Json     @default("[]") @map("blockers_json")
+  triggeredById  String?  @map("triggered_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  triggeredBy User? @relation("PlatformReadinessTriggeredBy", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt], map: "platform_readiness_reports_created_idx")
+  @@index([status, createdAt], map: "platform_readiness_reports_status_created_idx")
+  @@map("platform_readiness_reports")
+}
+
+/// Phase I Step 5 — operational metrics snapshot.
+model PlatformMetricSnapshot {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String   @default("global")
+  metricsJson Json     @map("metrics_json")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([scope, createdAt], map: "platform_metric_snapshots_scope_created_idx")
+  @@map("platform_metric_snapshots")
+}
+
+/// Phase I Step 5 — aggregated distributed tracing window.
+model PlatformTraceAggregate {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  windowKey     String   @map("window_key")
+  spanCount     Int      @default(0) @map("span_count")
+  errorCount    Int      @default(0) @map("error_count")
+  p50LatencyMs  Float    @default(0) @map("p50_latency_ms")
+  p95LatencyMs  Float    @default(0) @map("p95_latency_ms")
+  servicesJson  Json     @default("{}") @map("services_json")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([windowKey, createdAt], map: "platform_trace_aggregates_window_created_idx")
+  @@map("platform_trace_aggregates")
 }
 

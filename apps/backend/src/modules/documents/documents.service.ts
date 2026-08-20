@@ -1,7 +1,9 @@
 import {
+  DeveloperEventTypes,
   DocumentPermissions,
   DocumentStatuses,
   DocumentUploadSessionStatuses,
+  NotificationEventTypes,
   RoleKeys,
 } from "@trustchain/config";
 import { prisma, type Prisma } from "@trustchain/database";
@@ -13,6 +15,7 @@ import {
   streamSha256Object,
 } from "../../integrations/objectStorage.js";
 import { userHasRole } from "../auth/rbac.repository.js";
+import { publishDeveloperEventSafe } from "../developer/developer.delivery.js";
 import {
   assertDocumentPermission,
   isDocumentExpired,
@@ -25,6 +28,7 @@ import { scanDocumentObject } from "./malwareScan.js";
 import { invalidateVerificationCacheForDocument } from "../verification/services/cacheInvalidation.js";
 import { invalidatePublicSnapshots } from "../public-verification/services/publicVerification.service.js";
 import { invalidateQrAssets } from "../qr/services/qr.service.js";
+import { emitDomainNotification } from "../notifications/notification.emit.js";
 
 const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
 
@@ -373,6 +377,12 @@ export async function createDocument(
     action: "document.created",
   });
 
+  publishDeveloperEventSafe({
+    organizationId,
+    eventType: DeveloperEventTypes.documentCreated,
+    data: { documentId: doc.id, title: doc.title, status: doc.status },
+  });
+
   const full = await loadDocument(organizationId, doc.id);
   return publicDocument(full, DocumentPermissions.manage);
 }
@@ -639,6 +649,23 @@ export async function confirmDocumentVersion(
   await invalidateQrAssets(organizationId, documentId);
 
   const full = await loadDocument(organizationId, documentId);
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.documentUploaded,
+    entityId: version.id,
+    entityType: "document_version",
+    title: "Document uploaded",
+    message: `"${full.title}" version ${version.versionNumber} was uploaded.`,
+    metadata: {
+      documentId,
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      contentHash,
+    },
+    recipientUserIds: [full.createdById, userId],
+  });
+
   return {
     document: publicDocument(full, DocumentPermissions.edit),
     version: {
@@ -781,6 +808,12 @@ export async function patchDocument(
   await invalidatePublicSnapshots(organizationId, documentId);
   await invalidateQrAssets(organizationId, documentId);
 
+  publishDeveloperEventSafe({
+    organizationId,
+    eventType: DeveloperEventTypes.documentUpdated,
+    data: { documentId, ...input },
+  });
+
   const full = await loadDocument(organizationId, documentId);
   return publicDocument(full, DocumentPermissions.edit);
 }
@@ -833,6 +866,17 @@ export async function archiveDocument(userId: string, organizationId: string, do
   await invalidatePublicSnapshots(organizationId, documentId);
   await invalidateQrAssets(organizationId, documentId);
   const full = await loadDocument(organizationId, documentId);
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.documentArchived,
+    entityId: documentId,
+    entityType: "document",
+    title: "Document archived",
+    message: `"${full.title}" was archived.`,
+    metadata: { documentId },
+    recipientUserIds: [full.createdById, userId],
+  });
   return publicDocument(full, DocumentPermissions.edit);
 }
 
@@ -868,6 +912,17 @@ export async function restoreDocument(userId: string, organizationId: string, do
   await invalidatePublicSnapshots(organizationId, documentId);
   await invalidateQrAssets(organizationId, documentId);
   const full = await loadDocument(organizationId, documentId);
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.documentRestored,
+    entityId: documentId,
+    entityType: "document",
+    title: "Document restored",
+    message: `"${full.title}" was restored (${nextStatus}).`,
+    metadata: { documentId, status: nextStatus },
+    recipientUserIds: [full.createdById, userId],
+  });
   return publicDocument(full, DocumentPermissions.edit);
 }
 
@@ -1107,6 +1162,24 @@ export async function createDocumentShare(
     actorUserId: userId,
     action: "document.share.created",
     metadata: { shareId: share.id, permission: share.permission },
+  });
+
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.shareCreated,
+    entityId: share.id,
+    entityType: "document_share",
+    title: "Document shared",
+    message: `"${doc.title}" was shared (${share.permission}).`,
+    metadata: {
+      documentId,
+      shareId: share.id,
+      permission: share.permission,
+      sharedWithUserId: share.sharedWithUserId,
+      sharedWithEmail: share.sharedWithEmail,
+    },
+    recipientUserIds: [doc.createdById, share.sharedWithUserId, userId],
   });
 
   return share;

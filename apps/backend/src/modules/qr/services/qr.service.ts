@@ -1,5 +1,6 @@
 import {
   DocumentPermissions,
+  NotificationEventTypes,
   QrFormatVersions,
   QrStatuses,
   RoleKeys,
@@ -10,6 +11,7 @@ import { AppError } from "../../../lib/errors.js";
 import { putObjectBuffer } from "../../../integrations/objectStorage.js";
 import { userHasRole } from "../../auth/rbac.repository.js";
 import { assertDocumentPermission } from "../../documents/documents.access.js";
+import { emitDomainNotification } from "../../notifications/notification.emit.js";
 import {
   createPublicLink,
   publicVerifyByLinkToken,
@@ -280,6 +282,22 @@ export async function createDocumentQr(
     },
   });
 
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.qrCreated,
+    entityId: row.id,
+    entityType: "document_qr",
+    title: "QR code generated",
+    message: `QR ${row.publicCode} was generated for a document.`,
+    metadata: {
+      documentId,
+      publicCode: row.publicCode,
+      formatVersion: row.formatVersion,
+    },
+    recipientUserIds: [userId, document.createdById],
+  });
+
   return {
     qr: publicQr(row),
     scanUrl: (built.payload as QrPayload).url,
@@ -341,7 +359,23 @@ async function setQrStatus(
 }
 
 export async function revokeQr(userId: string, organizationId: string, publicCode: string) {
-  return setQrStatus(userId, organizationId, publicCode, "revoked");
+  const qr = await setQrStatus(userId, organizationId, publicCode, "revoked");
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.qrRevoked,
+    entityId: qr.publicCode,
+    entityType: "document_qr",
+    title: "QR code revoked",
+    message: `QR ${qr.publicCode} was revoked.`,
+    metadata: {
+      documentId: qr.documentId,
+      publicCode: qr.publicCode,
+      status: qr.status,
+    },
+    recipientUserIds: [userId],
+  });
+  return qr;
 }
 
 export async function disableQr(userId: string, organizationId: string, publicCode: string) {

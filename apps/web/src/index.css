@@ -1,14 +1,160 @@
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/sora/500.css";
+@import "@fontsource/sora/600.css";
+@import "@fontsource/sora/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: #0f172a;
-  background: #f8fafc;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+
+  --tc-canvas: #f8fafc;
+  --tc-surface: #ffffff;
+  --tc-surface-2: #f1f5f9;
+  --tc-surface-3: #e2e8f0;
+  --tc-fg: #0f172a;
+  --tc-muted: #64748b;
+  --tc-border: #e2e8f0;
+  --tc-border-strong: #cbd5e1;
+  --tc-accent: #059669;
+  --tc-accent-hover: #047857;
+  --tc-accent-fg: #ecfdf5;
+  --tc-accent-soft: #ecfdf5;
+  --tc-ring: rgba(5, 150, 105, 0.35);
+
+  --tc-success: #059669;
+  --tc-warning: #d97706;
+  --tc-error: #e11d48;
+  --tc-danger: #e11d48;
+  --tc-info: #2563eb;
+
+  --tc-blue: #2563eb;
+  --tc-purple: #7c3aed;
+  --tc-amber: #d97706;
+  --tc-rose: #e11d48;
+
+  --tc-sidebar: #0b1220;
+  --tc-sidebar-fg: #e2e8f0;
+  --tc-sidebar-muted: #94a3b8;
+  --tc-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --tc-sidebar-active: rgba(16, 185, 129, 0.16);
+
+  --tc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --tc-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --tc-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.1);
+  --tc-radius: 14px;
+  --tc-glass: rgba(255, 255, 255, 0.72);
+  --tc-glass-border: rgba(255, 255, 255, 0.5);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --tc-canvas: #020617;
+  --tc-surface: #0f172a;
+  --tc-surface-2: #1e293b;
+  --tc-surface-3: #334155;
+  --tc-fg: #f8fafc;
+  --tc-muted: #94a3b8;
+  --tc-border: #1e293b;
+  --tc-border-strong: #334155;
+  --tc-accent: #10b981;
+  --tc-accent-hover: #34d399;
+  --tc-accent-fg: #022c22;
+  --tc-accent-soft: rgba(16, 185, 129, 0.12);
+  --tc-ring: rgba(16, 185, 129, 0.4);
+
+  --tc-success: #34d399;
+  --tc-warning: #fbbf24;
+  --tc-error: #fb7185;
+  --tc-danger: #fb7185;
+  --tc-info: #60a5fa;
+
+  --tc-sidebar: #020617;
+  --tc-sidebar-fg: #f1f5f9;
+  --tc-sidebar-muted: #64748b;
+  --tc-sidebar-hover: rgba(255, 255, 255, 0.05);
+  --tc-sidebar-active: rgba(16, 185, 129, 0.18);
+
+  --tc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --tc-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --tc-shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.55);
+  --tc-glass: rgba(15, 23, 42, 0.72);
+  --tc-glass-border: rgba(148, 163, 184, 0.12);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  color: var(--tc-fg);
+  background:
+    radial-gradient(1200px 600px at 0% -10%, rgba(16, 185, 129, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(37, 99, 235, 0.08), transparent 50%),
+    var(--tc-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.dark body {
+  background:
+    radial-gradient(1000px 520px at 10% -20%, rgba(16, 185, 129, 0.14), transparent 50%),
+    radial-gradient(800px 480px at 100% 0%, rgba(37, 99, 235, 0.1), transparent 45%),
+    var(--tc-canvas);
+}
+
+@layer utilities {
+  .tc-glass {
+    background: var(--tc-glass);
+    border: 1px solid var(--tc-glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .tc-card {
+    @apply rounded-2xl border border-[var(--tc-border)] bg-[var(--tc-surface)] shadow-[var(--tc-shadow-sm)];
+  }
+
+  .tc-focus {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-[var(--tc-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--tc-canvas)];
+  }
+
+  .tc-page {
+    @apply mx-auto w-full max-w-[1400px] space-y-8;
+  }
+
+  .tc-gradient-text {
+    background: linear-gradient(135deg, #059669 0%, #2563eb 55%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .tc-grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

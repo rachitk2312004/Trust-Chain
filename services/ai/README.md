@@ -1,27 +1,39 @@
-# TrustChain AI Service (Wave 9 + Phase 2 queue)
+# TrustChain AI Service
 
-Advisory-only AI/OCR microservice. Never revokes certificates, executes blockchain transactions, mutates verification results, runs autonomous agents, or self-modifies prompts.
+Advisory-only AI/OCR microservice (Wave 9 + Phase 2 consolidation).
 
-## Topology (Phase 2 Step 6)
+Never revokes certificates, executes blockchain transactions, mutates verification results, runs autonomous agents, or self-modifies prompts.
 
+## Final architecture
+
+```mermaid
+flowchart TD
+  Client --> Express
+  Express --> EC[Execution client]
+  EC --> API["FastAPI /internal/execution/*"]
+  API --> EM[Execution manager]
+  EM --> QM[Queue manager]
+  QM --> Workers
+  Workers --> Adapters
+  Adapters --> Models
 ```
-Express (public) → Execution client → FastAPI /internal/execution/*
-  → Execution manager → Queue manager → Workers → Adapters → engines
-```
 
-Express must never talk to workers or engines directly. Redis is ephemeral only (queues, locks, leases, retries). Stub adapter fallback is CI/local only.
+Express is the only public gateway. This service must stay on a private network.
 
-Queue package path: `services/ai/task_queue/` (named to avoid shadowing Python stdlib `queue`).
-Workers: `services/ai/workers/` — lease, heartbeat, retry, timeout, lineage, metrics.
-Adapters: `services/ai/adapters/` — FastAPI clients + primary/secondary/(stub*) fallback.
+## Layout
 
-## Run tests
+| Path | Role |
+|------|------|
+| `api/` | FastAPI app + `/internal/*` routers |
+| `execution/` | Execution manager |
+| `task_queue/` | Queue manager (not named `queue/` — avoids stdlib shadow) |
+| `workers/` | Pool, leases, heartbeat, retry, timeout, lineage, metrics, executors |
+| `adapters/` | Clients + primary → secondary → stub\* fallback |
+| `models/` | Registry, routing, versions, benchmarks |
+| `ocr/`, `extraction/`, `classification/`, `embeddings/`, … | Engines used **via adapters** |
+| `security/` | Advisory-only operation guards |
 
-```bash
-cd services/ai
-pip install -r requirements.txt
-PYTHONPATH=. pytest
-```
+\* Stub fallback: local/CI only.
 
 ## Run API
 
@@ -31,7 +43,26 @@ pip install -r requirements.txt
 PYTHONPATH=. uvicorn api.app:app --reload --port 8090
 ```
 
-Health: `GET /health`  
-Internal: `/internal/ocr`, `/internal/extract`, `/internal/classify`, `/internal/search`, `/internal/fraud`, `/internal/embed`, `/internal/evaluate`, `/internal/explain`, `/internal/pipeline`, `/internal/jobs/{job_id}`
+- Health: `GET /health`
+- Execution: `/internal/execution/{submit,tasks,cancel,drain,health,models}`
+- Engine helpers: `/internal/{ocr,extract,classify,search,fraud,embed,evaluate,explain,pipeline}`
 
-Optional: `REDIS_URL` for real Redis; CI defaults to in-memory queue backend.
+## Run tests
+
+```bash
+PYTHONPATH=. pytest
+```
+
+## Configuration
+
+See [`docs/runbooks/deployment.md`](../../docs/runbooks/deployment.md).
+
+Required in production: `AI_SERVICE_URL` (on Express), `AI_SERVICE_TOKEN`, `REDIS_URL` or explicit `AI_QUEUE_BACKEND=memory`, `AI_EXECUTION_MODE=production`.
+
+## Documentation index
+
+- [`docs/api/wave9-ai.md`](../../docs/api/wave9-ai.md) — public AI API
+- [`docs/api/gateway.md`](../../docs/api/gateway.md) — Express gateway
+- [`docs/api/execution.md`](../../docs/api/execution.md) — execution API
+- [`docs/api/models.md`](../../docs/api/models.md) — model contract
+- [`docs/runbooks/phase2-ai-queue.md`](../../docs/runbooks/phase2-ai-queue.md) — architecture index

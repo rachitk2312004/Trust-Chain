@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { RoleKeys } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
 import { AppError } from "../lib/errors.js";
-import { userHasRole } from "../modules/auth/rbac.repository.js";
+import { userHasRole, userHasRoleFromBindings } from "../modules/auth/rbac.repository.js";
 
 /**
  * Central RBAC middleware — mount after requireAuth.
@@ -19,7 +19,12 @@ export function requireRole(roleKeys: string[], options?: { organizationParam?: 
         ? (req.params[options.organizationParam] ?? null)
         : null;
 
-      const allowed = await userHasRole(req.user.id, roleKeys, organizationId);
+      const allowed = await userHasRole(
+        req.user.id,
+        roleKeys,
+        organizationId,
+        req.roleBindings,
+      );
       if (!allowed) {
         throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
       }
@@ -33,7 +38,7 @@ export function requireRole(roleKeys: string[], options?: { organizationParam?: 
 
 /** Org-scoped membership gate for `/:id` organization routes. */
 export const requireOrgMember = requireRole(
-  [RoleKeys.superAdmin, RoleKeys.orgAdmin, RoleKeys.employee],
+  [RoleKeys.superAdmin, RoleKeys.orgAdmin, RoleKeys.employee, RoleKeys.publicUser],
   { organizationParam: "id" },
 );
 
@@ -47,7 +52,9 @@ export async function requireOpsAdmin(
     if (!req.user) {
       throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
     }
-    const isSuper = await userHasRole(req.user.id, [RoleKeys.superAdmin]);
+    const isSuper = req.roleBindings
+      ? userHasRoleFromBindings(req.roleBindings, [RoleKeys.superAdmin])
+      : await userHasRole(req.user.id, [RoleKeys.superAdmin]);
     if (isSuper) {
       next();
       return;

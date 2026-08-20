@@ -11,19 +11,34 @@ Document → R2 → OCR → Extraction → Classification → AI analysis
 
 **Sources of truth:** PostgreSQL metadata, Cloudflare R2 bytes, blockchain anchors, Wave 4/5 verification reports, audit logs.
 
-## Topology
+## Topology (Phase 2 final)
 
+```mermaid
+flowchart TD
+  Clients --> Express["Express /api/v1/ai/*"]
+  Express --> EC[Execution client]
+  EC --> FastAPI["FastAPI /internal/execution/*"]
+  FastAPI --> EM[Execution manager]
+  EM --> QM[Queue manager]
+  QM --> Workers
+  Workers --> Adapters
+  Adapters --> Engines[Models / engines]
+  Express --> PG[(PostgreSQL ledger)]
+  Express --> R2[(R2 via signed URLs)]
 ```
-Clients → Express `/api/v1/ai/*` (auth, ACL, rate limit, audit, persistence)
-        → Execution client → FastAPI `/internal/execution/*`
-        → Execution manager → Queue manager → Workers → Adapters → engines
-        → PostgreSQL task ledger (AiTask / AiArtifact) + Wave 9 job tables
-        → R2 via short-lived URLs issued by Express
-```
 
-Redis is optional ephemeral coordination (queues, locks, leases, retries). CI defaults to an in-memory queue backend / Express memory execution client when `AI_SERVICE_URL` is unset. Wave 9 v1 job public codes remain; Phase 2 maps them to `AI-TASK-*` via `legacyJobPublicCode`.
+Redis is ephemeral coordination only (queues, locks, leases, retries). CI may use in-memory queues and an Express memory execution client when `AI_SERVICE_URL` is unset. Production never silently uses memory/stub fallbacks.
 
-See `docs/runbooks/phase2-ai-queue.md`.
+Wave 9 v1 job public codes remain; Phase 2 maps them to `AI-TASK-*` via `legacyJobPublicCode`.
+
+### Doc map
+
+| Topic | Doc |
+|-------|-----|
+| Express gateway | [`gateway.md`](./gateway.md) |
+| Execution API | [`execution.md`](./execution.md) |
+| Models / result contract | [`models.md`](./models.md) |
+| Architecture + ops index | [`../runbooks/phase2-ai-queue.md`](../runbooks/phase2-ai-queue.md) |
 
 ## Identifiers
 
@@ -32,11 +47,16 @@ See `docs/runbooks/phase2-ai-queue.md`.
 | OCR job | `OCR-JOB-XXXXXXXX` |
 | AI job | `AI-JOB-XXXXXXXX` |
 | Embedding job | `EMBEDDING-JOB-XXXXXXXX` |
+| Classification job | `CLASSIFICATION-JOB-XXXXXXXX` |
 | Lineage | `LINEAGE-XXXXXXXX` |
+| Task (Phase 2) | `AI-TASK-XXXXXXXX` |
+| Worker | `AI-WORKER-XXXXXXXX` |
 
 ## Job states
 
-`pending` | `processing` | `completed` | `failed` | `cancelled`
+Wave 9 job rows: `pending` | `processing` | `completed` | `failed` | `cancelled`
+
+Phase 2 queue tasks additionally use: `retrying` | `dead_letter`
 
 ## Human review states
 
@@ -44,21 +64,21 @@ See `docs/runbooks/phase2-ai-queue.md`.
 
 AI never auto-finalizes decisions. Default is `pending_review`.
 
-## Confidence & cost (every result)
+## Confidence & cost (every Express result)
 
-- `confidence`
-- `confidenceInterval` `{ low, high }`
-- `modelVersion`
-- `evaluationVersion`
+- `confidence` / `confidenceInterval` `{ low, high }`
+- `modelVersion` / `evaluationVersion`
 - `tokenUsage` / `computeUsage` / `storageUsage` / `estimatedCost`
+
+Adapter layer additionally requires: `advisoryOnly`, `modelId`, `modelVersion`, `executionTimeMs`, `lineageId`, `confidence`.
 
 ## Lineage
 
 ```
-Document → OCR → Extraction → Classification → Fraud analysis
+Document → Artifact → Embedding → Inference → Review
 ```
 
-Tracked via `AiLineage.stepsJson` and `LINEAGE-*` public codes.
+Tracked via `AiLineage.stepsJson`, `LINEAGE-*`, and worker `AI-ARTIFACT-*` chains.
 
 ## APIs (Express gateway)
 
@@ -95,9 +115,7 @@ CI uses `stub` when heavy OCR binaries are absent.
 
 ## Model management
 
-`services/ai/models/{registry,routing,versions,benchmarks,fallback}` plus Prisma `AiModelRegistryEntry`.
-
-Providers: `openai` | `gemini` | `local` | `stub`.
+See [`models.md`](./models.md). Providers: `openai` | `gemini` | `local` | `stub`.
 
 ## Explainability
 
@@ -127,12 +145,13 @@ Enforced in Express (`assertSafeAiOperation`) and FastAPI (`security/guard.py`).
 |----------|---------|
 | `AI_SERVICE_URL` | FastAPI base URL (**required in production**) |
 | `AI_SERVICE_TOKEN` | Service auth token (**required in production**) |
-| `REDIS_URL` | Queue backend (**required in production** unless `AI_QUEUE_BACKEND=memory`) |
-| `AI_EXECUTION_MODE` | `production` / `development` / `test` / `ci` |
+| `AI_EXECUTION_MODE` | `production` / `gateway` / `development` / `test` / `ci` |
+| `AI_QUEUE_BACKEND` | `memory` only when explicitly opted in |
+| `REDIS_URL` | Queue backend (**required in production** unless memory backend) |
 | `AI_ALLOW_STUB_FALLBACK` | Stub adapter slot outside production only |
 | `OPENAI_API_KEY` | Optional LLM/embeddings |
 
-Production never silently uses the Express memory client or stub adapter fallback.
+Full deploy guide: [`../runbooks/deployment.md`](../runbooks/deployment.md).
 
 ## Run AI service
 

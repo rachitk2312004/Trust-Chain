@@ -1,12 +1,15 @@
 import {
+  DocumentPermissions,
+  NotificationEventTypes,
   VerificationInternalStatuses,
   VerificationModes,
   VerificationOutcomes,
+  CertificateEventTypes,
 } from "@trustchain/config";
 import { prisma, type Prisma } from "@trustchain/database";
 import { AppError } from "../../../lib/errors.js";
 import { assertDocumentPermission } from "../../documents/documents.access.js";
-import { DocumentPermissions } from "@trustchain/config";
+import { emitDomainNotification } from "../../notifications/notification.emit.js";
 import { resolveConfiguredNetwork } from "../../blockchain/chainConfig.js";
 import {
   buildIntentDomain,
@@ -189,6 +192,22 @@ export async function startDocumentVerification(
         action: "verification.cache_hit",
         metadata: { cacheKey },
       });
+      await emitDomainNotification({
+        organizationId,
+        actorId: userId,
+        eventType: NotificationEventTypes.verificationCompleted,
+        entityId: request.id,
+        entityType: "verification_request",
+        title: "Verification completed",
+        message: `Verification ${code} finished with outcome ${cache.outcome}.`,
+        metadata: {
+          documentId,
+          verificationId: request.id,
+          outcome: cache.outcome,
+          cached: true,
+        },
+        recipientUserIds: [userId, document.createdById],
+      });
       return { request: publicRequest(request), report, cached: true, idempotentReplay: false };
     }
   }
@@ -284,6 +303,23 @@ export async function startDocumentVerification(
     where: { id: request.id },
   });
 
+  await emitDomainNotification({
+    organizationId,
+    actorId: userId,
+    eventType: NotificationEventTypes.verificationCompleted,
+    entityId: refreshed.id,
+    entityType: "verification_request",
+    title: "Verification completed",
+    message: `Verification ${code} finished with outcome ${report.verificationResult}.`,
+    metadata: {
+      documentId,
+      verificationId: refreshed.id,
+      outcome: report.verificationResult,
+      cached: false,
+    },
+    recipientUserIds: [userId, document.createdById],
+  });
+
   return {
     request: publicRequest(refreshed),
     report,
@@ -316,6 +352,22 @@ export async function processAsyncVerifications(userId: string, organizationId: 
         documentVersionId: req.documentVersionId,
         expectedContentHash: req.expectedContentHash,
         options,
+      });
+      await emitDomainNotification({
+        organizationId: req.organizationId,
+        actorId: req.requestedByUserId,
+        eventType: NotificationEventTypes.verificationCompleted,
+        entityId: req.id,
+        entityType: "verification_request",
+        title: "Verification completed",
+        message: `Verification ${req.verificationCode} finished with outcome ${outcome}.`,
+        metadata: {
+          documentId: req.documentId,
+          verificationId: req.id,
+          outcome,
+          async: true,
+        },
+        recipientUserIds: [req.requestedByUserId],
       });
       results.push({ id: req.id, status, outcome, report });
     } catch (error) {
@@ -437,26 +489,92 @@ export async function listOrganizationVerifications(
   const limit = query.limit ?? 50;
   const offset = query.offset ?? 0;
 
-  const rows = await prisma.verificationRequest.findMany({
-    where: {
-      organizationId,
-      ...(query.documentId ? { documentId: query.documentId } : {}),
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.outcome ? { result: { outcome: query.outcome } } : {}),
-    },
-    include: { result: true },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip: offset,
+  const [docRows, certEvents] = await Promise.all([
+    prisma.verificationRequest.findMany({
+      where: {
+        organizationId,
+        ...(query.documentId ? { documentId: query.documentId } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.outcome ? { result: { outcome: query.outcome } } : {}),
+      },
+      include: { result: true },
+      orderBy: { createdAt: "desc" },
+      take: limit + offset,
+    }),
+    query.documentId
+      ? Promise.resolve([])
+      : prisma.certificateEvent.findMany({
+          where: {
+            organizationId,
+            eventType: CertificateEventTypes.verified,
+            payloadJson: { path: ["public"], equals: true },
+          },
+          include: { certificate: { select: { id: true, publicId: true, title: true, status: true } } },
+          orderBy: { createdAt: "desc" },
+          take: limit + offset,
+        }),
+  ]);
+
+  const documentItems = docRows.map((r) => ({
+    sourceType: "document" as const,
+    request: publicRequest(r),
+    outcome: r.result?.outcome ?? null,
+    verificationCode: r.verificationCode,
+    report: (r.result?.report as VerificationReport) ?? null,
+  }));
+
+  const certificateItems = certEvents.map((event) => {
+    const payload =
+      event.payloadJson && typeof event.payloadJson === "object" && !Array.isArray(event.payloadJson)
+        ? (event.payloadJson as Record<string, unknown>)
+        : {};
+    const valid = payload.valid === true;
+    const certStatus = event.certificate.status;
+    const outcome =
+      certStatus === "revoked"
+        ? VerificationOutcomes.revoked
+        : certStatus === "expired"
+          ? VerificationOutcomes.expired
+          : valid
+            ? VerificationOutcomes.valid
+            : VerificationOutcomes.invalid;
+
+    return {
+      sourceType: "certificate" as const,
+      request: {
+        id: event.id,
+        verificationCode: event.certificate.publicId,
+        organizationId: event.organizationId,
+        documentId: event.certificate.id,
+        documentVersionId: null,
+        mode: "public",
+        status: VerificationInternalStatuses.completed,
+        createdAt: event.createdAt,
+        startedAt: event.createdAt,
+        completedAt: event.createdAt,
+      },
+      outcome,
+      verificationCode: event.certificate.publicId,
+      report: null,
+      certificateTitle: event.certificate.title,
+    };
   });
 
+  let merged = [...documentItems, ...certificateItems].sort(
+    (a, b) => b.request.createdAt.getTime() - a.request.createdAt.getTime(),
+  );
+
+  if (query.status) {
+    merged = merged.filter((item) => item.request.status === query.status);
+  }
+  if (query.outcome) {
+    merged = merged.filter((item) => item.outcome === query.outcome);
+  }
+
+  const page = merged.slice(offset, offset + limit);
+
   return {
-    verifications: rows.map((r) => ({
-      request: publicRequest(r),
-      outcome: r.result?.outcome ?? null,
-      verificationCode: r.verificationCode,
-      report: (r.result?.report as VerificationReport) ?? null,
-    })),
+    verifications: page,
     limit,
     offset,
   };

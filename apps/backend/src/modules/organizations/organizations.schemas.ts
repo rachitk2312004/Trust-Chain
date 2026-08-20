@@ -9,6 +9,8 @@ export const createOrganizationBodySchema = z.object({
     .regex(/^[a-z0-9-]+$/)
     .optional(),
   parentOrganizationId: z.string().uuid().optional(),
+  /** Required for top-level provisioning — the user who becomes org admin. */
+  ownerUserId: z.string().uuid().optional(),
 });
 
 export const updateOrganizationBodySchema = z.object({

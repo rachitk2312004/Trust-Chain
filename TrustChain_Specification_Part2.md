@@ -1,5 +1,7 @@
 # TrustChain – Complete Product Specification (Part 2)
 
+> **Build order & module completion:** use [docs/product/PRODUCT_DELIVERY_PLAN.md](docs/product/PRODUCT_DELIVERY_PLAN.md).
+
 # Module 12 – Notification System
 
 Channels:

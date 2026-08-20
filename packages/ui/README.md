@@ -1,3 +1,3 @@
-# @trustchain/ui
+Shared UI primitives for TrustChain web (and later extension reuse).
 
-Shared UI primitives for `apps/web` and `apps/extension` (added as design system work begins).
+Build: `npm run build -w @trustchain/ui`

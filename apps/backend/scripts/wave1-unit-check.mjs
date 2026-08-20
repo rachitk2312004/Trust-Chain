@@ -293,7 +293,501 @@ async function main() {
   await testLayeredRateLimitMemoryFallback();
   testEvidenceImmutableGuard();
 
-  console.log("Wave 1–10 + Phase 1 security unit checks passed");
+  const {
+    testNotificationPayloadShape,
+    testPreferenceFiltering,
+    testEventCreationAndOutbox,
+    testDuplicateProtection,
+    testTransactionRollback,
+    testPreferenceSkipsChannels,
+  } = await import("../dist/modules/notifications/tests/notification.publish.unit.js");
+  testNotificationPayloadShape();
+  testPreferenceFiltering();
+  await testEventCreationAndOutbox();
+  await testDuplicateProtection();
+  await testTransactionRollback();
+  await testPreferenceSkipsChannels();
+
+  const {
+    testTemplateRendering,
+    testRetryLogic,
+    testDigestGeneration,
+    testDeliverySuccess,
+    testDeadLetterLogic,
+    testRetryThenSucceed,
+    testSchedulerExecution,
+    testMetrics,
+  } = await import("../dist/modules/notifications/tests/notification.delivery.unit.js");
+  testTemplateRendering();
+  testRetryLogic();
+  testDigestGeneration();
+  testDeliverySuccess();
+  testDeadLetterLogic();
+  testRetryThenSucceed();
+  await testSchedulerExecution();
+  await testMetrics();
+
+  const {
+    testStreamConnection,
+    testStaleConnectionCleanup,
+    testDuplicateEventIds,
+    testUnreadUpdatesViaStream,
+    testReconnectSupportEnvelope,
+    testMultiTabConnections,
+  } = await import("../dist/modules/notifications/tests/notification.stream.unit.js");
+  testStreamConnection();
+  testStaleConnectionCleanup();
+  testDuplicateEventIds();
+  testUnreadUpdatesViaStream();
+  testReconnectSupportEnvelope();
+  testMultiTabConnections();
+
+  const {
+    testStatisticsGeneration,
+    testLatencyCalculations,
+    testRetentionCleanupHelpers,
+    testDeadLetterRecoveryLogic,
+    testAdministrativeAnalyses,
+    testAdministrativeMetricsSnapshot,
+  } = await import("../dist/modules/notifications/tests/notification.analytics.unit.js");
+  testStatisticsGeneration();
+  testLatencyCalculations();
+  testRetentionCleanupHelpers();
+  testDeadLetterRecoveryLogic();
+  testAdministrativeAnalyses();
+  await testAdministrativeMetricsSnapshot();
+
+  const {
+    testCertificateIssuanceIdentity,
+    testCertificateVerification,
+    testCertificateRevocationSemantics,
+    testTemplateHandling,
+    testCertificateEventCreationShape,
+  } = await import("../dist/modules/certificates/tests/certificates.unit.js");
+  testCertificateIssuanceIdentity();
+  testCertificateVerification();
+  testCertificateRevocationSemantics();
+  testTemplateHandling();
+  testCertificateEventCreationShape();
+
+  const {
+    testPlaceholderReplacement,
+    testLayoutRendering,
+    testSvgGeneration,
+    testPdfGeneration,
+    testPngGeneration,
+    testQrEmbedding,
+  } = await import("../dist/modules/certificates/tests/certificates.render.unit.js");
+  testPlaceholderReplacement();
+  testLayoutRendering();
+  await testSvgGeneration();
+  await testPdfGeneration();
+  await testPngGeneration();
+  await testQrEmbedding();
+
+  const {
+    testCsvParsing,
+    testJsonParsingAndValidation,
+    testBulkIssuancePlanShape,
+    testBulkCancellationAndProgress,
+  } = await import("../dist/modules/certificates/tests/certificates.bulk.unit.js");
+  testCsvParsing();
+  testJsonParsingAndValidation();
+  testBulkIssuancePlanShape();
+  testBulkCancellationAndProgress();
+
+  const {
+    testStatisticsGeneration: testCertificateStatisticsGeneration,
+    testTemplateMetrics: testCertificateTemplateMetrics,
+    testDownloadMetrics: testCertificateDownloadMetrics,
+    testCleanupHelpers: testCertificateCleanupHelpers,
+    testAdministrativeOperationsShape: testCertificateAdminOperations,
+  } = await import("../dist/modules/certificates/tests/certificates.analytics.unit.js");
+  testCertificateStatisticsGeneration();
+  testCertificateTemplateMetrics();
+  testCertificateDownloadMetrics();
+  testCertificateCleanupHelpers();
+  testCertificateAdminOperations();
+
+  const {
+    testSignatureCreation,
+    testSignatureVerification,
+    testSignatureRevocation,
+    testSignatureHistoryShape,
+    testAlgorithmSelection,
+  } = await import("../dist/modules/signatures/tests/signatures.unit.js");
+  testSignatureCreation();
+  testSignatureVerification();
+  testSignatureRevocation();
+  testSignatureHistoryShape();
+  testAlgorithmSelection();
+
+  const {
+    testDocumentSigningPolicy,
+    testCertificateSigningPolicy,
+    testDetachedSignatures,
+    testExpirationHandling,
+    testRevocationHandling,
+    testPolicyValidation,
+  } = await import("../dist/modules/signatures/tests/signatures.workflow.unit.js");
+  testDocumentSigningPolicy();
+  testCertificateSigningPolicy();
+  testDetachedSignatures();
+  testExpirationHandling();
+  testRevocationHandling();
+  testPolicyValidation();
+
+  const {
+    testSequentialWorkflows,
+    testParallelWorkflows,
+    testThresholdWorkflows,
+    testApprovalHandling,
+    testRejectionHandling,
+    testCancellationHandling,
+    testExpirationHandling: testApprovalExpirationHandling,
+  } = await import("../dist/modules/signatures/tests/signatures.approval.unit.js");
+  testSequentialWorkflows();
+  testParallelWorkflows();
+  testThresholdWorkflows();
+  testApprovalHandling();
+  testRejectionHandling();
+  testCancellationHandling();
+  testApprovalExpirationHandling();
+
+  const {
+    testAnalyticsGeneration: testSignatureAnalyticsGeneration,
+    testWorkflowMetrics: testSignatureWorkflowMetrics,
+    testAlgorithmMetrics: testSignatureAlgorithmMetrics,
+    testCleanupHelpers: testSignatureCleanupHelpers,
+    testAdministrationOperations: testSignatureAdminOperations,
+  } = await import("../dist/modules/signatures/tests/signatures.analytics.unit.js");
+  testSignatureAnalyticsGeneration();
+  testSignatureWorkflowMetrics();
+  testSignatureAlgorithmMetrics();
+  testSignatureCleanupHelpers();
+  testSignatureAdminOperations();
+
+  const {
+    testPermissionAssignment,
+    testRoleAssignment,
+    testFeatureFlags,
+    testConfigurationUpdates,
+    testAuditLogging,
+  } = await import("../dist/modules/admin/tests/admin.unit.js");
+  testPermissionAssignment();
+  testRoleAssignment();
+  testFeatureFlags();
+  testConfigurationUpdates();
+  testAuditLogging();
+
+  const {
+    testTenantSuspension,
+    testTenantRestoration,
+    testTenantArchival,
+    testTenantTransfer,
+    testQuotaEnforcement,
+  } = await import("../dist/modules/admin/tests/admin.tenants.unit.js");
+  testTenantSuspension();
+  testTenantRestoration();
+  testTenantArchival();
+  testTenantTransfer();
+  testQuotaEnforcement();
+
+  const {
+    testInspectionLogic,
+    testRollbackHandling,
+    testConfigurationHistory,
+    testAuditFiltering,
+    testHealthReporting,
+  } = await import("../dist/modules/admin/tests/admin.portal.unit.js");
+  testInspectionLogic();
+  testRollbackHandling();
+  testConfigurationHistory();
+  testAuditFiltering();
+  testHealthReporting();
+
+  const {
+    testPolicyAssignment,
+    testPolicyInheritance,
+    testPolicyEvaluation,
+    testConflictDetection,
+    testRetentionRules,
+    testQuotaRules,
+  } = await import("../dist/modules/admin/tests/admin.policy.unit.js");
+  testPolicyAssignment();
+  testPolicyInheritance();
+  testPolicyEvaluation();
+  testConflictDetection();
+  testRetentionRules();
+  testQuotaRules();
+
+  const {
+    testAnalyticsGeneration,
+    testQuotaMetrics,
+    testAuditMetrics,
+    testRetention,
+    testAdministrationOperations,
+  } = await import("../dist/modules/admin/tests/admin.analytics.unit.js");
+  testAnalyticsGeneration();
+  testQuotaMetrics();
+  testAuditMetrics();
+  testRetention();
+  testAdministrationOperations();
+
+  const {
+    testKeyGeneration,
+    testKeyRotation,
+    testKeyRevocation,
+    testWebhookRegistration,
+    testServiceAccounts,
+    testRateLimits,
+  } = await import("../dist/modules/developer/tests/developer.unit.js");
+  testKeyGeneration();
+  testKeyRotation();
+  testKeyRevocation();
+  testWebhookRegistration();
+  testServiceAccounts();
+  testRateLimits();
+
+  const {
+    testWebhookSigning,
+    testWebhookRetries,
+    testWebhookReplayProtection,
+    testWebhookDeadLetters,
+    testEventPublicationTypes,
+  } = await import("../dist/modules/developer/tests/developer.delivery.unit.js");
+  testWebhookSigning();
+  testWebhookRetries();
+  testWebhookReplayProtection();
+  testWebhookDeadLetters();
+  testEventPublicationTypes();
+
+  const {
+    testPublicApiAuthentication,
+    testPublicApiAuthorizationScopes,
+    testPublicApiIdempotency,
+    testPublicApiRateLimitingHelpers,
+  } = await import("../dist/modules/developer/tests/developer.public.unit.js");
+  testPublicApiAuthentication();
+  testPublicApiAuthorizationScopes();
+  testPublicApiIdempotency();
+  testPublicApiRateLimitingHelpers();
+
+  const { testOpenApiDocument, testOpenApiCodegen } = await import(
+    "../dist/modules/developer/tests/developer.sdk.unit.js"
+  );
+  testOpenApiDocument();
+  testOpenApiCodegen();
+
+  const {
+    testQuotaEnforcement: testDeveloperQuotaEnforcement,
+    testAnalyticsAggregation: testDeveloperAnalyticsAggregation,
+    testAnomalyDetection: testDeveloperAnomalyDetection,
+    testAuditQueries: testDeveloperAuditQueries,
+    testDashboardCalculations: testDeveloperDashboardCalculations,
+  } = await import("../dist/modules/developer/tests/developer.ops.unit.js");
+  testDeveloperQuotaEnforcement();
+  testDeveloperAnalyticsAggregation();
+  testDeveloperAnomalyDetection();
+  testDeveloperAuditQueries();
+  testDeveloperDashboardCalculations();
+
+  const {
+    testIndexing,
+    testFiltering,
+    testRanking,
+    testPagination,
+    testSuggestions,
+  } = await import("../dist/modules/search/tests/search.unit.js");
+  testIndexing();
+  testFiltering();
+  testRanking();
+  testPagination();
+  testSuggestions();
+
+  const {
+    testEventCreation,
+    testCorrelation,
+    testTimelineGeneration,
+    testFiltering: testPlatformAuditFiltering,
+    testExportGeneration,
+  } = await import("../dist/modules/audit/tests/audit.unit.js");
+  testEventCreation();
+  testCorrelation();
+  testTimelineGeneration();
+  testPlatformAuditFiltering();
+  testExportGeneration();
+
+  const {
+    testRuleExecution,
+    testScoreCalculation,
+    testReporting,
+    testFrameworkMapping,
+    testRemediationTracking,
+  } = await import("../dist/modules/compliance/tests/compliance.unit.js");
+  testRuleExecution();
+  testScoreCalculation();
+  testReporting();
+  testFrameworkMapping();
+  testRemediationTracking();
+
+  const {
+    testValidation: testEvidenceValidation,
+    testVersioning: testEvidenceVersioning,
+    testLinking: testEvidenceLinking,
+    testExportGeneration: testEvidenceExportGeneration,
+    testChainOfCustodyTracking,
+  } = await import("../dist/modules/evidence/tests/evidence.unit.js");
+  testEvidenceValidation();
+  testEvidenceVersioning();
+  testEvidenceLinking();
+  testEvidenceExportGeneration();
+  testChainOfCustodyTracking();
+
+  const {
+    testPolicyEvaluation: testRetentionPolicyEvaluation,
+    testHoldEnforcement: testRetentionHoldEnforcement,
+    testArchivalLogic: testRetentionArchivalLogic,
+    testPurgeLogic: testRetentionPurgeLogic,
+    testChainVerification: testRetentionChainVerification,
+  } = await import("../dist/modules/retention/tests/retention.unit.js");
+  testRetentionPolicyEvaluation();
+  testRetentionHoldEnforcement();
+  testRetentionArchivalLogic();
+  testRetentionPurgeLogic();
+  testRetentionChainVerification();
+
+  const {
+    testSamlConfiguration,
+    testScimProvisioning,
+    testRoleInheritance,
+    testAbacEvaluation,
+    testAccessReviews,
+  } = await import("../dist/modules/enterprise/tests/enterprise.unit.js");
+  testSamlConfiguration();
+  testScimProvisioning();
+  testRoleInheritance();
+  testAbacEvaluation();
+  testAccessReviews();
+
+  const {
+    testHierarchyConstruction,
+    testInheritanceResolution,
+    testApprovalWorkflows,
+    testOwnershipValidation,
+    testOrganizationalReporting,
+  } = await import("../dist/modules/organization/tests/organization.unit.js");
+  testHierarchyConstruction();
+  testInheritanceResolution();
+  testApprovalWorkflows();
+  testOwnershipValidation();
+  testOrganizationalReporting();
+
+  const {
+    testRegionSelection,
+    testResidencyEnforcement,
+    testFailoverHandling,
+    testReplicationPolicies,
+    testRoutingDecisions,
+  } = await import("../dist/modules/region/tests/region.unit.js");
+  testRegionSelection();
+  testResidencyEnforcement();
+  testFailoverHandling();
+  testReplicationPolicies();
+  testRoutingDecisions();
+
+  const {
+    testBackupCreation,
+    testRestoreValidation,
+    testFailbackProcedures,
+    testRpoCalculations,
+    testRtoCalculations,
+  } = await import("../dist/modules/recovery/tests/recovery.unit.js");
+  testBackupCreation();
+  testRestoreValidation();
+  testFailbackProcedures();
+  testRpoCalculations();
+  testRtoCalculations();
+
+  const {
+    testRiskScoring,
+    testControlEvaluation,
+    testAssessmentWorkflows,
+    testOwnershipValidation: testGovernanceOwnershipValidation,
+    testReporting: testGovernanceReporting,
+  } = await import("../dist/modules/governance/tests/governance.unit.js");
+  testRiskScoring();
+  testControlEvaluation();
+  testAssessmentWorkflows();
+  testGovernanceOwnershipValidation();
+  testGovernanceReporting();
+
+  const {
+    testWalletLinking,
+    testChallengeGeneration,
+    testOwnershipVerification,
+    testSynchronization,
+    testConflictResolution,
+  } = await import("../dist/modules/walletsync/tests/walletsync.unit.js");
+  testWalletLinking();
+  testChallengeGeneration();
+  testOwnershipVerification();
+  testSynchronization();
+  testConflictResolution();
+
+  const {
+    testConnectorRegistration,
+    testOAuthHandling,
+    testSynchronizationJobs,
+    testEventSubscriptions,
+    testCredentialRotation,
+  } = await import("../dist/modules/integration/tests/integration.unit.js");
+  testConnectorRegistration();
+  testOAuthHandling();
+  testSynchronizationJobs();
+  testEventSubscriptions();
+  testCredentialRotation();
+
+  const {
+    testConnectorPublication,
+    testConnectorInstallation,
+    testCompatibilityChecks,
+    testVersionResolution,
+    testReviewAggregation,
+  } = await import("../dist/modules/marketplace/tests/marketplace.unit.js");
+  testConnectorPublication();
+  testConnectorInstallation();
+  testCompatibilityChecks();
+  testVersionResolution();
+  testReviewAggregation();
+
+  const {
+    testTrustScoring,
+    testAnomalyDetection,
+    testFraudDetection,
+    testHistoricalCalculations,
+    testLeaderboardGeneration,
+  } = await import("../dist/modules/reputation/tests/reputation.unit.js");
+  testTrustScoring();
+  testAnomalyDetection();
+  testFraudDetection();
+  testHistoricalCalculations();
+  testLeaderboardGeneration();
+
+  const {
+    testReadinessChecks,
+    testFeatureEvaluation,
+    testDependencyValidation,
+    testTracingAggregation,
+    testMetricsGeneration,
+  } = await import("../dist/modules/platform/tests/platform.unit.js");
+  testReadinessChecks();
+  testFeatureEvaluation();
+  testDependencyValidation();
+  testTracingAggregation();
+  testMetricsGeneration();
+
+  console.log("Wave 1–10 + Phase 1 security + Phase B/C/D/E/F/G/H/I notification, certificate, signature, admin, developer, search, audit, compliance, evidence, retention, enterprise, organization, region, recovery, governance, wallet-sync, integration, marketplace, reputation & platform unit checks passed");
 }
 
 main().catch((error) => {

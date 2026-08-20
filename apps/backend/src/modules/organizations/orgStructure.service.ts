@@ -1,11 +1,14 @@
-import { RoleKeys } from "@trustchain/config";
+import { NotificationEventTypes, RoleKeys, AuditEventSources } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
 import { generateOpaqueToken, hashToken } from "../../lib/crypto.js";
 import { sendEmail } from "../../integrations/mailer.js";
-import { bindRoleToUser } from "../auth/roles.repository.js";
+import { invitationAcceptUrl } from "../../lib/appUrls.js";
+import { writeAuditEvent } from "../audit/audit.service.js";
+import { bindStaffRoleToUser, revokeOrgScopedRoles } from "../auth/roles.repository.js";
 import { findUserByEmail, findUserById } from "../auth/users.repository.js";
-import { userHasRole } from "../auth/rbac.repository.js";
+import { userHasRole, listRoleBindingsForUser, getCachedRoleBindings, userHasRoleFromBindings } from "../auth/rbac.repository.js";
+import { emitDomainNotification } from "../notifications/notification.emit.js";
 import {
   createBranch,
   deleteBranch,
@@ -27,26 +30,15 @@ import {
   markInvitationAccepted,
 } from "./invitations.repository.js";
 import { createMembership } from "./memberships.repository.js";
+import { assertOrgAdminPeerCannotModifyOrgAdmin } from "./orgMemberGuards.js";
 
 async function assertOrgAdmin(userId: string, organizationId: string): Promise<void> {
-  const allowed = await userHasRole(
-    userId,
-    [RoleKeys.superAdmin, RoleKeys.orgAdmin],
-    organizationId,
-  );
+  const cached = getCachedRoleBindings(userId);
+  const allowed = cached
+    ? userHasRoleFromBindings(cached, [RoleKeys.superAdmin, RoleKeys.orgAdmin], organizationId)
+    : await userHasRole(userId, [RoleKeys.superAdmin, RoleKeys.orgAdmin], organizationId);
   if (!allowed) {
     throw new AppError(403, "FORBIDDEN", "Organization admin role required");
-  }
-}
-
-async function assertOrgMember(userId: string, organizationId: string): Promise<void> {
-  const allowed = await userHasRole(
-    userId,
-    [RoleKeys.superAdmin, RoleKeys.orgAdmin, RoleKeys.employee],
-    organizationId,
-  );
-  if (!allowed) {
-    throw new AppError(403, "FORBIDDEN", "Organization membership required");
   }
 }
 
@@ -60,8 +52,7 @@ export async function createOrgBranch(
   return toPublicBranch(branch);
 }
 
-export async function listOrgBranches(userId: string, organizationId: string) {
-  await assertOrgMember(userId, organizationId);
+export async function listOrgBranches(_userId: string, organizationId: string) {
   return (await listBranches(organizationId)).map(toPublicBranch);
 }
 
@@ -93,8 +84,7 @@ export async function createOrgDepartment(
   return toPublicDepartment(department);
 }
 
-export async function listOrgDepartments(userId: string, organizationId: string) {
-  await assertOrgMember(userId, organizationId);
+export async function listOrgDepartments(_userId: string, organizationId: string) {
   return (await listDepartments(organizationId)).map(toPublicDepartment);
 }
 
@@ -120,28 +110,66 @@ export async function removeOrgDepartment(
   if (!ok) throw new AppError(404, "DEPARTMENT_NOT_FOUND", "Department not found");
 }
 
-export async function listOrgMembers(userId: string, organizationId: string) {
-  await assertOrgMember(userId, organizationId);
-  const rows = await prisma.membership.findMany({
-    where: { organizationId },
-    include: {
-      user: {
-        select: { email: true, firstName: true, lastName: true },
-      },
-    },
-    orderBy: { user: { email: "asc" } },
-  });
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.userId,
-    email: row.user.email,
-    firstName: row.user.firstName,
-    lastName: row.user.lastName,
-    title: row.title,
-    status: row.status,
-    branchId: row.branchId,
-    departmentId: row.departmentId,
-  }));
+export async function listOrgMembers(_userId: string, organizationId: string) {
+  /** One SQL round trip — Prisma nested includes issue 4 sequential queries over WAN. */
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      userId: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      title: string | null;
+      status: string;
+      branchId: string | null;
+      departmentId: string | null;
+      roleKeys: string[];
+      isFoundingAdmin: boolean;
+    }>
+  >`
+    SELECT
+      m.id,
+      m.user_id AS "userId",
+      u.email,
+      u.first_name AS "firstName",
+      u.last_name AS "lastName",
+      m.title,
+      m.status,
+      m.branch_id AS "branchId",
+      m.department_id AS "departmentId",
+      COALESCE(
+        array_remove(array_agg(DISTINCT r.key) FILTER (WHERE r.key IS NOT NULL), NULL),
+        ARRAY[]::text[]
+      ) AS "roleKeys",
+      (
+        SELECT rb2.user_id
+        FROM role_bindings rb2
+        INNER JOIN roles r2 ON r2.id = rb2.role_id
+        WHERE rb2.organization_id = m.organization_id
+          AND r2.key = 'org_admin'
+        ORDER BY rb2.created_at ASC
+        LIMIT 1
+      ) = m.user_id AS "isFoundingAdmin"
+    FROM memberships m
+    INNER JOIN users u ON u.id = m.user_id
+    LEFT JOIN role_bindings rb
+      ON rb.user_id = m.user_id AND rb.organization_id = m.organization_id
+    LEFT JOIN roles r ON r.id = rb.role_id
+    WHERE m.organization_id = ${organizationId}::uuid
+    GROUP BY
+      m.id,
+      m.user_id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      m.title,
+      m.status,
+      m.branch_id,
+      m.department_id
+    ORDER BY u.email ASC
+  `;
+
+  return rows;
 }
 
 export async function patchOrgMember(
@@ -150,12 +178,54 @@ export async function patchOrgMember(
   membershipId: string,
   input: {
     title?: string;
-    status?: "active" | "disabled";
+    status?: "active" | "disabled" | "suspended";
     branchId?: string | null;
     departmentId?: string | null;
   },
 ) {
   await assertOrgAdmin(actorUserId, organizationId);
+  const membership = await prisma.membership.findFirst({
+    where: { id: membershipId, organizationId },
+  });
+  if (!membership) {
+    throw new AppError(404, "MEMBER_NOT_FOUND", "Membership not found");
+  }
+
+  if (input.status !== undefined && input.status !== membership.status) {
+    await assertOrgAdminPeerCannotModifyOrgAdmin(
+      actorUserId,
+      membership.userId,
+      organizationId,
+      "status",
+    );
+  }
+
+  if (input.status === "suspended" || input.status === "disabled") {
+    await revokeOrgScopedRoles(membership.userId, organizationId, [
+      RoleKeys.orgAdmin,
+      RoleKeys.employee,
+      RoleKeys.publicUser,
+    ]);
+  }
+
+  if (input.status === "active") {
+    const bindings = await listRoleBindingsForUser(membership.userId);
+    const hasOrgRole = bindings.some(
+      (b) =>
+        b.organizationId === organizationId &&
+        (b.roleKey === RoleKeys.orgAdmin ||
+          b.roleKey === RoleKeys.employee ||
+          b.roleKey === RoleKeys.publicUser),
+    );
+    if (!hasOrgRole) {
+      await bindStaffRoleToUser({
+        userId: membership.userId,
+        roleKey: RoleKeys.employee,
+        organizationId,
+      });
+    }
+  }
+
   const result = await prisma.membership.updateMany({
     where: { id: membershipId, organizationId },
     data: {
@@ -194,10 +264,51 @@ export async function inviteToOrganization(
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
+  const roleLabel =
+    input.roleKey === "public_user"
+      ? "certificate holder"
+      : input.roleKey === "employee"
+        ? "employee"
+        : "organization admin";
+
   await sendEmail({
     to: input.email,
-    subject: "You are invited to TrustChain",
-    text: `You have been invited to join a TrustChain organization.\n\nInvitation token:\n${token}\n\nThis invitation expires in 7 days.`,
+    subject: "You're invited to TrustChain",
+    text: [
+      `You have been invited to join a TrustChain organization as ${roleLabel}.`,
+      "",
+      "If you already have an account, sign in and accept the invitation:",
+      invitationAcceptUrl(),
+      "",
+      "Invitation token (paste on the invitations page):",
+      token,
+      "",
+      "This invitation expires in 7 days.",
+    ].join("\n"),
+  });
+
+  const invitee = await findUserByEmail(input.email);
+
+  await writeAuditEvent({
+    source: AuditEventSources.platform,
+    action: "organization.invitation.create",
+    actorUserId: actorUserId,
+    organizationId,
+    resourceType: "invitation",
+    resourceId: invitation.id,
+    meta: { email: input.email, roleKey: input.roleKey },
+  }).catch(() => undefined);
+
+  await emitDomainNotification({
+    organizationId,
+    actorId: actorUserId,
+    eventType: NotificationEventTypes.invitationCreated,
+    entityId: invitation.id,
+    entityType: "invitation",
+    title: "Invitation created",
+    message: `${input.email} was invited as ${input.roleKey}.`,
+    metadata: { email: input.email, roleKey: input.roleKey },
+    recipientUserIds: [invitee?.id],
   });
 
   return {
@@ -247,12 +358,35 @@ export async function acceptInvitation(userId: string, token: string) {
     departmentId: invitation.department_id,
     status: "active",
   });
-  await bindRoleToUser({
+  await bindStaffRoleToUser({
     userId,
     roleKey: invitation.role_key,
     organizationId: invitation.organization_id,
   });
   await markInvitationAccepted(invitation.id);
+
+  await emitDomainNotification({
+    organizationId: invitation.organization_id,
+    actorId: userId,
+    eventType: NotificationEventTypes.invitationAccepted,
+    entityId: invitation.id,
+    entityType: "invitation",
+    title: "Invitation accepted",
+    message: `${user.email} accepted an organization invitation.`,
+    metadata: { email: user.email, roleKey: invitation.role_key },
+    recipientUserIds: [invitation.invited_by],
+  });
+  await emitDomainNotification({
+    organizationId: invitation.organization_id,
+    actorId: userId,
+    eventType: NotificationEventTypes.memberAdded,
+    entityId: userId,
+    entityType: "membership",
+    title: "Member added",
+    message: `${user.email} joined the organization.`,
+    metadata: { email: user.email, roleKey: invitation.role_key, invitationId: invitation.id },
+    recipientUserIds: [userId, invitation.invited_by],
+  });
 
   return {
     organizationId: invitation.organization_id,

@@ -1,66 +1,79 @@
-# Phase 2 — AI Redis / queue / workers / adapters / gateway
+# Phase 2 — AI architecture & operations index
 
-## Architecture (Step 6)
+Final architecture after Steps 1–8 (consolidation complete for docs/ops; Step 9+ not started).
 
+## Request flow (canonical)
+
+```mermaid
+flowchart TD
+  Client --> Express
+  Express --> EC[Execution client]
+  EC --> EM[Execution manager]
+  EM --> QM[Queue manager]
+  QM --> Workers
+  Workers --> Adapters
+  Adapters --> Models
 ```
-Client
-  → Express (/api/v1/ai/*) RBAC + audit + ledger
-  → Execution client (HTTP)
-  → FastAPI /internal/execution/*
-  → Execution manager
-  → Queue manager
-  → Workers
-  → Adapters (primary → secondary → stub*)
-  → Models / engines
-```
 
-\* Stub adapter slot is allowed only for local development, CI, and tests.
-Production (`AI_EXECUTION_MODE=production` or `NODE_ENV=production`) never falls back to stub or the Express memory client.
+Stub adapter slot: **CI / local only**. Production never silently falls back to stub or Express memory client.
 
-## Steps 2–5 (complete)
+## Component map
 
-| Layer | Path | Role |
-|-------|------|------|
-| Execution manager | `services/ai/execution/` | Sole enqueue gateway |
-| Queue | `services/ai/task_queue/` | enqueue/claim/ack/nack/DLQ |
-| Workers | `services/ai/workers/` | leases, retries, lineage, metrics |
-| Adapters | `services/ai/adapters/` | FastAPI clients + fallback |
-| Express gateway | `apps/backend/src/modules/ai/` | public Wave 9 routes → execution client |
+| Layer | Path | Doc |
+|-------|------|-----|
+| Express gateway | `apps/backend/src/modules/ai/` | [`../api/gateway.md`](../api/gateway.md) |
+| Execution API | `services/ai/api/routers/execution.py` | [`../api/execution.md`](../api/execution.md) |
+| Execution manager | `services/ai/execution/` | [`../api/execution.md`](../api/execution.md) |
+| Queue manager | `services/ai/task_queue/` | [`../api/execution.md`](../api/execution.md) |
+| Workers | `services/ai/workers/` | [`worker-operations.md`](./worker-operations.md) |
+| Leases / heartbeats | `task_queue/leases`, `workers/heartbeat` | [`lease-management.md`](./lease-management.md) |
+| Retries / timeouts | `workers/retry_manager`, `timeout_manager` | [`retry-management.md`](./retry-management.md) |
+| DLQ | `{queue}:dead_letter` | [`dead-letter-recovery.md`](./dead-letter-recovery.md) |
+| Adapters / fallback | `services/ai/adapters/` | [`disaster-recovery.md`](./disaster-recovery.md) |
+| Models | `services/ai/models/` | [`../api/models.md`](../api/models.md) |
+| Metrics | `workers/metrics.py` | [`metrics.md`](./metrics.md) |
+| Deploy / DR / debug | — | [`deployment.md`](./deployment.md), [`disaster-recovery.md`](./disaster-recovery.md), [`troubleshooting.md`](./troubleshooting.md) |
+| Dead-code audit | — | [`phase2-ai-dead-code-audit.md`](./phase2-ai-dead-code-audit.md) |
 
-## Step 6 (complete)
+## Diagrams (see linked runbooks)
 
-- Express dual-stack stub processors / `setImmediate` removed
-- `RedisStub` removed; queue backends are memory (CI) or Redis
-- Internal `/pipeline` uses ExecutionManager + worker drain (not `InProcessExecutor`)
-- Every adapter result requires: `advisoryOnly`, `modelId`, `modelVersion`, `executionTimeMs`, `lineageId`, `confidence`
-- Production fail-fast when missing: `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, and `REDIS_URL` or `AI_QUEUE_BACKEND=memory`
+| Diagram | Location |
+|---------|----------|
+| Request flow | this page + [`../api/gateway.md`](../api/gateway.md) |
+| Worker lifecycle | [`worker-operations.md`](./worker-operations.md) |
+| Lease lifecycle | [`lease-management.md`](./lease-management.md) |
+| Retry flow | [`retry-management.md`](./retry-management.md) |
+| Dead-letter flow | [`dead-letter-recovery.md`](./dead-letter-recovery.md) |
+| Lineage flow | [`troubleshooting.md`](./troubleshooting.md) |
+| Fallback flow | [`disaster-recovery.md`](./disaster-recovery.md) |
 
-## Step 7 (complete)
+## Step history
 
-Testing and hardening only (no new features / no schema or public contract changes):
+| Step | Focus | Status |
+|------|-------|--------|
+| 1 | Inspection | complete |
+| 2 | Queue | complete |
+| 3 | Workers | complete |
+| 4 | Adapters | complete |
+| 5 | Express gateway | complete |
+| 6 | Stub removal / single path | complete |
+| 7 | Testing & hardening | complete |
+| 8 | Documentation & operational readiness | complete |
+| 9 | Release audit | **complete** |
 
-| Suite | Location |
-|-------|----------|
-| Unit + failure + retry + load | `services/ai/tests/test_step7_hardening.py` |
-| FastAPI integration (Express mapping) | `services/ai/tests/test_step7_integration.py` |
-| Express gateway hardening | `apps/backend/src/modules/ai/tests/step7.unit.ts` |
-| Dead-code audit | `docs/runbooks/phase2-ai-dead-code-audit.md` |
+## Production configuration (required)
 
-Load metrics are written to `services/ai/tests/_step7_load_results.json` during pytest.
+`AI_SERVICE_URL` · `AI_SERVICE_TOKEN` · `AI_EXECUTION_MODE` · `REDIS_URL` **or** `AI_QUEUE_BACKEND=memory`
 
-## Env
+## Security (summary)
 
-| Variable | Purpose |
-|----------|---------|
-| `AI_SERVICE_URL` | FastAPI base URL (required in production) |
-| `AI_SERVICE_TOKEN` | Bearer token for execution API (required in production) |
-| `REDIS_URL` | Redis queue backend (required in production unless memory opted in) |
-| `AI_QUEUE_BACKEND=memory` | Explicit in-process queue (non-silent prod opt-in only if set) |
-| `AI_EXECUTION_MODE` | `production` / `gateway` / `development` / `test` / `ci` |
-| `AI_ALLOW_STUB_FALLBACK` | default `true` outside production; ignored/false in production |
-| `AI_EXECUTION_ALLOW_MEMORY` | Express memory client; forbidden in production |
-| `AI_EXECUTION_DRAIN` | set `false` to skip sync drain after submit |
+- RBAC + document ACL on Express
+- Audit logging (`AiAuditEvent`)
+- Advisory-only results (`advisoryOnly=true`)
+- FastAPI private / isolated
+- Startup configuration validation
+- No blockchain or verification mutation from AI paths
 
-## Next
+## Phase 2 status
 
-Step 8 — docs polish / CI packaging (not started).
+Phase 2 AI consolidation Steps 1–9 are complete. See [`phase2-ai-release-audit.md`](./phase2-ai-release-audit.md) for scores, checklist, and limitations.

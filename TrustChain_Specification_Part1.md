@@ -1,5 +1,7 @@
 # TrustChain – Complete Product Specification (Part 1)
 
+> **Build order & module completion:** use [docs/product/PRODUCT_DELIVERY_PLAN.md](docs/product/PRODUCT_DELIVERY_PLAN.md) — this document is the feature vision; the delivery plan is how to ship a working v1.
+
 ## Vision
 TrustChain is a multi-platform document trust platform that allows organizations to issue, manage, verify, revoke, and audit digital documents securely.
 

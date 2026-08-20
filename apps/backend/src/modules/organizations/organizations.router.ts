@@ -13,7 +13,9 @@ import {
 import {
   createOrganizationForUser,
   getOrganizationForUser,
+  getOrganizationOverviewForUser,
   listUserOrganizations,
+  getOrganizationWorkspaceContext,
   patchOrganizationForUser,
 } from "./organizations.service.js";
 import {
@@ -33,6 +35,15 @@ import {
 } from "./orgStructure.service.js";
 import { createLogoUploadUrl, getOrgBranding, updateOrgBranding } from "./branding.service.js";
 import { getBulkImportJob, runBulkImport } from "./bulkImport.service.js";
+import {
+  approveJoinRequest,
+  createJoinRequest,
+  discoverOrganizations,
+  listMyJoinRequests,
+  listOrgJoinRequests,
+  rejectJoinRequest,
+  updateOrgMemberRole,
+} from "./joinRequests.service.js";
 import { documentsRouter } from "../documents/documents.router.js";
 import { organizationBlockchainRouter } from "../blockchain/blockchain.router.js";
 import { organizationVerificationRouter } from "../verification/routes/verification.router.js";
@@ -43,14 +54,42 @@ import { organizationAiRouter } from "../ai/routes/ai.router.js";
 export const organizationsRouter = Router();
 
 organizationsRouter.use(requireAuth);
-/** Central RBAC: auth → org membership → controllers */
-organizationsRouter.use("/:id", requireOrgMember);
-organizationsRouter.use("/:id", documentsRouter);
-organizationsRouter.use("/:id", organizationBlockchainRouter);
-organizationsRouter.use("/:id", organizationVerificationRouter);
-organizationsRouter.use("/:id", organizationPublicVerificationRouter);
-organizationsRouter.use("/:id", organizationQrRouter);
-organizationsRouter.use("/:id", organizationAiRouter);
+
+organizationsRouter.get(
+  "/discover",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const q = typeof req.query.q === "string" ? req.query.q : "";
+    const organizations = await discoverOrganizations(req.user.id, q);
+    res.status(200).json({ organizations });
+  }),
+);
+
+organizationsRouter.get(
+  "/join-requests/mine",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const requests = await listMyJoinRequests(req.user.id);
+    res.status(200).json({ requests });
+  }),
+);
+
+organizationsRouter.post(
+  "/:id/join-requests",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(organizationIdParamsSchema, req.params);
+    const body = parseBody(
+      z.object({
+        message: z.string().max(500).optional(),
+        requestedRole: z.enum(["employee", "public_user"]).optional(),
+      }),
+      req.body,
+    );
+    const request = await createJoinRequest(req.user.id, params.id, body);
+    res.status(201).json({ request });
+  }),
+);
 
 organizationsRouter.post(
   "/",
@@ -63,11 +102,36 @@ organizationsRouter.post(
 );
 
 organizationsRouter.get(
+  "/workspace-context",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const context = await getOrganizationWorkspaceContext(req.user.id);
+    res.status(200).json(context);
+  }),
+);
+
+organizationsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
     const organizations = await listUserOrganizations(req.user.id);
     res.status(200).json({ organizations });
+  }),
+);
+
+/** Central RBAC: auth → org membership → org REST, then nested module routers */
+organizationsRouter.use("/:id", requireOrgMember);
+
+organizationsRouter.get(
+  "/:id/overview",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(organizationIdParamsSchema, req.params);
+    const data = await getOrganizationOverviewForUser(
+      params.id,
+      req.roleBindings ?? [],
+    );
+    res.status(200).json(data);
   }),
 );
 
@@ -229,7 +293,7 @@ organizationsRouter.patch(
     const body = parseBody(
       z.object({
         title: z.string().max(200).optional(),
-        status: z.enum(["active", "disabled"]).optional(),
+        status: z.enum(["active", "disabled", "suspended"]).optional(),
         branchId: z.string().uuid().nullable().optional(),
         departmentId: z.string().uuid().nullable().optional(),
       }),
@@ -237,6 +301,79 @@ organizationsRouter.patch(
     );
     await patchOrgMember(req.user.id, params.id, params.membershipId, body);
     res.status(200).json({ ok: true });
+  }),
+);
+
+organizationsRouter.patch(
+  "/:id/members/:membershipId/role",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(
+      organizationIdParamsSchema.extend({ membershipId: z.string().uuid() }),
+      req.params,
+    );
+    const body = parseBody(
+      z.object({
+        roleKey: z.enum(["org_admin", "employee", "public_user"]),
+      }),
+      req.body,
+    );
+    const result = await updateOrgMemberRole(
+      req.user.id,
+      params.id,
+      params.membershipId,
+      body.roleKey,
+    );
+    res.status(200).json(result);
+  }),
+);
+
+organizationsRouter.get(
+  "/:id/join-requests",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(organizationIdParamsSchema, req.params);
+    const requests = await listOrgJoinRequests(req.user.id, params.id);
+    res.status(200).json({ requests });
+  }),
+);
+
+organizationsRouter.post(
+  "/:id/join-requests/:requestId/approve",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(
+      organizationIdParamsSchema.extend({ requestId: z.string().uuid() }),
+      req.params,
+    );
+    const body = parseBody(
+      z.object({
+        roleKey: z.enum(["org_admin", "employee", "public_user"]).optional(),
+        reviewNote: z.string().max(500).optional(),
+      }),
+      req.body,
+    );
+    const request = await approveJoinRequest(req.user.id, params.id, params.requestId, body);
+    res.status(200).json({ request });
+  }),
+);
+
+organizationsRouter.post(
+  "/:id/join-requests/:requestId/reject",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(
+      organizationIdParamsSchema.extend({ requestId: z.string().uuid() }),
+      req.params,
+    );
+    const body = parseBody(
+      z.object({
+        reviewNote: z.string().max(500).optional(),
+      }),
+      req.body,
+    );
+    const request = await rejectJoinRequest(req.user.id, params.id, params.requestId, body);
+    res.status(200).json({ request });
   }),
 );
 
@@ -337,6 +474,13 @@ organizationsRouter.get(
     res.status(200).json({ job });
   }),
 );
+
+organizationsRouter.use("/:id", documentsRouter);
+organizationsRouter.use("/:id", organizationBlockchainRouter);
+organizationsRouter.use("/:id", organizationVerificationRouter);
+organizationsRouter.use("/:id", organizationPublicVerificationRouter);
+organizationsRouter.use("/:id", organizationQrRouter);
+organizationsRouter.use("/:id", organizationAiRouter);
 
 export const invitationsRouter = Router();
 

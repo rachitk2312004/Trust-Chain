@@ -67,6 +67,65 @@ export async function listOrganizationsForUser(userId: string): Promise<Organiza
   return rows.map(toOrgRow);
 }
 
+export async function searchDiscoverableOrganizations(
+  userId: string,
+  query: string,
+  limit = 30,
+): Promise<
+  Array<
+    OrganizationRow & {
+      membershipStatus: string | null;
+      joinRequestStatus: string | null;
+    }
+  >
+> {
+  const raw = query.trim().replace(/^\/+/, "").trim();
+  const q = raw.toLowerCase();
+  const slugCandidate = q.replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+
+  const rows = await prisma.organization.findMany({
+    where: {
+      status: "active",
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: raw, mode: "insensitive" as const } },
+              { slug: { contains: slugCandidate || raw, mode: "insensitive" as const } },
+              ...(slugCandidate
+                ? [{ slug: { equals: slugCandidate, mode: "insensitive" as const } }]
+                : []),
+            ],
+          }
+        : {}),
+    },
+    include: {
+      memberships: {
+        where: { userId },
+        select: { status: true },
+        take: 1,
+      },
+    },
+    orderBy: { name: "asc" },
+    take: limit,
+  });
+
+  const orgIds = rows.map((row) => row.id);
+  const pendingRequests =
+    orgIds.length === 0
+      ? []
+      : await prisma.membershipRequest.findMany({
+          where: { userId, organizationId: { in: orgIds }, status: "pending" },
+          select: { organizationId: true, status: true },
+        });
+  const pendingByOrg = new Map(pendingRequests.map((r) => [r.organizationId, r.status]));
+
+  return rows.map((row) => ({
+    ...toOrgRow(row),
+    membershipStatus: row.memberships[0]?.status ?? null,
+    joinRequestStatus: pendingByOrg.get(row.id) ?? null,
+  }));
+}
+
 export async function updateOrganization(
   id: string,
   input: { name?: string; status?: string; parentOrganizationId?: string | null },

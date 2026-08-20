@@ -1,6 +1,6 @@
 import { RoleKeys } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
-import { bindRoleToUser } from "../modules/auth/roles.repository.js";
+import { bindStaffRoleToUser } from "../modules/auth/roles.repository.js";
 import { findUserByEmail } from "../modules/auth/users.repository.js";
 
 /**
@@ -19,7 +19,7 @@ export async function bootstrapSuperAdmin(): Promise<void> {
     return;
   }
 
-  await bindRoleToUser({ userId: user.id, roleKey: RoleKeys.superAdmin });
+  await bindStaffRoleToUser({ userId: user.id, roleKey: RoleKeys.superAdmin });
   await prisma.user.update({
     where: { id: user.id },
     data: {
