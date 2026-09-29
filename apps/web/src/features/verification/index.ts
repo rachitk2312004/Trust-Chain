@@ -12,4 +12,5 @@ export {
   useIntakeVerify,
   verifyKeys,
   aggregateStats,
+  aggregateCheckStats,
 } from "./hooks";

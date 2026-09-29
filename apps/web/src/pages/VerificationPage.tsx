@@ -66,7 +66,15 @@ export function VerificationPage() {
         <StatCard label="Valid" value={stats.data?.byOutcome.valid ?? 0} tone="success" />
         <StatCard
           label="Copied / not issued"
-          value={(stats.data?.byOutcome.invalid ?? 0) + (stats.data?.byOutcome.missing ?? 0)}
+          value={
+            stats.data
+              ? Math.max(
+                  0,
+                  stats.data.total -
+                    (stats.data.byOutcome.valid ?? 0),
+                )
+              : 0
+          }
           tone="error"
         />
       </div>

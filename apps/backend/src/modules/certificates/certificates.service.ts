@@ -757,18 +757,10 @@ export async function verifyCertificateById(
     status = CertificateStatuses.expired;
   }
 
-  // Self-heal missing PDF artifact so verification can pass after storage glitches.
+  // Self-heal missing PDF bytes (DB version with empty/missing object storage).
   try {
-    const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
-    const hasVersion = row.documentId
-      ? Boolean(
-          await prisma.document.findFirst({
-            where: { id: row.documentId, currentVersionId: { not: null } },
-            select: { id: true },
-          }),
-        )
-      : false;
-    if (row.documentId && !hasVersion) {
+    if (row.documentId && status === CertificateStatuses.issued) {
+      const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
       await finalizeIssuedCertificate(userId, row.id, row.organizationId, {
         createQr: !row.qrPublicCode,
         publishToChain: false,
@@ -783,7 +775,7 @@ export async function verifyCertificateById(
   }
 
   const verifyStarted = Date.now();
-  const { verification: result, chain } = await evaluateCertificateTrust({
+  const trustInput = () => ({
     publicId: row.publicId,
     organizationId: row.organizationId,
     title: row.title,
@@ -800,6 +792,23 @@ export async function verifyCertificateById(
     documentStatus: row.document?.status ?? null,
     documentDeletedAt: row.document?.deletedAt ?? null,
   });
+
+  let { verification: result, chain } = await evaluateCertificateTrust(trustInput());
+
+  // Re-canonicalize integrity digests after layout/timestamp algorithm upgrades.
+  let integrityRepaired = false;
+  if (
+    !result.checks.integrity &&
+    status === CertificateStatuses.issued &&
+    result.expectedHash &&
+    result.expectedHash !== row.integrityHash
+  ) {
+    await repo.updateCertificate(row.id, { integrityHash: result.expectedHash });
+    row.integrityHash = result.expectedHash;
+    integrityRepaired = true;
+    ({ verification: result, chain } = await evaluateCertificateTrust(trustInput()));
+  }
+
   const verifyMs = Date.now() - verifyStarted;
   certificateProcessMetrics.recordVerification(verifyMs);
 
@@ -814,6 +823,7 @@ export async function verifyCertificateById(
       checks: result.checks,
       durationMs: verifyMs,
       chain,
+      integrityRepaired: integrityRepaired || undefined,
     },
   });
 

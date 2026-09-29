@@ -61,14 +61,30 @@ export function UpgradeCard({
   );
 }
 
+export function PlanLockedHint({
+  feature,
+}: {
+  feature: BillingFeatureKey;
+}) {
+  const copy = FEATURE_COPY[feature] ?? { title: "This feature", plan: "a paid plan" };
+  return (
+    <p className="text-sm text-[var(--tc-muted)]">
+      {copy.title} is not included in your plan.
+    </p>
+  );
+}
+
 export function PlanGate({
   feature,
   organizationId,
   children,
+  /** `upgrade` shows billing CTA; `hint` is a plain “not included” line; `hide` renders nothing. */
+  lockedFallback = "upgrade",
 }: {
   feature: BillingFeatureKey;
   organizationId?: string | null;
   children: ReactNode;
+  lockedFallback?: "upgrade" | "hint" | "hide";
 }) {
   const activeOrganizationId = useSessionStore((s) => s.activeOrganizationId);
   const orgId = organizationId === undefined ? activeOrganizationId : organizationId;
@@ -76,6 +92,8 @@ export function PlanGate({
   const snapshot = orgId ? billing.data?.organization : billing.data?.user;
   if (billing.isLoading) return <>{children}</>;
   if (snapshot && !hasBillingFeature(snapshot, feature)) {
+    if (lockedFallback === "hide") return null;
+    if (lockedFallback === "hint") return <PlanLockedHint feature={feature} />;
     return <UpgradeCard feature={feature} organizationId={orgId} />;
   }
   return <>{children}</>;

@@ -142,7 +142,8 @@ export function verificationReasonLabel(reason: string): string {
     case "ARTIFACT_HASH_MISMATCH":
       return "Stored PDF hash does not match the issued file";
     case "CHAIN_NOT_ANCHORED":
-      return "Certificate hash is not on the blockchain";
+    case "PLAN_NOT_INCLUDED":
+      return "Blockchain anchoring is not included in your plan";
     case "CHAIN_HASH_MISMATCH":
       return "On-chain hash does not match the certificate PDF";
     case "CHAIN_REVOKED":

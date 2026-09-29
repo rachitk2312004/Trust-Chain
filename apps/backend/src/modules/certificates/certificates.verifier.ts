@@ -94,8 +94,8 @@ function evaluateChain(
     return { ok: false, reasons: ["CHAIN_REVOKED"] };
   }
   if (!evidence.chainLive) {
-    // Optional until anchored — does not invalidate an otherwise good certificate.
-    return { ok: true, reasons: ["CHAIN_NOT_ANCHORED"] };
+    // Optional until anchored — does not invalidate; keep reasons clean for the UI.
+    return { ok: true, reasons: [] };
   }
   const expected = evidence.expectedArtifactHash ?? evidence.artifactHash;
   if (expected && !contentHashesEqual(evidence.chainHash, expected)) {

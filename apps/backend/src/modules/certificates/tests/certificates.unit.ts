@@ -246,7 +246,9 @@ export function testCertificateTrustEvidence(): void {
   });
   assert.equal(missing.valid, false);
   assert.ok(missing.reasons.includes("ARTIFACT_MISSING"));
-  assert.ok(missing.reasons.includes("CHAIN_NOT_ANCHORED"));
+  // Unanchored chain is advisory and must not appear as a failure reason.
+  assert.equal(missing.reasons.includes("CHAIN_NOT_ANCHORED"), false);
+  assert.equal(missing.checks.chain, true);
 
   const matched = verifyCertificate(cert, {
     artifactPresent: true,

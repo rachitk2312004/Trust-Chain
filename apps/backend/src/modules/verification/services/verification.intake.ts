@@ -8,7 +8,7 @@ import { consumeOrgMetric } from "../../billing/billing.entitlements.js";
 import { BillingFeatureKeys, BillingMetricKeys } from "../../billing/billing.plans.js";
 import { summarizeBulkResults } from "./verification.bulk.js";
 import { saveCheckRun } from "./verification.checks.js";
-import { identityMismatchMessage, namesMatch } from "./verification.names.js";
+import { identityMismatchMessage, looksLikePersonName, namesMatch } from "./verification.names.js";
 
 export const INTAKE_VERIFY_LIMIT = 50;
 export const CERTIFICATE_PUBLIC_ID_RE = /CERT-[A-Z0-9]+-[0-9A-F]+/gi;
@@ -135,15 +135,29 @@ export function extractPdfDecodedText(bytes: Buffer): string {
 }
 
 export function extractPrintedNameFromPdfText(text: string, issuedName?: string | null): string | null {
-  if (issuedName && text.toLowerCase().includes(issuedName.toLowerCase())) {
-    return issuedName;
+  if (issuedName) {
+    const issued = issuedName.trim();
+    if (issued && text.toLowerCase().includes(issued.toLowerCase())) {
+      return issued;
+    }
   }
-  const skip = /cert-|trustchain|certificate|attendance|northstar|verify|issued|organization/i;
+  const skip =
+    /cert-|trust-?chain|certificate|attendance|northstar|verify|issued|organization|authorized|signature|scan to|valid through|employee|achievement|award|completion|excellence|honor|credential|distinction|registrar|director|dean|professional|bearer|named below|sample recipient/i;
   const candidates = text
     .split(/[\n|/]+/)
+    .map((part) => part.replace(/https?:\/\/\S+/gi, " ").trim())
+    .flatMap((part) => part.split(/\s{2,}|\u0000/))
     .map((part) => part.trim())
-    .filter((part) => part.length >= 2 && part.length <= 80 && !skip.test(part) && /^[\p{L}][\p{L} .'-]+$/u.test(part));
-  return candidates.sort((a, b) => b.length - a.length)[0] ?? null;
+    .filter((part) => looksLikePersonName(part) && !skip.test(part));
+  // Prefer multi-word person names over single tokens.
+  return (
+    candidates.sort((a, b) => {
+      const aWords = a.split(/\s+/).length;
+      const bWords = b.split(/\s+/).length;
+      if (bWords !== aWords) return bWords - aWords;
+      return b.length - a.length;
+    })[0] ?? null
+  );
 }
 
 export function extractClaimedNameFromFileName(fileName: string): string | null {
@@ -156,6 +170,7 @@ export function extractClaimedNameFromFileName(fileName: string): string | null 
     .trim();
   if (cleaned.length < 2 || /^[0-9]+$/.test(cleaned)) return null;
   if (/^[0-9a-f]{8}$/i.test(cleaned.split(" ")[0] ?? "")) return null;
+  if (!looksLikePersonName(cleaned)) return null;
   return cleaned;
 }
 
@@ -228,6 +243,11 @@ export function decideIntakeMatch(input: IntakeMatchInput): {
     const stored = named.storedHash ? normalizeContentHash(named.storedHash) : null;
     const bytesMatch = Boolean(stored && contentHashesEqual(stored, submitted));
     if (bytesMatch || input.claimedFromContent) {
+      return statusVerdict(named);
+    }
+    // CERT ID matched but stored PDF hash is missing (artifact never uploaded / lost).
+    // Treat as the issued certificate rather than a fake file.
+    if (!stored) {
       return statusVerdict(named);
     }
     return {
@@ -401,18 +421,29 @@ export async function runIntakeVerification(
     const cert = decision.certificate;
     const pdfText = pdfBytes ? extractPdfDecodedText(pdfBytes) : "";
     const printedName = pdfText ? extractPrintedNameFromPdfText(pdfText, cert?.recipientName) : null;
-    const claimedName = item.claimedName || undefined;
+    // CSV / form / person-like filename only — never URL hosts scraped from PDF chrome.
+    const claimedName =
+      item.claimedName && looksLikePersonName(item.claimedName) ? item.claimedName.trim() : undefined;
+    const printedPerson =
+      printedName && looksLikePersonName(printedName) ? printedName.trim() : undefined;
     const issuedName = cert?.recipientName;
-    const submittedAs = claimedName || printedName;
     let verdict = decision.verdict;
     let outcome = decision.outcome;
     let valid = decision.valid;
     let error = decision.error;
-    if (cert && issuedName && submittedAs && !namesMatch(submittedAs, issuedName)) {
-      verdict = "identity_mismatch";
-      outcome = VerificationOutcomes.invalid;
-      valid = false;
-      error = identityMismatchMessage(issuedName, submittedAs);
+
+    if (cert && issuedName) {
+      if (claimedName && !namesMatch(claimedName, issuedName)) {
+        verdict = "identity_mismatch";
+        outcome = VerificationOutcomes.invalid;
+        valid = false;
+        error = identityMismatchMessage(issuedName, claimedName);
+      } else if (!claimedName && printedPerson && !namesMatch(printedPerson, issuedName)) {
+        verdict = "identity_mismatch";
+        outcome = VerificationOutcomes.invalid;
+        valid = false;
+        error = identityMismatchMessage(issuedName, printedPerson);
+      }
     }
 
     results.push({
@@ -424,11 +455,11 @@ export async function runIntakeVerification(
       valid,
       verdict,
       publicId: cert?.publicId,
-      certificateId: named?.id ?? hashed?.id,
+      certificateId: named?.id ?? hashed?.id ?? cert?.id,
       documentId: named?.documentId ?? hashed?.documentId ?? undefined,
       recipientName: issuedName,
       claimedName,
-      printedName: printedName ?? undefined,
+      printedName: printedPerson ?? printedName ?? undefined,
       title: cert?.title,
       error,
     });

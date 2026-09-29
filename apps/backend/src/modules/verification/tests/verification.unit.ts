@@ -4,8 +4,15 @@ import { generateVerificationCode } from "../utils/verificationCode.js";
 import { buildVerificationReport } from "../reports/reportGenerator.js";
 import { VerificationInternalStatuses, VerificationOutcomes } from "@trustchain/config";
 import { parseBulkLines, summarizeBulkResults, normalizeBulkIdentifier } from "../services/verification.bulk.js";
-import { decideIntakeMatch, extractCertificatePublicId, extractCertificateUuid, collectIdsFromPdfHexStrings, extractClaimedNameFromFileName } from "../services/verification.intake.js";
-import { namesMatch, identityMismatchMessage } from "../services/verification.names.js";
+import {
+  decideIntakeMatch,
+  extractCertificatePublicId,
+  extractCertificateUuid,
+  collectIdsFromPdfHexStrings,
+  extractClaimedNameFromFileName,
+  extractPrintedNameFromPdfText,
+} from "../services/verification.intake.js";
+import { looksLikePersonName, namesMatch, identityMismatchMessage } from "../services/verification.names.js";
 
 export function testVerificationCodeFormat() {
   const code = generateVerificationCode(new Date("2026-08-02T12:00:00Z"));
@@ -142,6 +149,32 @@ export function testIntakeFileMatching() {
   assert.equal(namesMatch("Ravi", "Aditya"), false);
   assert.match(identityMismatchMessage("Aditya", "Ravi"), /Submitted as Ravi/);
   assert.equal(extractClaimedNameFromFileName("Ravi.pdf"), "Ravi");
+  assert.equal(extractClaimedNameFromFileName("CERT-MUN4BJTV-5E1922C6.pdf"), null);
+  assert.equal(looksLikePersonName("trust-chain-blush-kappa.vercel.app"), false);
+  assert.equal(looksLikePersonName("Aishwary Singh"), true);
+  assert.equal(
+    extractPrintedNameFromPdfText(
+      "Employee Achievement Award\nScan to verify\nhttps://trust-chain-blush-kappa.vercel.app/certificates/verify/CERT-MUN4BJTV-5E1922C6\nAishwary Singh\nIssued TrustChain PDF",
+      "Aishwary Singh",
+    ),
+    "Aishwary Singh",
+  );
+  assert.equal(
+    extractPrintedNameFromPdfText(
+      "verify at trust-chain-blush-kappa.vercel.app\nCERT-MUN4BJTV-5E1922C6",
+      null,
+    ),
+    null,
+  );
+
+  const missingArtifact = decideIntakeMatch({
+    fileName: "CERT-MTTBIU71-CEB87247.pdf",
+    contentHash: "b".repeat(64),
+    claimedFromContent: false,
+    namedCertificate: { ...named, storedHash: null },
+    hashCertificate: null,
+  });
+  assert.equal(missingArtifact.verdict, "authentic");
 
   const hexIds = collectIdsFromPdfHexStrings(
     "<434552542D4D545442495537312D4345423837323437>",

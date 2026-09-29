@@ -1,9 +1,19 @@
 import { Badge, Button, Card, CardDescription, CardHeader, CardTitle, FormError, FormHint } from "@trustchain/ui";
 import { Can } from "../../components/Can";
-import { PlanGate } from "../billing/PlanGate";
+import { PlanGate, PlanLockedHint, hasBillingFeature } from "../billing/PlanGate";
+import { useBillingEntitlements } from "../billing/hooks";
 import { getCertificateErrorMessage } from "../../lib/certificateErrors";
 import { useFeedback } from "../../hooks/useFeedback";
 import { useCertificateChain, usePublishCertificate } from "./hooks";
+
+function chainReasonLabel(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  if (reason === "PLAN_NOT_INCLUDED") return null; // shown via PlanLockedHint
+  if (reason === "CHAIN_DISABLED") return "Blockchain is disabled in this environment.";
+  if (reason === "CHAIN_ORG_NOT_REGISTERED") return "Organization is not registered on-chain yet.";
+  if (reason === "NO_DOCUMENT") return "Certificate PDF document is not linked yet.";
+  return reason.replace(/_/g, " ");
+}
 
 export function CertificatePublishPanel({
   organizationId,
@@ -15,11 +25,16 @@ export function CertificatePublishPanel({
   status: string;
 }) {
   const feedback = useFeedback();
+  const billing = useBillingEntitlements(organizationId);
   const chain = useCertificateChain(organizationId, certificateId);
   const publish = usePublishCertificate(organizationId);
   const data = chain.data;
   const anchored = data?.chain.status === "anchored";
   const canPublish = status === "issued" || status === "draft";
+  const planIncludesChain = hasBillingFeature(billing.data?.organization, "chain_publish");
+  const planLocked =
+    data?.chain.reason === "PLAN_NOT_INCLUDED" ||
+    (!billing.isLoading && !planIncludesChain);
 
   return (
     <Card>
@@ -39,6 +54,8 @@ export function CertificatePublishPanel({
         <dd>
           {chain.isLoading ? (
             "Checking…"
+          ) : planLocked ? (
+            <Badge>not in plan</Badge>
           ) : !data?.chain.enabled ? (
             <Badge>disabled</Badge>
           ) : anchored ? (
@@ -69,41 +86,51 @@ export function CertificatePublishPanel({
           </>
         ) : null}
       </dl>
-      {data?.chain.reason ? (
+      {planLocked ? (
+        <div className="mb-3">
+          <PlanLockedHint feature="chain_publish" />
+        </div>
+      ) : null}
+      {!planLocked && data?.chain.reason ? (
         <FormHint>
           {data.chain.skipped ? "Chain publish skipped: " : ""}
-          {data.chain.reason}
+          {chainReasonLabel(data.chain.reason) ?? data.chain.reason}
         </FormHint>
       ) : null}
       <Can capability="certificates.issue" organizationId={organizationId}>
-        {canPublish ? (
-          <PlanGate feature="chain_publish" organizationId={organizationId}>
-          <Button
-            size="sm"
-            disabled={publish.isPending}
-            onClick={() =>
-              publish.mutate(
-                { certificateId, publishToChain: true },
-                {
-                  onSuccess: (result) => {
-                    if (result.chain.status === "anchored") {
-                      feedback.success("Certificate published and anchored");
-                    } else if (result.chain.reason) {
-                      feedback.warning(
-                        "Certificate published",
-                        `On-chain step skipped: ${result.chain.reason}`,
-                      );
-                    } else {
-                      feedback.success("Certificate published");
-                    }
+        {canPublish && !planLocked ? (
+          <PlanGate feature="chain_publish" organizationId={organizationId} lockedFallback="hint">
+            <Button
+              size="sm"
+              disabled={publish.isPending}
+              onClick={() =>
+                publish.mutate(
+                  { certificateId, publishToChain: true },
+                  {
+                    onSuccess: (result) => {
+                      if (result.chain.reason === "PLAN_NOT_INCLUDED") {
+                        feedback.warning(
+                          "Certificate published",
+                          "On-chain anchoring is not included in your plan.",
+                        );
+                      } else if (result.chain.status === "anchored") {
+                        feedback.success("Certificate published and anchored");
+                      } else if (result.chain.reason) {
+                        feedback.warning(
+                          "Certificate published",
+                          `On-chain step skipped: ${result.chain.reason}`,
+                        );
+                      } else {
+                        feedback.success("Certificate published");
+                      }
+                    },
+                    onError: (err) => feedback.error(err, "Publish failed"),
                   },
-                  onError: (err) => feedback.error(err, "Publish failed"),
-                },
-              )
-            }
-          >
-            {publish.isPending ? "Publishing…" : anchored ? "Re-publish" : "Publish to blockchain"}
-          </Button>
+                )
+              }
+            >
+              {publish.isPending ? "Publishing…" : anchored ? "Re-publish" : "Publish to blockchain"}
+            </Button>
           </PlanGate>
         ) : null}
       </Can>

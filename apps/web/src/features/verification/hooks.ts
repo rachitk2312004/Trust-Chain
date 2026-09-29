@@ -49,6 +49,25 @@ function aggregateStats(
   };
 }
 
+/** Aggregate PDF / CERT-ID check history (what staff see in the report table). */
+function aggregateCheckStats(
+  rows: Array<{ outcome: string | null; valid: boolean }>,
+): VerificationStatistics {
+  const byOutcome: Record<string, number> = {};
+  for (const row of rows) {
+    const outcome = row.outcome ?? "unknown";
+    byOutcome[outcome] = (byOutcome[outcome] ?? 0) + 1;
+  }
+  const total = rows.length;
+  const valid = rows.filter((row) => row.valid).length;
+  return {
+    total,
+    byOutcome,
+    byStatus: {},
+    validRate: total ? Math.round((valid / total) * 100) : 0,
+  };
+}
+
 export function useVerificationHistory(
   organizationId: string | null | undefined,
   params?: ListVerificationsParams,
@@ -99,8 +118,11 @@ export function useVerificationStatistics(organizationId: string | null | undefi
   return useQuery({
     queryKey: verifyKeys(organizationId ?? undefined).stats,
     queryFn: async () => {
-      const { data } = await verificationApi.list(organizationId!, { limit: 100, offset: 0 });
-      return aggregateStats(data.verifications);
+      const { data } = await verificationApi.checkHistory(organizationId!, {
+        limit: 200,
+        offset: 0,
+      });
+      return aggregateCheckStats(data.rows);
     },
     enabled: Boolean(accessToken && organizationId),
   });
@@ -337,4 +359,4 @@ export function useStartDocumentVerification(organizationId: string) {
   });
 }
 
-export { aggregateStats };
+export { aggregateStats, aggregateCheckStats };

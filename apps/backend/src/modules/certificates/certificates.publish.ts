@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  BillingOwnerTypes,
   BlockchainAnchorStatuses,
   CertificateEventTypes,
   DocumentStatuses,
@@ -7,9 +8,9 @@ import {
 } from "@trustchain/config";
 import { prisma, type Prisma } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
-import { assertOrgFeature } from "../billing/billing.entitlements.js";
+import { assertOrgFeature, getEntitlementSnapshot } from "../billing/billing.entitlements.js";
 import { BillingFeatureKeys } from "../billing/billing.plans.js";
-import { putObjectBuffer } from "../../integrations/objectStorage.js";
+import { getObjectBuffer, putObjectBuffer } from "../../integrations/objectStorage.js";
 import {
   anchorDocumentOnChain,
   ensureOrganizationRegisteredOnChain,
@@ -185,19 +186,29 @@ async function attachCertificatePdfArtifact(
     include: { currentVersion: true },
   });
   if (!document || document.deletedAt) return row.documentId;
+
+  // Reuse existing version only when the PDF object is actually present in storage.
   if (document.currentVersionId && document.currentVersion) {
-    if (document.status !== DocumentStatuses.active) {
-      await prisma.document.update({
-        where: { id: document.id },
-        data: { status: DocumentStatuses.active },
-      });
+    try {
+      const existing = await getObjectBuffer(document.currentVersion.objectKey);
+      if (existing.exists && existing.body && existing.body.length > 0) {
+        if (document.status !== DocumentStatuses.active) {
+          await prisma.document.update({
+            where: { id: document.id },
+            data: { status: DocumentStatuses.active },
+          });
+        }
+        return document.id;
+      }
+    } catch {
+      // Missing/corrupt object — regenerate below.
     }
-    return document.id;
   }
 
   const exported = await renderCertificatePdf(row);
   const contentHash = createHash("sha256").update(exported.body).digest("hex");
-  const objectKey = `orgs/${row.organizationId}/documents/${document.id}/certificate-${row.publicId}.pdf`;
+  const nextVersion = (document.currentVersion?.versionNumber ?? 0) + 1;
+  const objectKey = `orgs/${row.organizationId}/documents/${document.id}/certificate-${row.publicId}-v${nextVersion}.pdf`;
 
   await putObjectBuffer({
     objectKey,
@@ -209,7 +220,7 @@ async function attachCertificatePdfArtifact(
     const created = await tx.documentVersion.create({
       data: {
         documentId: document.id,
-        versionNumber: 1,
+        versionNumber: nextVersion,
         objectKey,
         contentHash,
         mimeType: "application/pdf",
@@ -219,12 +230,12 @@ async function attachCertificatePdfArtifact(
       },
     });
     await tx.document.update({
-        where: { id: document.id },
-        data: {
-          currentVersionId: created.id,
-          status: DocumentStatuses.active,
-        },
-      });
+      where: { id: document.id },
+      data: {
+        currentVersionId: created.id,
+        status: DocumentStatuses.active,
+      },
+    });
     return created;
   });
 
@@ -244,6 +255,7 @@ async function attachCertificatePdfArtifact(
       documentVersionId: version.id,
       contentHash,
       objectKey,
+      regenerated: nextVersion > 1,
     },
   });
 
@@ -278,6 +290,14 @@ async function ensureCertificateQr(
   }
 }
 
+async function orgHasChainPublish(organizationId: string): Promise<boolean> {
+  const snapshot = await getEntitlementSnapshot({
+    ownerType: BillingOwnerTypes.organization,
+    ownerId: organizationId,
+  });
+  return Boolean(snapshot.features[BillingFeatureKeys.chainPublish]);
+}
+
 async function readChainSummary(
   userId: string,
   organizationId: string,
@@ -286,6 +306,16 @@ async function readChainSummary(
   if (!isChainEnabled()) {
     return emptyChain({ enabled: false, reason: "CHAIN_DISABLED" });
   }
+
+  const planIncludesChain = await orgHasChainPublish(organizationId);
+  if (!planIncludesChain) {
+    return emptyChain({
+      enabled: true,
+      skipped: true,
+      reason: "PLAN_NOT_INCLUDED",
+    });
+  }
+
   if (!documentId) {
     return emptyChain({ reason: "NO_DOCUMENT" });
   }
@@ -425,10 +455,15 @@ export async function finalizeIssuedCertificate(
 
   let chain = await readChainSummary(userId, organizationId, row.documentId);
   if (options.publishToChain && row.documentId) {
-    chain = await tryPublishToChain(userId, organizationId, row.documentId, row.id);
-    if (!chain.contentHash || !chain.status) {
-      const refreshed = await readChainSummary(userId, organizationId, row.documentId);
-      chain = { ...refreshed, ...chain, skipped: chain.skipped, reason: chain.reason };
+    if (chain.reason === "PLAN_NOT_INCLUDED") {
+      // Soft-skip: do not attempt anchor or surface an upgrade action.
+      chain = { ...chain, skipped: true, reason: "PLAN_NOT_INCLUDED" };
+    } else {
+      chain = await tryPublishToChain(userId, organizationId, row.documentId, row.id);
+      if (!chain.contentHash || !chain.status) {
+        const refreshed = await readChainSummary(userId, organizationId, row.documentId);
+        chain = { ...refreshed, ...chain, skipped: chain.skipped, reason: chain.reason };
+      }
     }
   }
 
@@ -449,13 +484,36 @@ export async function publishCertificate(
 ): Promise<CertificatePublishResult> {
   const existing = await repo.findCertificateById(organizationId, certificateId);
   if (!existing) throw new AppError(404, "CERTIFICATE_NOT_FOUND", "Certificate not found");
-  if (input?.publishToChain !== false) {
-    await assertOrgFeature(userId, organizationId, BillingFeatureKeys.chainPublish);
+
+  let publishToChain = input?.publishToChain !== false;
+  if (publishToChain) {
+    try {
+      await assertOrgFeature(userId, organizationId, BillingFeatureKeys.chainPublish);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "PLAN_REQUIRED") {
+        // Soft-skip instead of throwing — UI shows “not included in plan”.
+        publishToChain = false;
+        const published = await finalizeIssuedCertificate(userId, certificateId, organizationId, {
+          createQr: true,
+          publishToChain: false,
+        });
+        return {
+          ...published,
+          chain: {
+            ...published.chain,
+            enabled: true,
+            skipped: true,
+            reason: "PLAN_NOT_INCLUDED",
+          },
+        };
+      }
+      throw error;
+    }
   }
 
   return finalizeIssuedCertificate(userId, certificateId, organizationId, {
     createQr: true,
-    publishToChain: input?.publishToChain !== false,
+    publishToChain,
   });
 }
 

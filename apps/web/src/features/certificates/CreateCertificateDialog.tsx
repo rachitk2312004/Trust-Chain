@@ -19,6 +19,8 @@ import {
 } from "../../lib/certificateErrors";
 import { useFeedback } from "../../hooks/useFeedback";
 import type { CertificateRecipientMatch } from "../../types/api";
+import { hasBillingFeature } from "../billing/PlanGate";
+import { useBillingEntitlements } from "../billing/hooks";
 import {
   useCertificateTemplates,
   useCreateCertificate,
@@ -59,7 +61,9 @@ export function CreateCertificateDialog({
 }) {
   const create = useCreateCertificate(organizationId);
   const feedback = useFeedback();
+  const billing = useBillingEntitlements(organizationId);
   const templates = useCertificateTemplates(organizationId);
+  const chainInPlan = hasBillingFeature(billing.data?.organization, "chain_publish");
   const [title, setTitle] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -70,7 +74,7 @@ export function CreateCertificateDialog({
   const [documentId, setDocumentId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [createQr, setCreateQr] = useState(true);
-  const [publishToChain, setPublishToChain] = useState(true);
+  const [publishToChain, setPublishToChain] = useState(false);
 
   const recipientLookup = useLookupCertificateRecipients(organizationId, emailQuery);
 
@@ -78,6 +82,12 @@ export function CreateCertificateDialog({
     if (!open) return;
     create.reset();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!billing.isLoading) {
+      setPublishToChain(Boolean(chainInPlan));
+    }
+  }, [billing.isLoading, chainInPlan]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setEmailQuery(recipientEmail.trim()), 300);
@@ -95,7 +105,7 @@ export function CreateCertificateDialog({
     setDocumentId("");
     setExpiresAt("");
     setCreateQr(true);
-    setPublishToChain(true);
+    setPublishToChain(Boolean(chainInPlan));
     create.reset();
   }
 
@@ -118,18 +128,23 @@ export function CreateCertificateDialog({
         documentId: documentId || null,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         createQr,
-        publishToChain,
+        publishToChain: Boolean(chainInPlan && publishToChain),
       },
       {
         onSuccess: (result) => {
           handleClose();
           onCreated?.(result.certificate.id);
-          if (publishToChain && result.chain?.reason === "PUBLISH_IN_PROGRESS") {
+          if (result.chain?.reason === "PLAN_NOT_INCLUDED") {
+            feedback.success(
+              "Certificate issued",
+              "Blockchain anchoring is not included in your plan.",
+            );
+          } else if (chainInPlan && publishToChain && result.chain?.reason === "PUBLISH_IN_PROGRESS") {
             feedback.success(
               "Certificate issued",
               "QR and blockchain publish will finish in the background.",
             );
-          } else if (publishToChain && result.chain?.skipped && result.chain.reason) {
+          } else if (chainInPlan && publishToChain && result.chain?.skipped && result.chain.reason) {
             feedback.warning(
               "Certificate issued",
               `On-chain publish skipped: ${result.chain.reason}`,
@@ -404,20 +419,29 @@ export function CreateCertificateDialog({
                   </span>
                 </span>
               </label>
-              <label className="flex items-start gap-2.5 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={publishToChain}
-                  onChange={(e) => setPublishToChain(e.target.checked)}
-                />
-                <span>
+              {billing.isLoading ? null : chainInPlan ? (
+                <label className="flex items-start gap-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={publishToChain}
+                    onChange={(e) => setPublishToChain(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium text-[var(--tc-fg)]">Publish to blockchain</span>
+                    <span className="mt-0.5 block text-xs text-[var(--tc-muted)]">
+                      Anchors the content hash on-chain
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <div className="text-sm">
                   <span className="font-medium text-[var(--tc-fg)]">Publish to blockchain</span>
                   <span className="mt-0.5 block text-xs text-[var(--tc-muted)]">
-                    Anchors the content hash on-chain
+                    Not included in your plan
                   </span>
-                </span>
-              </label>
+                </div>
+              )}
             </div>
           </section>
 

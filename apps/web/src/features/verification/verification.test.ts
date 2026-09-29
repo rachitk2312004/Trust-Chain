@@ -15,7 +15,7 @@ import {
   resolvePublicVerifyTarget,
 } from "../../lib/verifyErrors";
 import type { ApiErrorBody } from "../../types/api";
-import { aggregateStats, verifyKeys } from "./hooks";
+import { aggregateCheckStats, aggregateStats, verifyKeys } from "./hooks";
 import { parseCertClaims, parseVerificationListText } from "../../lib/verificationCsv";
 
 function axiosError(status: number, code: string, message: string): AxiosError<ApiErrorBody> {
@@ -119,6 +119,18 @@ describe("history retrieval", () => {
     expect(stats.byOutcome.revoked).toBe(1);
     expect(stats.byStatus.pending).toBe(1);
     expect(stats.validRate).toBe(50);
+  });
+
+  it("aggregates check-history stats for the verification dashboard", () => {
+    const stats = aggregateCheckStats([
+      { outcome: "valid", valid: true },
+      { outcome: "invalid", valid: false },
+      { outcome: "missing", valid: false },
+    ]);
+    expect(stats.total).toBe(3);
+    expect(stats.byOutcome.valid).toBe(1);
+    expect(stats.byOutcome.invalid).toBe(1);
+    expect(stats.validRate).toBe(33);
   });
 });
 

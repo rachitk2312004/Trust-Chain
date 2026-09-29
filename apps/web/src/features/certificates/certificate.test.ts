@@ -81,7 +81,8 @@ describe("certificate verification", () => {
     expect(verificationReasonLabel("CERTIFICATE_REVOKED")).toMatch(/revoked/i);
     expect(verificationReasonLabel("CERTIFICATE_EXPIRED")).toMatch(/expired/i);
     expect(verificationReasonLabel("INTEGRITY_MISMATCH")).toMatch(/integrity/i);
-    expect(verificationReasonLabel("CHAIN_NOT_ANCHORED")).toMatch(/blockchain/i);
+    expect(verificationReasonLabel("CHAIN_NOT_ANCHORED")).toMatch(/not included in your plan/i);
+    expect(verificationReasonLabel("PLAN_NOT_INCLUDED")).toMatch(/not included in your plan/i);
     expect(verificationReasonLabel("ARTIFACT_HASH_MISMATCH")).toMatch(/pdf/i);
   });
 
