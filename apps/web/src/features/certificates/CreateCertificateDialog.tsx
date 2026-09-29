@@ -178,7 +178,7 @@ export function CreateCertificateDialog({
       open={open}
       title="Issue certificate"
       onClose={handleClose}
-      className="max-w-5xl"
+      className="max-w-6xl"
       footer={
         <>
           <Button variant="ghost" onClick={handleClose}>
@@ -194,12 +194,12 @@ export function CreateCertificateDialog({
         </>
       }
     >
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.95fr)]">
-        <form id="create-certificate-form" className="flex flex-col gap-5" onSubmit={onSubmit}>
-          <section className="space-y-3">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.9fr)]">
+        <form id="create-certificate-form" className="flex min-w-0 flex-col gap-7" onSubmit={onSubmit}>
+          <section className="space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-[var(--tc-fg)]">Certificate details</h3>
-              <p className="text-xs text-[var(--tc-muted)]">
+              <p className="mt-1 text-xs text-[var(--tc-muted)]">
                 Title and recipient appear on the printed certificate.
               </p>
             </div>
@@ -213,7 +213,7 @@ export function CreateCertificateDialog({
                 placeholder="Certificate of Completion"
               />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <Label htmlFor="cert-recipient">Recipient name</Label>
                 <Input
@@ -286,11 +286,11 @@ export function CreateCertificateDialog({
             </Field>
           </section>
 
-          <section className="space-y-3 border-t border-[var(--tc-border)] pt-5">
-            <div className="flex flex-wrap items-end justify-between gap-2">
+          <section className="space-y-4 border-t border-[var(--tc-border)] pt-6">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-[var(--tc-fg)]">Design template</h3>
-                <p className="text-xs text-[var(--tc-muted)]">
+                <p className="mt-1 text-xs text-[var(--tc-muted)]">
                   Pick a built-in design. Preview updates on the right.
                 </p>
               </div>
@@ -302,7 +302,7 @@ export function CreateCertificateDialog({
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {CERTIFICATE_LAYOUT_PRESETS.map((preset) => {
                 const selected = layoutChoice === `preset:${preset.id}`;
                 return (
@@ -310,20 +310,20 @@ export function CreateCertificateDialog({
                     key={preset.id}
                     type="button"
                     onClick={() => setLayoutChoice(`preset:${preset.id}`)}
-                    className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                    className={`rounded-xl border px-3.5 py-3 text-left transition ${
                       selected
                         ? "border-[var(--tc-accent)] bg-[var(--tc-accent)]/10 shadow-sm"
                         : "border-[var(--tc-border)] bg-[var(--tc-surface)] hover:border-[var(--tc-accent)]/50"
                     }`}
                   >
                     <span
-                      className="mb-2 block h-1.5 w-full rounded-full"
+                      className="mb-2.5 block h-1.5 w-full rounded-full"
                       style={{
                         background: `linear-gradient(90deg, ${preset.layout.accentColor}, ${preset.layout.borderColor})`,
                       }}
                     />
                     <span className="block text-sm font-medium text-[var(--tc-fg)]">{preset.name}</span>
-                    <span className="mt-0.5 block text-[11px] capitalize text-[var(--tc-muted)]">
+                    <span className="mt-1 block text-[11px] capitalize text-[var(--tc-muted)]">
                       {preset.layout.orientation} · {preset.layout.pageSize}
                     </span>
                   </button>
@@ -360,12 +360,12 @@ export function CreateCertificateDialog({
             )}
           </section>
 
-          <section className="space-y-3 border-t border-[var(--tc-border)] pt-5">
+          <section className="space-y-4 border-t border-[var(--tc-border)] pt-6">
             <div>
               <h3 className="text-sm font-semibold text-[var(--tc-fg)]">Options</h3>
-              <p className="text-xs text-[var(--tc-muted)]">Expiration, QR, and chain publish.</p>
+              <p className="mt-1 text-xs text-[var(--tc-muted)]">Expiration, QR, and chain publish.</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <Label htmlFor="cert-expires">Expiration</Label>
                 <Input
@@ -375,11 +375,11 @@ export function CreateCertificateDialog({
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
               </Field>
-              <details className="rounded-xl border border-[var(--tc-border)] px-3 py-2.5">
+              <details className="rounded-xl border border-[var(--tc-border)] px-4 py-3">
                 <summary className="cursor-pointer text-sm font-medium text-[var(--tc-fg)]">
                   Link a document{documentId ? " · selected" : ""}
                 </summary>
-                <div className="mt-2">
+                <div className="mt-3">
                   <DocumentPicker
                     organizationId={organizationId}
                     value={documentId}
@@ -389,7 +389,7 @@ export function CreateCertificateDialog({
                 </div>
               </details>
             </div>
-            <div className="grid gap-2 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-surface-2)]/60 px-3 py-3 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-surface-2)]/60 px-4 py-4 md:grid-cols-2">
               <label className="flex items-start gap-2.5 text-sm">
                 <input
                   type="checkbox"
@@ -426,8 +426,8 @@ export function CreateCertificateDialog({
           ) : null}
         </form>
 
-        <aside className="lg:sticky lg:top-0 lg:self-start">
-          <div className="rounded-2xl border border-[var(--tc-border)] bg-[var(--tc-surface)] p-4 shadow-sm">
+        <aside className="min-w-0 xl:sticky xl:top-0 xl:self-start">
+          <div className="rounded-2xl border border-[var(--tc-border)] bg-[var(--tc-surface)] p-5 shadow-sm">
             <TemplateLayoutPreview
               organizationId={organizationId}
               layout={previewLayout}
