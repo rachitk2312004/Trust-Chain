@@ -4,6 +4,7 @@ import {
   FIREBASE_OTP_VERIFY_EMAIL_BODY,
   identityToolkitErrorToAppError,
 } from "../../../integrations/firebaseAdmin.js";
+import { emailMatchesSuperAdmin } from "../../../bootstrap/superAdmin.js";
 import { verifyEmailOtpBodySchema } from "../auth.schemas.js";
 
 export function testEmailOtpValidation(): void {
@@ -46,4 +47,18 @@ export function testIdentityToolkitQuotaMapping(): void {
   const other = identityToolkitErrorToAppError("INVALID_ID_TOKEN");
   if (other.statusCode !== 502) throw new Error("other Identity Toolkit errors stay 502");
   if (other.code !== "FIREBASE_ERROR") throw new Error("other code");
+}
+
+export function testSuperAdminEmailMatch(): void {
+  const prev = process.env.SUPER_ADMIN_EMAIL;
+  try {
+    process.env.SUPER_ADMIN_EMAIL = "Admin@Example.com";
+    if (!emailMatchesSuperAdmin("admin@example.com")) throw new Error("case-insensitive match");
+    if (emailMatchesSuperAdmin("other@example.com")) throw new Error("other email must not match");
+    delete process.env.SUPER_ADMIN_EMAIL;
+    if (emailMatchesSuperAdmin("admin@example.com")) throw new Error("unset SUPER_ADMIN_EMAIL must not match");
+  } finally {
+    if (prev === undefined) delete process.env.SUPER_ADMIN_EMAIL;
+    else process.env.SUPER_ADMIN_EMAIL = prev;
+  }
 }

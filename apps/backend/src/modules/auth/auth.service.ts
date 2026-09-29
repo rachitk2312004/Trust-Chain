@@ -17,6 +17,7 @@ import {
   invalidateEmailTokens,
   markEmailTokenUsed,
 } from "./emailTokens.repository.js";
+import { ensureSuperAdminRoleForUser } from "../../bootstrap/superAdmin.js";
 import { bindPublicUserRole } from "./roles.repository.js";
 import {
   createUser,
@@ -87,6 +88,7 @@ export async function registerUser(input: {
       });
 
   await bindPublicUserRole(user.id);
+  await ensureSuperAdminRoleForUser(user.id, user.email);
   await issueEmailOtp(user.id, user.email);
   const { claimCertificatesForUser } = await import("../certificates/certificates.claim.js");
   await claimCertificatesForUser(user.id, user.email);
@@ -178,6 +180,7 @@ export async function verifyEmailOtp(input: { email: string; otp: string }) {
       throw new AppError(400, "INVALID_TOKEN", "Verification code is invalid or expired");
     }
     const verified = await markEmailVerified(user.id);
+    await ensureSuperAdminRoleForUser(verified.id, verified.email);
     const { claimCertificatesForUser } = await import("../certificates/certificates.claim.js");
     await claimCertificatesForUser(verified.id, verified.email);
     return toPublicUser(verified);
@@ -185,6 +188,7 @@ export async function verifyEmailOtp(input: { email: string; otp: string }) {
 
   await markEmailTokenUsed(record.id);
   const verified = await markEmailVerified(record.user_id);
+  await ensureSuperAdminRoleForUser(verified.id, verified.email);
   if (verified.firebase_uid) {
     await markFirebaseEmailVerified(verified.firebase_uid);
   }
@@ -209,6 +213,7 @@ export async function verifyEmail(token: string) {
 
   await markEmailTokenUsed(record.id);
   const user = await markEmailVerified(record.user_id);
+  await ensureSuperAdminRoleForUser(user.id, user.email);
   if (user.firebase_uid) {
     await markFirebaseEmailVerified(user.firebase_uid);
   }
@@ -234,6 +239,8 @@ export async function loginWithPassword(input: {
   if (!valid) {
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
+
+  await ensureSuperAdminRoleForUser(user.id, user.email);
 
   if (user.status === "disabled") {
     throw new AppError(403, "ACCOUNT_DISABLED", "Account is disabled");

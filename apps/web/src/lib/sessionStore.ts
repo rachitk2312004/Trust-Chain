@@ -69,6 +69,7 @@ export const useSessionStore = create<SessionState>()(
         set({
           ...mirrorTokens(accessToken, refreshToken),
           user,
+          roles: [],
           mfaToken: null,
           bootStatus: "ready",
         }),
