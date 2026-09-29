@@ -3,6 +3,9 @@ import { resolveOutcome } from "../utils/outcome.js";
 import { generateVerificationCode } from "../utils/verificationCode.js";
 import { buildVerificationReport } from "../reports/reportGenerator.js";
 import { VerificationInternalStatuses, VerificationOutcomes } from "@trustchain/config";
+import { parseBulkLines, summarizeBulkResults, normalizeBulkIdentifier } from "../services/verification.bulk.js";
+import { decideIntakeMatch, extractCertificatePublicId, extractCertificateUuid, collectIdsFromPdfHexStrings, extractClaimedNameFromFileName } from "../services/verification.intake.js";
+import { namesMatch, identityMismatchMessage } from "../services/verification.names.js";
 
 export function testVerificationCodeFormat() {
   const code = generateVerificationCode(new Date("2026-08-02T12:00:00Z"));
@@ -61,4 +64,91 @@ export function testReportProofFields() {
   assert.equal(report.status, VerificationInternalStatuses.completed);
   assert.equal(report.verificationResult, VerificationOutcomes.valid);
   assert.ok(report.proofTimestamp);
+}
+
+export function testBulkVerifyHelpers() {
+  assert.deepEqual(parseBulkLines("a\nb, c; ;d\n"), ["a", "b", "c", "d"]);
+  assert.equal(
+    normalizeBulkIdentifier("https://localhost:5173/certificates/verify/CERT-MTTBIU71-CEB87247"),
+    "CERT-MTTBIU71-CEB87247",
+  );
+  assert.equal(normalizeBulkIdentifier("cert-mttbiu71-ceb87247"), "CERT-MTTBIU71-CEB87247");
+  const summary = summarizeBulkResults([
+    { label: "one", category: "documents", outcome: "valid", valid: true },
+    { label: "two", category: "documents", outcome: "tampered", valid: false },
+    { label: "three", category: "certificates", outcome: "valid", valid: true },
+  ]);
+  assert.equal(summary.total, 3);
+  assert.equal(summary.valid, 2);
+  assert.equal(summary.failed, 1);
+  assert.equal(summary.byOutcome.valid, 2);
+}
+
+export function testIntakeFileMatching() {
+  assert.equal(
+    extractCertificatePublicId("certificate-CERT-MTTBIU71-CEB87247.pdf"),
+    "CERT-MTTBIU71-CEB87247",
+  );
+  assert.equal(extractCertificatePublicId("random-resume.pdf"), null);
+
+  const hash = "a".repeat(64);
+  const named = {
+    publicId: "CERT-MTTBIU71-CEB87247",
+    status: "issued",
+    storedHash: hash,
+    title: "Attendance",
+    recipientName: "Aditya",
+  };
+
+  const authentic = decideIntakeMatch({
+    fileName: "certificate-CERT-MTTBIU71-CEB87247.pdf",
+    contentHash: hash,
+    claimedFromContent: false,
+    namedCertificate: named,
+    hashCertificate: named,
+  });
+  assert.equal(authentic.verdict, "authentic");
+  assert.equal(authentic.valid, true);
+
+  const fake = decideIntakeMatch({
+    fileName: "random.pdf",
+    contentHash: "b".repeat(64),
+    claimedFromContent: false,
+    namedCertificate: null,
+    hashCertificate: null,
+  });
+  assert.equal(fake.verdict, "not_found");
+  assert.equal(fake.valid, false);
+
+  const stolenId = decideIntakeMatch({
+    fileName: "certificate-CERT-MTTBIU71-CEB87247.pdf",
+    contentHash: "b".repeat(64),
+    claimedFromContent: false,
+    namedCertificate: named,
+    hashCertificate: null,
+  });
+  assert.equal(stolenId.verdict, "tampered");
+  assert.equal(stolenId.outcome, "tampered");
+
+  const rerenderedDownload = decideIntakeMatch({
+    fileName: "aae5de55-3af7-4efb-9fa8-068ded368d6b (1).pdf",
+    contentHash: "b".repeat(64),
+    claimedFromContent: true,
+    namedCertificate: named,
+    hashCertificate: null,
+  });
+  assert.equal(rerenderedDownload.verdict, "authentic");
+  assert.equal(namesMatch("Aditya", "aditya"), true);
+  assert.equal(namesMatch("Ravi", "Aditya"), false);
+  assert.match(identityMismatchMessage("Aditya", "Ravi"), /Submitted as Ravi/);
+  assert.equal(extractClaimedNameFromFileName("Ravi.pdf"), "Ravi");
+
+  const hexIds = collectIdsFromPdfHexStrings(
+    "<434552542D4D545442495537312D4345423837323437>",
+  );
+  assert.equal([...hexIds][0], "CERT-MTTBIU71-CEB87247");
+  assert.equal(
+    extractCertificateUuid("aae5de55-3af7-4efb-9fa8-068ded368d6b (1).pdf"),
+    "aae5de55-3af7-4efb-9fa8-068ded368d6b",
+  );
 }

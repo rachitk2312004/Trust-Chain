@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   Select,
 } from "@trustchain/ui";
 import { Can } from "../components/Can";
+import { PlanGate } from "../features/billing/PlanGate";
 import {
   useDeleteOrganization,
   useOrganization,
@@ -88,6 +89,17 @@ export function OrganizationSettingsPage() {
 
   return (
     <div className="grid max-w-2xl gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan</CardTitle>
+          <CardDescription>Premium Pro for issuance and verification. Max Pro for branding, trust reports, analytics, and chain publish.</CardDescription>
+        </CardHeader>
+        <div className="px-6 pb-5">
+          <Link to={`/billing?organizationId=${organizationId}`} className="text-sm text-[var(--tc-accent)] hover:underline">
+            Manage organization billing
+          </Link>
+        </div>
+      </Card>
       <Can
         capability="org.update"
         organizationId={organizationId}
@@ -161,8 +173,9 @@ export function OrganizationSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Branding</CardTitle>
-            <CardDescription>Display name, colors, and logo.</CardDescription>
+            <CardDescription>Display name, colors, and logo. Custom branding is included with Max Pro.</CardDescription>
           </CardHeader>
+          <PlanGate feature="custom_branding" organizationId={organizationId}>
           <form className="flex flex-col gap-3" onSubmit={onSaveBranding}>
             <Field>
               <Label htmlFor="brand-display">Display name</Label>
@@ -237,6 +250,7 @@ export function OrganizationSettingsPage() {
               {updateBranding.isPending ? "Saving…" : "Save branding"}
             </Button>
           </form>
+          </PlanGate>
         </Card>
       </Can>
     </div>

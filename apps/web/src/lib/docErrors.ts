@@ -74,7 +74,20 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
 export const MAX_DOCUMENT_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export function validateLocalFile(file: File): string | null {
-  if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_MIME_TYPES)[number])) {
+  const mime = file.type;
+  const name = file.name.toLowerCase();
+  const allowedByName =
+    name.endsWith(".pdf") ||
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".webp") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx");
+  const allowedByMime = ALLOWED_DOCUMENT_MIME_TYPES.includes(
+    mime as (typeof ALLOWED_DOCUMENT_MIME_TYPES)[number],
+  );
+  if (!allowedByMime && !allowedByName) {
     return "This file type is not allowed.";
   }
   if (file.size <= 0) return "File is empty.";

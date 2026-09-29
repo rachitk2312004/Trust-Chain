@@ -31,23 +31,27 @@ export function DocumentPicker({
       ? { id: value, title: `Selected (${value.slice(0, 8)}…)` }
       : null;
 
+  const catalogSize = list.data?.documents?.length ?? 0;
+  const showSearch = filter.trim().length > 0 || catalogSize > 8;
+
   return (
-    <div className="flex flex-col gap-2">
-      <Input
-        placeholder="Search documents by title…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        aria-label="Search documents"
-      />
-      <Field>
-        <Label htmlFor={id}>{label}</Label>
-        <Select
-          id={id}
-          required={required}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        >
-        <option value="">Select a document</option>
+    <Field>
+      <Label htmlFor={id}>{label}</Label>
+      {showSearch ? (
+        <Input
+          placeholder="Search documents by title…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label="Search documents"
+        />
+      ) : null}
+      <Select
+        id={id}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">{required ? "Select a document" : "None"}</option>
         {selectedMissing ? (
           <option value={selectedMissing.id}>{selectedMissing.title}</option>
         ) : null}
@@ -56,13 +60,12 @@ export function DocumentPicker({
             {doc.title}
           </option>
         ))}
-        </Select>
-      </Field>
+      </Select>
       {list.isLoading || search.isFetching ? (
         <FormHint>Loading documents…</FormHint>
       ) : options.length === 0 ? (
-        <FormHint>No documents found. Upload one first.</FormHint>
+        <FormHint>No documents uploaded yet.</FormHint>
       ) : null}
-    </div>
+    </Field>
   );
 }

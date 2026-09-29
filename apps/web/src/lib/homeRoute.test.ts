@@ -18,6 +18,12 @@ describe("homeRoute", () => {
     );
   });
 
+  it("sends employees to the staff dashboard", () => {
+    expect(
+      getHomeRoute([{ roleKey: "employee", roleName: "Employee", organizationId: "org-1" }]),
+    ).toBe("/dashboard");
+  });
+
   it("sends holders to my certificates", () => {
     expect(
       getHomeRoute([

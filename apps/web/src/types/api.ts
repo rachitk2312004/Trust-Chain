@@ -64,6 +64,10 @@ export type MeResponse = {
     organizationSlug: string;
     status: string;
     title: string | null;
+    branchId?: string | null;
+    departmentId?: string | null;
+    branchName?: string | null;
+    departmentName?: string | null;
   }>;
 };
 
@@ -428,6 +432,94 @@ export type VerificationStatistics = {
   validRate: number;
 };
 
+export type BulkVerifyCategory = "documents" | "certificates" | "hashes" | "identifiers";
+
+export type BulkVerifyItemResult = {
+  label: string;
+  category: BulkVerifyCategory;
+  outcome: string;
+  valid: boolean;
+  requestId?: string;
+  certificateId?: string;
+  documentId?: string;
+  publicId?: string;
+  title?: string;
+  recipientName?: string;
+  uniqueId?: string;
+  contentHash?: string;
+  claimedName?: string;
+  error?: string;
+};
+
+export type BulkVerifyResponse = {
+  category: BulkVerifyCategory;
+  summary: {
+    total: number;
+    valid: number;
+    failed: number;
+    byOutcome: Record<string, number>;
+  };
+  results: BulkVerifyItemResult[];
+};
+
+export type IntakeVerifyItemResult = {
+  label: string;
+  fileName: string;
+  contentHash: string;
+  category: "intake";
+  outcome: string;
+  valid: boolean;
+  verdict: "authentic" | "tampered" | "revoked" | "expired" | "not_found" | "identity_mismatch";
+  publicId?: string;
+  certificateId?: string;
+  documentId?: string;
+  recipientName?: string;
+  claimedName?: string;
+  printedName?: string;
+  title?: string;
+  error?: string;
+};
+
+export type IntakeVerifyResponse = {
+  category: "intake";
+  summary: {
+    total: number;
+    valid: number;
+    failed: number;
+    byOutcome: Record<string, number>;
+  };
+  results: IntakeVerifyItemResult[];
+};
+
+export type VerificationCheckHistoryRow = {
+  id: string;
+  runId: string;
+  kind: "intake" | "documents" | "certificates" | "hashes" | "identifiers" | string;
+  scope: "single" | "bulk" | string;
+  inputLabel: string;
+  fileName: string | null;
+  outcome: string;
+  verdict: string | null;
+  valid: boolean;
+  recipientName: string | null;
+  publicId: string | null;
+  title: string | null;
+  uniqueId: string | null;
+  contentHash: string | null;
+  certificateId: string | null;
+  documentId: string | null;
+  requestId: string | null;
+  detail: string | null;
+  createdAt: string;
+};
+
+export type VerificationCheckHistoryResponse = {
+  rows: VerificationCheckHistoryRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 /** @deprecated Prefer VerificationListItem */
 export type VerificationHistoryItem = VerificationListItem;
 
@@ -703,15 +795,67 @@ export type CertificateVerificationResult = {
     notRevoked: boolean;
     notExpired: boolean;
     documentOk: boolean;
+    artifact?: boolean;
+    chain?: boolean;
   };
   integrityHash?: string;
   expectedHash?: string;
   reasons: string[];
 };
 
+export type CertificateTrustChain = {
+  status: string | null;
+  contentHash: string | null;
+  txHash?: string | null;
+  anchored: boolean;
+  live?: boolean;
+  revoked?: boolean;
+  matchesArtifact?: boolean;
+};
+
 export type CertificateVerifyResponse = {
   certificate: CertificateSummary;
   verification: CertificateVerificationResult;
+  chain?: CertificateTrustChain;
+};
+
+export type CertificateChainSummary = {
+  enabled: boolean;
+  registered: boolean;
+  status: string | null;
+  contentHash: string | null;
+  txHash: string | null;
+  explorerUrl: string | null;
+  skipped: boolean;
+  reason: string | null;
+};
+
+export type CertificatePublishResponse = {
+  certificate: CertificateSummary;
+  qrPublicCode: string | null;
+  documentId: string | null;
+  chain: CertificateChainSummary;
+};
+
+export type CertificateRecipientMatch = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  inOrganization?: boolean;
+  membershipStatus?: string | null;
+};
+
+export type CertificateRecipientLookup = {
+  query: string;
+  exact: {
+    exists: boolean;
+    user: CertificateRecipientMatch | null;
+    inOrganization: boolean;
+    membershipStatus: string | null;
+  } | null;
+  matches: CertificateRecipientMatch[];
 };
 
 export type IssueCertificateInput = {
@@ -726,6 +870,7 @@ export type IssueCertificateInput = {
   expiresAt?: string | null;
   metadata?: Record<string, unknown>;
   createQr?: boolean;
+  publishToChain?: boolean;
 };
 
 export type CreateCertificateTemplateInput = {
@@ -2134,4 +2279,288 @@ export type DeveloperPatchServiceAccountInput = {
   description?: string | null;
   status?: "active" | "suspended";
   rotate?: boolean;
+};
+
+export type ChatMember = {
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  name: string;
+  status?: string;
+  title?: string | null;
+  lastSeenAt?: string | null;
+  online?: boolean;
+};
+
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  body: string;
+  createdAt: string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  sender: ChatMember;
+};
+
+export type ChatConversationSummary = {
+  id: string;
+  organizationId: string;
+  type: "dm" | "group";
+  title: string;
+  createdById?: string;
+  members: ChatMember[];
+  lastMessage: {
+    id: string;
+    body: string;
+    createdAt: string;
+    editedAt?: string | null;
+    deletedAt?: string | null;
+    sender: ChatMember;
+  } | null;
+  lastMessageAt: string | null;
+  unread: boolean;
+  createdAt: string;
+};
+
+export type ChatConversationDetail = {
+  id: string;
+  organizationId: string;
+  type: "dm" | "group";
+  title: string;
+  createdById?: string;
+  members: ChatMember[];
+  lastMessageAt: string | null;
+  createdAt: string;
+};
+
+export type MessageInboxSync = {
+  inboxRev: number;
+  threadHead: string | null;
+  backend: "redis" | "memory";
+};
+
+export type CertificateTrustReport = {
+  generatedAt: string;
+  organizationId: string;
+  issuance: {
+    issued: number;
+    draft: number;
+    revoked: number;
+    expired: number;
+    total: number;
+  };
+  verification: {
+    byOutcome: Record<string, number>;
+    flagged: number;
+    total: number;
+    fakeOrTampered: number;
+    valid: number;
+    invalid: number;
+    revoked: number;
+    expired: number;
+    missing: number;
+    documentChecks: number;
+    certificateLookups: number;
+    certificateLookupFailures: number;
+  };
+  flaggedVerifications: Array<{
+    id: string;
+    source: "document" | "certificate";
+    requestId: string | null;
+    certificateId: string | null;
+    verificationCode: string;
+    publicId: string | null;
+    outcome: string;
+    title: string;
+    documentTitle?: string | null;
+    requestedBy: string;
+    verifiedAt: string;
+    failureReasons: unknown;
+    href: string;
+  }>;
+  recentLookups: Array<{
+    id: string;
+    certificateId: string;
+    publicId: string;
+    title: string;
+    outcome: string;
+    valid: boolean;
+    publicLookup: boolean;
+    requestedBy: string;
+    verifiedAt: string;
+    href: string;
+  }>;
+  recentIssues: Array<{
+    id: string;
+    publicId: string;
+    title: string;
+    recipientName: string;
+    recipientEmail: string | null;
+    issuedAt: string | null;
+  }>;
+};
+
+export type SupportPerson = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+};
+
+export type SupportSummary = {
+  inquiries: number;
+  bugs: number;
+  canUseInquiries: boolean;
+  canCreateInquiry: boolean;
+  canReportBugs: boolean;
+};
+
+export type PlatformInquirySummary = {
+  id: string;
+  organizationId: string | null;
+  organizationName: string | null;
+  organizationSlug: string | null;
+  subject: string;
+  status: string;
+  createdBy: SupportPerson;
+  lastMessageAt: string | null;
+  createdAt: string;
+  preview: string;
+};
+
+export type PlatformInquiryMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  sender: SupportPerson;
+};
+
+export type PlatformInquiryDetail = PlatformInquirySummary & {
+  updatedAt: string;
+  messages: PlatformInquiryMessage[];
+};
+
+export type BugReportSummary = {
+  id: string;
+  title: string;
+  status: string;
+  hasImage: boolean;
+  organizationId: string | null;
+  organizationName: string | null;
+  reporter: SupportPerson;
+  createdAt: string;
+  updatedAt: string;
+  lastResponse: {
+    body: string;
+    statusAfter: string | null;
+    createdAt: string;
+  } | null;
+};
+
+export type BugReportResponse = {
+  id: string;
+  body: string;
+  statusAfter: string | null;
+  createdAt: string;
+  actor: SupportPerson;
+};
+
+export type BugReportDetail = Omit<BugReportSummary, "lastResponse"> & {
+  description: string;
+  responses: BugReportResponse[];
+};
+
+export type BillingFeatureKey =
+  | "holder_wallet"
+  | "holder_verification"
+  | "issue_certificates"
+  | "certificate_templates"
+  | "bulk_issue"
+  | "org_verification"
+  | "messaging"
+  | "reports_export"
+  | "trust_reports"
+  | "custom_branding"
+  | "chain_publish"
+  | "analytics"
+  | "developer_api";
+
+export type BillingMetricKey =
+  | "holder_verifications"
+  | "org_verifications"
+  | "certificate_issues"
+  | "bulk_issues";
+
+export type CommercialPlanKey = "free" | "premium_pro" | "max_pro";
+
+export type BillingQuotaSnapshot = {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+};
+
+export type BillingEntitlement = {
+  ownerType: "user" | "organization";
+  ownerId: string;
+  accountId: string;
+  planKey: CommercialPlanKey;
+  effectivePlanKey: CommercialPlanKey;
+  status: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  features: Record<BillingFeatureKey, boolean>;
+  quotas: Record<BillingMetricKey, BillingQuotaSnapshot>;
+  mockPayments: boolean;
+  razorpayKeyId: string | null;
+};
+
+export type BillingPlanView = {
+  key: CommercialPlanKey;
+  name: string;
+  audience: "holder" | "organization";
+  tagline: string;
+  monthlyAmountPaise: number;
+  currency: string;
+  rank: number;
+  features: Record<BillingFeatureKey, boolean>;
+  quotas: Record<BillingMetricKey, number | null>;
+  highlights: string[];
+  priceLabel: string;
+};
+
+export type BillingOrderView = {
+  id: string;
+  planKey: string;
+  amountPaise: number;
+  currency: string;
+  status: string;
+  razorpayOrderId: string | null;
+  razorpayPaymentId: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  ownerType: string;
+  organizationId: string | null;
+};
+
+export type BillingOverview = {
+  plans: BillingPlanView[];
+  mockPayments: boolean;
+  razorpayKeyId: string | null;
+  user: BillingEntitlement;
+  organization: BillingEntitlement | null;
+  orders: BillingOrderView[];
+};
+
+export type BillingCheckout = {
+  orderId: string;
+  razorpayOrderId: string;
+  amountPaise: number;
+  currency: string;
+  planKey: CommercialPlanKey;
+  planName: string;
+  keyId: string | null;
+  mock: boolean;
+  name: string;
+  description: string;
 };

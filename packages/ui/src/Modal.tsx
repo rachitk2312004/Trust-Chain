@@ -15,11 +15,16 @@ export type ModalProps = {
 export function Modal({ open, title, children, onClose, footer, className }: ModalProps) {
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -37,19 +42,21 @@ export function Modal({ open, title, children, onClose, footer, className }: Mod
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-lg border border-[var(--tc-border)] bg-[var(--tc-surface)] shadow-lg",
+          "relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-[var(--tc-border)] bg-[var(--tc-surface)] shadow-lg",
           className,
         )}
       >
-        <div className="flex items-center justify-between border-b border-[var(--tc-border)] px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--tc-border)] px-5 py-3">
           <h2 className="text-base font-semibold text-[var(--tc-fg)]">{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
             Close
           </Button>
         </div>
-        <div className="px-5 py-4 text-sm text-[var(--tc-fg)]">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm text-[var(--tc-fg)]">
+          {children}
+        </div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-[var(--tc-border)] px-5 py-3">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--tc-border)] bg-[var(--tc-surface)] px-5 py-3">
             {footer}
           </div>
         ) : null}

@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { Mail, UserCheck, UserPlus, Users } from "lucide-react";
+import { UserCheck, UserPlus, Users } from "lucide-react";
 import { Badge, Card, CardDescription, CardHeader, CardTitle, FormError } from "@trustchain/ui";
 import { useOrganizationOverview } from "../features/organizations/hooks";
 import { usePermissions } from "../hooks/usePermissions";
@@ -94,18 +94,6 @@ export function OrganizationDetailPage() {
                   </span>
                 </Link>
               ) : null}
-              {can("org.invite") ? (
-                <Link
-                  to="invitations"
-                  className="flex items-center gap-3 rounded-xl border border-tc-border px-4 py-3 text-sm transition hover:border-emerald-500/30 hover:bg-emerald-500/5"
-                >
-                  <Mail className="h-4 w-4 text-emerald-500" />
-                  <span>
-                    <span className="block font-medium text-tc-fg">Send invitations</span>
-                    <span className="text-tc-muted">Invite by email — auto-enrolls on accept</span>
-                  </span>
-                </Link>
-              ) : null}
             </div>
           </CardHeader>
         </Card>
@@ -123,8 +111,8 @@ export function OrganizationDetailPage() {
               )}
             </CardDescription>
             <p className="mt-4 text-sm text-tc-muted">
-              Invitations automatically create active membership when the recipient accepts. Join
-              requests require your approval in the Join requests tab.
+              People request access from Join org. You approve or reject them in Join requests and
+              choose their role at approval time.
             </p>
           </CardHeader>
         </Card>

@@ -89,6 +89,12 @@ export function HomePage() {
             {resolved === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
           <Link
+            to="/pricing"
+            className="hidden rounded-xl px-3 py-2 text-sm font-medium text-tc-muted hover:text-tc-fg sm:inline"
+          >
+            Pricing
+          </Link>
+          <Link
             to="/login"
             className="hidden rounded-xl px-3 py-2 text-sm font-medium text-tc-muted hover:text-tc-fg sm:inline"
           >
@@ -296,6 +302,9 @@ export function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-tc-muted">
           <p>© {new Date().getFullYear()} TrustChain</p>
           <div className="flex gap-4">
+            <Link to="/pricing" className="hover:text-tc-fg">
+              Pricing
+            </Link>
             <Link to="/verification/public" className="hover:text-tc-fg">
               Public verify
             </Link>

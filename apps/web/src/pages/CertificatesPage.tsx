@@ -15,6 +15,7 @@ import {
   BulkCertificateDialog,
   CertificateFilters,
   CreateCertificateDialog,
+  RevokeCertificateDialog,
   useCertificates,
 } from "../features/certificates";
 import type { CertificateFilterState } from "../features/certificates/CertificateFilters";
@@ -35,6 +36,7 @@ export function CertificatesPage() {
   const [filters, setFilters] = useState<CertificateFilterState>({ search: "", status: "" });
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<{ id: string; publicId: string } | null>(null);
   const list = useCertificates(organizationId, {
     status: filters.status || undefined,
     limit: 100,
@@ -98,7 +100,7 @@ export function CertificatesPage() {
     <AppShellLayout>
       <PageHeader
         title="Certificates"
-        description="Issue printable certificates, verify integrity, and manage templates."
+        description="Issue printable certificates, verify integrity, and manage templates. Employees assigned to a branch only see certificates issued in that branch or organization-wide."
         actions={
           <div className="flex flex-wrap gap-2">
             <Can capability="certificates.issue" organizationId={organizationId}>
@@ -118,6 +120,9 @@ export function CertificatesPage() {
                 Analytics
               </Button>
             </Can>
+            <Button variant="ghost" onClick={() => navigate("/verification/bulk?category=certificates")}>
+              Bulk verify
+            </Button>
           </div>
         }
       />
@@ -162,6 +167,7 @@ export function CertificatesPage() {
               <TH>Recipient</TH>
               <TH>Status</TH>
               <TH>Issued</TH>
+              <TH className="text-right">Actions</TH>
             </>
           }
           empty={<FormHint>No certificates yet. Issue one to get started.</FormHint>}
@@ -181,6 +187,24 @@ export function CertificatesPage() {
                 <Badge tone={certificateStatusTone(cert.status)}>{cert.status}</Badge>
               </TD>
               <TD>{cert.issuedAt ? new Date(cert.issuedAt).toLocaleString() : "—"}</TD>
+              <TD className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/certificates/${cert.id}`)}>
+                    View
+                  </Button>
+                  <Can capability="certificates.manage" organizationId={organizationId}>
+                    {cert.status === "issued" ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => setRevokeTarget({ id: cert.id, publicId: cert.publicId })}
+                      >
+                        Revoke
+                      </Button>
+                    ) : null}
+                  </Can>
+                </div>
+              </TD>
             </>
           )}
         />
@@ -191,7 +215,6 @@ export function CertificatesPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={(id) => {
-          feedback.success("Certificate issued");
           navigate(`/certificates/${id}`);
         }}
       />
@@ -199,6 +222,14 @@ export function CertificatesPage() {
         organizationId={organizationId}
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
+      />
+      <RevokeCertificateDialog
+        organizationId={organizationId}
+        certificateId={revokeTarget?.id ?? ""}
+        publicId={revokeTarget?.publicId ?? ""}
+        open={Boolean(revokeTarget)}
+        onClose={() => setRevokeTarget(null)}
+        onRevoked={() => feedback.success("Certificate revoked")}
       />
     </AppShellLayout>
   );

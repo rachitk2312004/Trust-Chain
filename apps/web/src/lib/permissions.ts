@@ -72,17 +72,41 @@ export function isOrgAdmin(roles: RoleBinding[], organizationId: string | null |
   return rolesForOrg(roles, organizationId).some((r) => ORG_ADMIN_KEYS.has(r.roleKey));
 }
 
+export function isOrgAdminAnywhere(roles: RoleBinding[]): boolean {
+  return roles.some((r) => r.roleKey === RoleKeys.orgAdmin && Boolean(r.organizationId));
+}
+
+/** Super admin <-> org admin query threads. Super admins use the admin inbox. */
+export function canUsePlatformQueries(roles: RoleBinding[]): boolean {
+  return isOrgAdminAnywhere(roles) && !isSuperAdmin(roles);
+}
+
+/** Every signed-in role except super admin can file a bug report. */
+export function canReportBugs(roles: RoleBinding[]): boolean {
+  return !isSuperAdmin(roles);
+}
+
+export function hasStaffOrganizationRole(roles: RoleBinding[]): boolean {
+  return roles.some(
+    (r) => MEMBER_KEYS.has(r.roleKey) && Boolean(r.organizationId),
+  );
+}
+
 export function isOrgMember(roles: RoleBinding[], organizationId: string | null | undefined): boolean {
+  if (!organizationId) {
+    return hasStaffOrganizationRole(roles);
+  }
   return rolesForOrg(roles, organizationId).some((r) => MEMBER_KEYS.has(r.roleKey));
 }
 
-/** Holder wallet / public verify UX — hidden for platform and org administrators. */
+/** Holder wallet / public verify UX — hidden for platform, org admins, and employees. */
 export function showHolderFeatures(
   roles: RoleBinding[],
   organizationId?: string | null,
 ): boolean {
   if (isSuperAdmin(roles)) return false;
   if (isOrgAdmin(roles, organizationId)) return false;
+  if (hasStaffOrganizationRole(roles)) return false;
   return true;
 }
 

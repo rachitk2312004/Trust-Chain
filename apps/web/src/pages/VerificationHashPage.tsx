@@ -76,12 +76,20 @@ export function VerificationHashPage() {
   return (
     <AppShellLayout>
       <PageHeader
-        title="Hash & identifier verification"
-        description="SHA-256 hash lookup and identifier verification via public or organization APIs."
+        title="Hash & identifier"
+        description="Paste one SHA-256 hash, verification code, document code, or transaction hash. For a CSV of many hashes or CERT IDs, use bulk check."
         actions={
-          <Link to="/verification" className="text-sm text-[var(--tc-accent)] hover:underline">
-            Dashboard
-          </Link>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link to="/verification/bulk?category=hashes" className="text-[var(--tc-accent)] hover:underline">
+              Hash CSV
+            </Link>
+            <Link to="/verification/bulk?category=identifiers" className="text-[var(--tc-accent)] hover:underline">
+              CERT ID CSV
+            </Link>
+            <Link to="/verification" className="text-[var(--tc-accent)] hover:underline">
+              Dashboard
+            </Link>
+          </div>
         }
       />
 

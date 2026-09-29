@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Button,
   Field,
@@ -14,7 +14,7 @@ import {
   getCertificateErrorMessage,
 } from "../../lib/certificateErrors";
 import type { CertificateLayout, CertificateTemplate } from "../../types/api";
-import { useUpdateTemplate } from "./hooks";
+import { useTemplateLayoutPreview, useUpdateTemplate } from "./hooks";
 
 function asLayout(value: CertificateTemplate["layout"]): CertificateLayout {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -92,6 +92,43 @@ export function CertificateTemplateEditor({
     update.reset();
   }, [template]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const draftLayout = useMemo(
+    () => ({
+      ...layout,
+      orientation,
+      pageSize,
+      titleTemplate: titleTemplate.trim(),
+      subtitleTemplate: subtitleTemplate.trim(),
+      bodyTemplate: bodyTemplate.trim(),
+      footerTemplate: footerTemplate.trim(),
+      accentColor,
+      backgroundColor,
+      showQr,
+      showLogo,
+      showSignature,
+    }),
+    [
+      layout,
+      orientation,
+      pageSize,
+      titleTemplate,
+      subtitleTemplate,
+      bodyTemplate,
+      footerTemplate,
+      accentColor,
+      backgroundColor,
+      showQr,
+      showLogo,
+      showSignature,
+    ],
+  );
+  const [previewLayout, setPreviewLayout] = useState(draftLayout);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPreviewLayout(draftLayout), 450);
+    return () => window.clearTimeout(timer);
+  }, [draftLayout]);
+  const preview = useTemplateLayoutPreview(organizationId, previewLayout);
+
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     update.mutate(
@@ -120,7 +157,8 @@ export function CertificateTemplateEditor({
   }
 
   return (
-    <form className="flex flex-col gap-3" onSubmit={onSubmit}>
+    <form className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]" onSubmit={onSubmit}>
+      <div className="flex flex-col gap-3">
       <FormHint>
         Placeholders: {"{{certificate_id}}"}, {"{{recipient_name}}"}, {"{{organization_name}}"},{" "}
         {"{{issue_date}}"}, {"{{expiration_date}}"}, {"{{verification_url}}"}
@@ -261,6 +299,31 @@ export function CertificateTemplateEditor({
         </Button>
       </div>
       <FormError>{update.error ? getCertificateErrorMessage(update.error) : null}</FormError>
+      </div>
+      <aside className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-[var(--tc-fg)]">Live preview</p>
+        <div className="flex min-h-64 items-center justify-center rounded border border-[var(--tc-border)] bg-[var(--tc-surface-2)] p-3">
+          {preview.isFetching ? (
+            <span className="text-sm text-[var(--tc-muted)]">Rendering preview…</span>
+          ) : preview.data?.url ? (
+            <img
+              src={preview.data.url}
+              alt="Certificate template preview"
+              className="max-h-[28rem] max-w-full object-contain"
+            />
+          ) : (
+            <span className="text-sm text-[var(--tc-muted)]">Preview unavailable</span>
+          )}
+        </div>
+        {preview.data?.warnings?.length ? (
+          <FormHint>Warnings: {preview.data.warnings.join("; ")}</FormHint>
+        ) : null}
+        {preview.isError ? (
+          <FormError>{getCertificateErrorMessage(preview.error)}</FormError>
+        ) : (
+          <FormHint>Uses sample recipient data. Save to apply this layout to new certificates.</FormHint>
+        )}
+      </aside>
     </form>
   );
 }

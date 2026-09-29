@@ -57,7 +57,14 @@ export function OrganizationBranchesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-tc-fg">Branches</h2>
+          <p className="mt-1 max-w-2xl text-sm text-tc-muted">
+            A branch is a physical or regional site of the organization (city, campus, office).
+            Members can be assigned to one branch so work stays scoped to that location.
+          </p>
+        </div>
         <Can capability="org.branches.manage" organizationId={organizationId}>
           <Button onClick={() => setOpen(true)}>Add branch</Button>
         </Can>

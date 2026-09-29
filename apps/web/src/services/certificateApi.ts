@@ -7,8 +7,10 @@ import type {
   CertificateExportFormat,
   CertificateHistoryResponse,
   CertificateListResponse,
+  CertificatePublishResponse,
   CertificateSummary,
   CertificateTemplate,
+  CertificateRecipientLookup,
   CertificateVerifyResponse,
   CreateCertificateTemplateInput,
   IssueCertificateInput,
@@ -45,8 +47,34 @@ export const certificateApi = {
     });
   },
 
+  lookupRecipients(organizationId: string, q: string) {
+    return apiClient.get<CertificateRecipientLookup>("/certificates/recipients", {
+      params: { organizationId, q },
+    });
+  },
+
   issue(body: IssueCertificateInput) {
-    return apiClient.post<{ certificate: CertificateSummary }>("/certificates", body);
+    return apiClient.post<{ certificate: CertificateSummary; chain?: import("../types/api").CertificateChainSummary }>(
+      "/certificates",
+      body,
+      { timeout: 60_000 },
+    );
+  },
+
+  publish(
+    certificateId: string,
+    body: { organizationId: string; publishToChain?: boolean },
+  ) {
+    return apiClient.post<CertificatePublishResponse>(
+      `/certificates/${certificateId}/publish`,
+      body,
+    );
+  },
+
+  chain(organizationId: string, certificateId: string) {
+    return apiClient.get<CertificatePublishResponse>(`/certificates/${certificateId}/chain`, {
+      params: { organizationId },
+    });
   },
 
   revoke(certificateId: string, body: { organizationId: string; reason?: string }) {
@@ -100,6 +128,21 @@ export const certificateApi = {
       body,
       { params: { organizationId } },
     );
+  },
+
+  async previewTemplate(body: {
+    organizationId: string;
+    templateId?: string | null;
+    layout?: Record<string, unknown>;
+    title?: string;
+    recipientName?: string;
+  }) {
+    const response = await apiClient.post<ArrayBuffer>("/certificates/templates/preview", body, {
+      responseType: "arraybuffer",
+    });
+    const warnings = warningList(response.headers["x-certificate-warnings"] as string | undefined);
+    const blob = new Blob([response.data], { type: "image/png" });
+    return { blob, warnings, fileName: "template-preview.png" };
   },
 
   async download(
@@ -185,6 +228,13 @@ export const certificateApi = {
       rendering: import("../types/api").CertificateAnalyticsSnapshot["rendering"];
       process: import("../types/api").CertificateAnalyticsSnapshot["process"];
     }>("/certificates/analytics/downloads", { params: { organizationId } });
+  },
+
+  trustReport(organizationId: string) {
+    return apiClient.get<{ report: import("../types/api").CertificateTrustReport }>(
+      "/certificates/reports/trust",
+      { params: { organizationId } },
+    );
   },
 
   analyticsVerifications(organizationId: string) {

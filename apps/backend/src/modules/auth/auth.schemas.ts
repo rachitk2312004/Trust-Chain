@@ -33,6 +33,11 @@ export const emailTokenBodySchema = z.object({
   token: z.string().min(1),
 });
 
+export const verifyEmailOtpBodySchema = z.object({
+  email: z.string().email(),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+});
+
 export const resendVerificationBodySchema = z.object({
   email: z.string().email(),
 });

@@ -82,6 +82,16 @@ export function SettingsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Plan and billing</CardTitle>
+            <CardDescription>Free holders get 10 verifications per month. Upgrade for issuance and every feature.</CardDescription>
+          </CardHeader>
+          <Link to="/billing" className="text-sm text-[var(--tc-accent)] hover:underline">
+            Manage plan
+          </Link>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Security</CardTitle>
             <CardDescription>Manage signed-in devices and sessions</CardDescription>
           </CardHeader>

@@ -16,6 +16,7 @@ export function PublicCertificateVerifyPage() {
 
   const cert = verify.data?.certificate;
   const result = verify.data?.verification;
+  const chain = verify.data?.chain;
 
   return (
     <div className="flex min-h-screen flex-col items-center px-4 py-10">
@@ -62,6 +63,11 @@ export function PublicCertificateVerifyPage() {
                 <Badge tone={result.valid ? "success" : "danger"}>
                   {result.valid ? "Verified" : "Not verified"}
                 </Badge>
+                {chain?.live || chain?.anchored ? (
+                  <Badge tone={chain.live ? "success" : "warning"}>
+                    {chain.live ? "On-chain" : "Anchored (index)"}
+                  </Badge>
+                ) : null}
               </div>
             </Card>
 
@@ -75,7 +81,17 @@ export function PublicCertificateVerifyPage() {
                 <li>Not revoked: {result.checks.notRevoked ? "pass" : "fail"}</li>
                 <li>Not expired: {result.checks.notExpired ? "pass" : "fail"}</li>
                 <li>Document OK: {result.checks.documentOk ? "pass" : "fail"}</li>
+                <li>PDF artifact: {result.checks.artifact ? "pass" : "fail"}</li>
+                <li>Blockchain: {result.checks.chain ? "pass" : "fail"}</li>
+                {chain?.txHash ? (
+                  <li className="font-mono text-xs text-[var(--tc-muted)]">Tx {chain.txHash}</li>
+                ) : null}
               </ul>
+              {cert.integrityHash ? (
+                <p className="px-5 pb-3 font-mono text-xs text-[var(--tc-muted)]">
+                  Hash {cert.integrityHash}
+                </p>
+              ) : null}
               {result.reasons.length ? (
                 <ul className="list-inside list-disc px-5 pb-5 text-sm text-[var(--tc-muted)]">
                   {result.reasons.map((reason) => (

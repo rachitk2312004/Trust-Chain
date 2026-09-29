@@ -234,7 +234,8 @@ export function useOrganizationJoinRequests(organizationId: string | undefined, 
       return data.requests;
     },
     enabled: enabled && Boolean(accessToken) && Boolean(organizationId),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: enabled ? 30_000 : false,
   });
 }
 
@@ -245,6 +246,8 @@ export function useApproveJoinRequest(organizationId: string) {
       requestId: string;
       roleKey?: "org_admin" | "employee" | "public_user";
       reviewNote?: string;
+      branchId?: string | null;
+      departmentId?: string | null;
     }) => {
       const { requestId, ...body } = input;
       const { data } = await organizationApi.approveJoinRequest(organizationId, requestId, body);

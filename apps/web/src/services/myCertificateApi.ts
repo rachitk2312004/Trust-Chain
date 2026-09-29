@@ -24,7 +24,7 @@ export const myCertificateApi = {
     return apiClient.get<{ certificate: CertificateSummary }>(`/me/certificates/${certificateId}`);
   },
 
-  async download(certificateId: string, format: CertificateExportFormat) {
+  async download(certificateId: string, format: CertificateExportFormat, publicIdFallback = certificateId) {
     const response = await apiClient.get<ArrayBuffer>(`/me/certificates/${certificateId}/${format}`, {
       responseType: "arraybuffer",
     });
@@ -37,7 +37,7 @@ export const myCertificateApi = {
     const warnings = warningList(response.headers["x-certificate-warnings"] as string | undefined);
     const fileName = contentDispositionFileName(
       response.headers["content-disposition"] as string | undefined,
-      `${certificateId}.${format}`,
+      `${publicIdFallback}.${format}`,
     );
     return {
       blob: new Blob([response.data], { type: contentType }),

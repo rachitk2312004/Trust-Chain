@@ -3,7 +3,7 @@
   "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   "chainId": 31337,
   "network": "hardhat",
-  "deployedAt": "2026-08-01T20:07:30.325Z",
+  "deployedAt": "2026-09-29T07:09:04.244Z",
   "abi": [
     {
       "inputs": [],

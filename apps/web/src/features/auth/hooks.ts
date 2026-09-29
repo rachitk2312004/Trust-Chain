@@ -29,7 +29,6 @@ export function useLogin() {
 }
 
 export function useRegister() {
-  const navigate = useNavigate();
   return useMutation({
     mutationFn: async (input: {
       email: string;
@@ -40,15 +39,23 @@ export function useRegister() {
       const { data } = await authApi.register(input);
       return data;
     },
-    onSuccess: (_data, variables) => {
-      navigate("/login", {
-        replace: true,
-        state: {
-          registered: true,
-          email: variables.email,
-          firstName: variables.firstName,
-        },
-      });
+  });
+}
+
+export function useVerifyEmailOtp() {
+  return useMutation({
+    mutationFn: async (input: { email: string; otp: string }) => {
+      const { data } = await authApi.verifyEmailOtp(input);
+      return data;
+    },
+  });
+}
+
+export function useResendEmailVerification() {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const { data } = await authApi.resendVerification(email);
+      return data;
     },
   });
 }

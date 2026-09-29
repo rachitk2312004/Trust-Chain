@@ -25,6 +25,7 @@ export async function createUser(input: {
   passwordHash: string;
   firstName?: string;
   lastName?: string;
+  firebaseUid?: string | null;
 }): Promise<UserRow> {
   const user = await prisma.user.create({
     data: {
@@ -32,6 +33,29 @@ export async function createUser(input: {
       passwordHash: input.passwordHash,
       firstName: input.firstName ?? null,
       lastName: input.lastName ?? null,
+      status: "pending",
+      firebaseUid: input.firebaseUid || null,
+    },
+  });
+  return toUserRow(user);
+}
+
+export async function updatePendingRegistration(
+  userId: string,
+  input: {
+    passwordHash: string;
+    firstName?: string;
+    lastName?: string;
+    firebaseUid?: string | null;
+  },
+): Promise<UserRow> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: input.passwordHash,
+      firstName: input.firstName ?? undefined,
+      lastName: input.lastName ?? undefined,
+      firebaseUid: input.firebaseUid || undefined,
       status: "pending",
     },
   });

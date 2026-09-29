@@ -3,15 +3,18 @@ import { NavLink } from "react-router-dom";
 import {
   Activity,
   Award,
+  Bug,
   Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Code2,
+  CreditCard,
   FileText,
   Gavel,
   Globe2,
   LayoutDashboard,
+  LifeBuoy,
   Link2,
   MapPinned,
   QrCode,
@@ -25,13 +28,17 @@ import {
   Bell,
   Users,
   Wallet,
+  MessageSquare,
+  BarChart3,
   Workflow,
   Server,
   Layers,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { prefetchRoute } from "../lib/routePrefetch";
 import { usePermissions } from "../hooks/usePermissions";
+import { useSidebarBadges } from "../hooks/useSidebarBadges";
 import { isOrgAdminOnly } from "../lib/homeRoute";
 import { getWorkspacePersona, isCertificateHolderOnly } from "../lib/workspacePersona";
 import { prefetchHolderRoutes } from "../lib/routePrefetch";
@@ -42,6 +49,7 @@ type NavItem = {
   label: string;
   icon: typeof LayoutDashboard;
   end?: boolean;
+  badge?: number;
 };
 
 type NavGroup = {
@@ -56,6 +64,8 @@ export function AppSidebar() {
     isSuperAdmin,
     isPlatformAdminOnly: platformAdminOnly,
     isOrgAdmin,
+    canUsePlatformQueries,
+    canReportBugs,
     isOrgMember,
     showHolderFeatures: holderNav,
     roles,
@@ -67,6 +77,7 @@ export function AppSidebar() {
     () => getWorkspacePersona(roles, organizationId),
     [roles, organizationId],
   );
+  const badges = useSidebarBadges(organizationId, orgAdminOnly);
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     workspace: true,
@@ -88,6 +99,7 @@ export function AppSidebar() {
           label: "Account",
           items: [
             { to: "/sessions", label: "Sessions", icon: Server },
+            { to: "/billing", label: "Billing", icon: CreditCard },
             { to: "/settings", label: "Settings", icon: Settings },
           ],
         },
@@ -103,11 +115,23 @@ export function AppSidebar() {
           items: [
             { to: orgBase, label: "Overview", icon: LayoutDashboard, end: true },
             { to: `${orgBase}/members`, label: "Members", icon: Users },
-            { to: `${orgBase}/invitations`, label: "Invitations", icon: Building2 },
+            {
+              to: `${orgBase}/join-requests`,
+              label: "Join requests",
+              icon: UserPlus,
+              badge: badges.joinRequests,
+            },
+            { to: `${orgBase}/branches`, label: "Branches", icon: MapPinned },
+            { to: `${orgBase}/departments`, label: "Departments", icon: Layers },
+            { to: `${orgBase}/settings`, label: "Settings", icon: Settings },
             { to: "/certificates", label: "Certificates", icon: Award },
             { to: "/verification", label: "Verification", icon: ShieldCheck },
+            { to: "/certificates/reports", label: "Trust reports", icon: BarChart3 },
+            { to: "/messages", label: "Messages", icon: MessageSquare, badge: badges.messages },
+            { to: "/support", label: "Platform queries", icon: LifeBuoy, badge: badges.inquiries },
+            { to: "/bugs", label: "Report a bug", icon: Bug, badge: badges.bugs },
             { to: "/audit", label: "Audit", icon: Activity },
-            { to: "/notifications", label: "Notifications", icon: Bell },
+            { to: "/notifications", label: "Notifications", icon: Bell, badge: badges.notifications },
           ],
         },
         {
@@ -115,6 +139,33 @@ export function AppSidebar() {
           label: "Account",
           items: [
             { to: "/sessions", label: "Sessions", icon: Server },
+            { to: "/billing", label: "Billing", icon: CreditCard },
+            { to: "/settings", label: "Settings", icon: Settings },
+          ],
+        },
+      ];
+    }
+
+    if (persona.kind === "employee") {
+      return [
+        {
+          id: "employee",
+          label: "Employee console",
+          items: [
+            { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
+            { to: "/certificates", label: "Issue certificates", icon: Award },
+            { to: "/verification", label: "Verify certificates", icon: ShieldCheck },
+            { to: "/messages", label: "Messages", icon: MessageSquare, badge: badges.messages },
+            { to: "/bugs", label: "Report a bug", icon: Bug, badge: badges.bugs },
+            { to: "/notifications", label: "Notifications", icon: Bell, badge: badges.notifications },
+          ],
+        },
+        {
+          id: "account",
+          label: "Account",
+          items: [
+            { to: "/sessions", label: "Sessions", icon: Server },
+            { to: "/billing", label: "Billing", icon: CreditCard },
             { to: "/settings", label: "Settings", icon: Settings },
           ],
         },
@@ -140,7 +191,8 @@ export function AppSidebar() {
           label: "Workspace",
           items: [
             { to: "/organizations", label: "Organizations", icon: Building2 },
-            { to: "/notifications", label: "Notifications", icon: Bell },
+            { to: "/bugs", label: "Report a bug", icon: Bug, badge: badges.bugs },
+            { to: "/notifications", label: "Notifications", icon: Bell, badge: badges.notifications },
           ],
         },
         {
@@ -148,6 +200,7 @@ export function AppSidebar() {
           label: "Account",
           items: [
             { to: "/sessions", label: "Sessions", icon: Server },
+            { to: "/billing", label: "Billing", icon: CreditCard },
             { to: "/settings", label: "Settings", icon: Settings },
           ],
         },
@@ -162,7 +215,11 @@ export function AppSidebar() {
         { to: "/organizations", label: "Organizations", icon: Building2 },
         { to: "/documents", label: "Documents", icon: FileText },
         { to: "/search", label: "Search", icon: Search },
-        { to: "/notifications", label: "Notifications", icon: Bell },
+        { to: "/notifications", label: "Notifications", icon: Bell, badge: badges.notifications },
+        ...(canUsePlatformQueries
+          ? [{ to: "/support", label: "Platform queries", icon: LifeBuoy, badge: badges.inquiries }]
+          : []),
+        ...(canReportBugs ? [{ to: "/bugs", label: "Report a bug", icon: Bug, badge: badges.bugs }] : []),
       ],
     };
 
@@ -229,7 +286,7 @@ export function AppSidebar() {
     }
 
     return [workspace, trust, ...(enterprise.items.length ? [enterprise] : []), account];
-  }, [holderNav, holderOnly, isOpsAdmin, isOrgAdmin, isOrgMember, isSuperAdmin, orgAdminOnly, organizationId, platformAdminOnly]);
+  }, [badges, canReportBugs, canUsePlatformQueries, holderNav, holderOnly, isOpsAdmin, isOrgAdmin, isOrgMember, isSuperAdmin, orgAdminOnly, organizationId, persona.kind, platformAdminOnly]);
 
   function toggleGroup(id: string) {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -287,18 +344,20 @@ export function AppSidebar() {
                 <ul className="space-y-0.5">
                   {group.items.map((item) => {
                     const Icon = item.icon;
+                    const count = item.badge ?? 0;
+                    const badgeLabel = count > 99 ? "99+" : String(count);
                     return (
                       <li key={item.to}>
                         <NavLink
                           to={item.to}
                           end={item.end}
-                          title={item.label}
+                          title={count > 0 ? `${item.label}, ${count}` : item.label}
                           onMouseEnter={() => prefetchRoute(item.to)}
                           onMouseDown={() => prefetchRoute(item.to)}
                           onFocus={() => prefetchRoute(item.to)}
                           className={({ isActive }) =>
                             cn(
-                              "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
+                              "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
                               collapsed && "justify-center px-2",
                               isActive
                                 ? "bg-[var(--tc-sidebar-active)] text-emerald-300"
@@ -308,9 +367,20 @@ export function AppSidebar() {
                         >
                           {({ isActive }) => (
                             <>
-                              <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-emerald-400")} />
+                              <span className="relative shrink-0">
+                                <Icon className={cn("h-4 w-4", isActive && "text-emerald-400")} />
+                                {collapsed && count > 0 ? (
+                                  <span className="absolute -right-2 -top-2 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-4 text-white">
+                                    {badgeLabel}
+                                  </span>
+                                ) : null}
+                              </span>
                               {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                              {!collapsed && isActive ? (
+                              {!collapsed && count > 0 ? (
+                                <span className="ml-auto inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold leading-4 text-white">
+                                  {badgeLabel}
+                                </span>
+                              ) : !collapsed && isActive ? (
                                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400" />
                               ) : null}
                             </>

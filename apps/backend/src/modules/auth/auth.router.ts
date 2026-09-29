@@ -16,6 +16,7 @@ import {
   resendVerificationBodySchema,
   resetPasswordBodySchema,
   emailTokenBodySchema,
+  verifyEmailOtpBodySchema,
 } from "./auth.schemas.js";
 import {
   loginWithPassword,
@@ -24,6 +25,7 @@ import {
   resendEmailVerification,
   resetPassword,
   verifyEmail,
+  verifyEmailOtp,
 } from "./auth.service.js";
 import { listDevicesForUser, revokeDevice } from "./devices.repository.js";
 import { listSessionsForUser } from "./sessions.repository.js";
@@ -49,8 +51,8 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     await authRateLimit(req, "register");
     const body = parseBody(registerBodySchema, req.body);
-    const user = await registerUser(body);
-    res.status(201).json({ user });
+    const result = await registerUser(body);
+    res.status(201).json(result);
   }),
 );
 
@@ -150,6 +152,16 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = parseBody(emailTokenBodySchema, req.body);
     const user = await verifyEmail(body.token);
+    res.status(200).json({ user });
+  }),
+);
+
+authRouter.post(
+  "/email/verify-otp",
+  asyncHandler(async (req, res) => {
+    await authRateLimit(req, "email_verify_otp");
+    const body = parseBody(verifyEmailOtpBodySchema, req.body);
+    const user = await verifyEmailOtp(body);
     res.status(200).json({ user });
   }),
 );

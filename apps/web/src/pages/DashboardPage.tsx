@@ -3,6 +3,7 @@ import {
   Award,
   Building2,
   FileText,
+  MessageSquare,
   ShieldCheck,
   Signature,
   ArrowUpRight,
@@ -22,6 +23,7 @@ import {
 import { useCurrentUser } from "../features/auth/hooks";
 import { useOrganizations } from "../features/organizations/hooks";
 import { AppShellLayout } from "../layouts/AppShellLayout";
+import { getWorkspacePersona } from "../lib/workspacePersona";
 import { useSessionStore } from "../lib/sessionStore";
 
 const spark = [
@@ -37,9 +39,13 @@ const spark = [
 export function DashboardPage() {
   const orgs = useOrganizations();
   const me = useCurrentUser();
+  const roles = useSessionStore((s) => s.roles);
   const activeId = useSessionStore((s) => s.activeOrganizationId);
   const active = (orgs.data ?? []).find((o) => o.id === activeId) ?? orgs.data?.[0];
   const membershipCount = me.data?.memberships.length ?? orgs.data?.length ?? 0;
+  const persona = getWorkspacePersona(roles, activeId);
+  const employee = persona.kind === "employee";
+  const placement = (me.data?.memberships ?? []).find((m) => m.organizationId === active?.id);
 
   const activity = (me.data?.memberships ?? []).slice(0, 5).map((m, i) => ({
     id: m.id,
@@ -52,26 +58,44 @@ export function DashboardPage() {
   return (
     <AppShellLayout>
       <PageHeader
-        title="Dashboard"
+        title={employee ? "Employee console" : "Dashboard"}
         description={
-          me.data?.user
-            ? `Signed in as ${me.data.user.email}`
-            : "Your TrustChain workspace overview."
+          employee
+            ? `Issue and verify for ${placement?.branchName ?? "the whole organization"}${
+                placement?.departmentName ? ` · ${placement.departmentName}` : ""
+              }.`
+            : me.data?.user
+              ? `Signed in as ${me.data.user.email}`
+              : "Your TrustChain workspace overview."
         }
         actions={
-          <Link
-            to="/certificates"
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Issue certificate
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/certificates"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Issue certificate
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+            {employee ? (
+              <Link
+                to="/verification"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--tc-border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--tc-hover)]"
+              >
+                Verify certificate
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
       <GradientCard
         title={active ? active.name : "Select an organization"}
-        description="Issue, verify, and govern trust artifacts from one operational surface."
+        description={
+          employee
+            ? "Staff tools for issuing credentials and checking authenticity."
+            : "Issue, verify, and govern trust artifacts from one operational surface."
+        }
         action={
           active ? (
             <Badge tone={active.status === "active" ? "success" : "warning"}>{active.status}</Badge>
@@ -79,35 +103,85 @@ export function DashboardPage() {
         }
       >
         <div className="flex flex-wrap gap-3">
-          <Link to={active ? `/organizations/${active.id}` : "/organizations"} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
-            Organization
-          </Link>
-          <Link to="/documents" className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
-            Documents
+          <Link to="/certificates" className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
+            Issue
           </Link>
           <Link to="/verification" className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
-            Verification
+            Verify
           </Link>
-          <Link to="/developer" className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
-            Developer
+          <Link to="/messages" className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15">
+            Messages
           </Link>
+          {!employee ? (
+            <Link
+              to={active ? `/organizations/${active.id}` : "/organizations"}
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15"
+            >
+              Organization
+            </Link>
+          ) : null}
         </div>
       </GradientCard>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Organizations" value={membershipCount} icon={<Building2 className="h-5 w-5" />} tone="info" />
-        <StatCard label="Active workspace" value={active ? 1 : 0} icon={<ShieldCheck className="h-5 w-5" />} tone="success" />
-        <StatCard label="Quick paths" value={4} hint="Docs · Verify · QR · Certs" icon={<FileText className="h-5 w-5" />} />
-        <StatCard label="Security" value="MFA" hint="Manage sessions & devices" icon={<Signature className="h-5 w-5" />} tone="warning" />
+        <StatCard
+          label="Organization"
+          value={active?.name ?? "—"}
+          icon={<Building2 className="h-5 w-5" />}
+          tone="info"
+        />
+        <StatCard
+          label="Issue desk"
+          value="Ready"
+          hint="Create credentials for holders"
+          icon={<Award className="h-5 w-5" />}
+          tone="success"
+        />
+        <StatCard
+          label="Verify desk"
+          value="Ready"
+          hint="Check PDFs and CERT ID lists"
+          icon={<ShieldCheck className="h-5 w-5" />}
+        />
+        <StatCard
+          label={employee ? "Team chat" : "Memberships"}
+          value={employee ? "Open" : membershipCount}
+          hint={employee ? "Direct and group messages" : "Joined workspaces"}
+          icon={employee ? <MessageSquare className="h-5 w-5" /> : <Signature className="h-5 w-5" />}
+          tone="warning"
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <MetricCard title="Trust activity" subtitle="Illustrative weekly volume" className="lg:col-span-2" value="Operational">
+        <MetricCard
+          title={employee ? "Staff activity" : "Trust activity"}
+          subtitle="Illustrative weekly volume"
+          className="lg:col-span-2"
+          value="Operational"
+        >
           <AreaTrendChart data={spark} />
         </MetricCard>
         <Card>
-          <SectionHeader title="Activity" description="Recent memberships" />
-          {activity.length ? (
+          <SectionHeader
+            title={employee ? "Quick actions" : "Activity"}
+            description={employee ? "Certificate workflows" : "Recent memberships"}
+          />
+          {employee ? (
+            <div className="space-y-2 text-sm">
+              <Link to="/certificates" className="flex items-center justify-between rounded-xl px-3 py-2 hover:bg-[var(--tc-hover)]">
+                Issue a certificate
+                <Award className="h-4 w-4 text-tc-muted" />
+              </Link>
+              <Link to="/verification" className="flex items-center justify-between rounded-xl px-3 py-2 hover:bg-[var(--tc-hover)]">
+                Verify a document
+                <ShieldCheck className="h-4 w-4 text-tc-muted" />
+              </Link>
+              <Link to="/messages" className="flex items-center justify-between rounded-xl px-3 py-2 hover:bg-[var(--tc-hover)]">
+                Message org admin
+                <MessageSquare className="h-4 w-4 text-tc-muted" />
+              </Link>
+            </div>
+          ) : activity.length ? (
             <ActivityFeed items={activity} />
           ) : (
             <EmptyState
@@ -118,7 +192,7 @@ export function DashboardPage() {
                   Open organizations
                 </Link>
               }
-              icon={<Award className="h-6 w-6" />}
+              icon={<FileText className="h-6 w-6" />}
             />
           )}
         </Card>

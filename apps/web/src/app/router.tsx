@@ -13,6 +13,7 @@ import { SettingsPage } from "../pages/SettingsPage";
 import { SessionsPage } from "../pages/SessionsPage";
 import { NotificationsPage } from "../pages/NotificationsPage";
 import { PublicVerificationPage } from "../pages/PublicVerificationPage";
+import { PricingPage } from "../pages/PricingPage";
 
 function lazyPage(loader: () => Promise<Record<string, ComponentType<unknown>>>, exportName: string) {
   return lazy(async () => {
@@ -34,10 +35,6 @@ const OrganizationMembersPage = lazyPage(() => import("../pages/OrganizationMemb
 const OrganizationJoinRequestsPage = lazyPage(
   () => import("../pages/OrganizationJoinRequestsPage"),
   "OrganizationJoinRequestsPage",
-);
-const OrganizationInvitationsPage = lazyPage(
-  () => import("../pages/OrganizationInvitationsPage"),
-  "OrganizationInvitationsPage",
 );
 const OrganizationDepartmentsPage = lazyPage(
   () => import("../pages/OrganizationDepartmentsPage"),
@@ -68,6 +65,7 @@ const PublicCertificateVerifyPage = lazyPage(
 const VerificationHistoryPage = lazyPage(() => import("../pages/VerificationHistoryPage"), "VerificationHistoryPage");
 const VerificationHashPage = lazyPage(() => import("../pages/VerificationHashPage"), "VerificationHashPage");
 const VerificationUploadPage = lazyPage(() => import("../pages/VerificationUploadPage"), "VerificationUploadPage");
+const VerificationBulkPage = lazyPage(() => import("../pages/VerificationBulkPage"), "VerificationBulkPage");
 const VerificationDetailPage = lazyPage(() => import("../pages/VerificationDetailPage"), "VerificationDetailPage");
 const QrPage = lazyPage(() => import("../pages/QrPage"), "QrPage");
 const QrTemplatesPage = lazyPage(() => import("../pages/QrTemplatesPage"), "QrTemplatesPage");
@@ -77,6 +75,12 @@ const QrDetailPage = lazyPage(() => import("../pages/QrDetailPage"), "QrDetailPa
 const CertificateTemplatesPage = lazyPage(() => import("../pages/CertificateTemplatesPage"), "CertificateTemplatesPage");
 const BulkUploadPage = lazyPage(() => import("../pages/BulkUploadPage"), "BulkUploadPage");
 const CertificateAnalyticsPage = lazyPage(() => import("../pages/CertificateAnalyticsPage"), "CertificateAnalyticsPage");
+const CertificateTrustReportPage = lazyPage(
+  () => import("../pages/CertificateTrustReportPage"),
+  "CertificateTrustReportPage",
+);
+const MessagesPage = lazyPage(() => import("../pages/MessagesPage"), "MessagesPage");
+const BillingPage = lazyPage(() => import("../pages/BillingPage"), "BillingPage");
 const SignatureAnalyticsPage = lazyPage(() => import("../pages/SignatureAnalyticsPage"), "SignatureAnalyticsPage");
 const SignatureHistoryPage = lazyPage(() => import("../pages/SignatureHistoryPage"), "SignatureHistoryPage");
 const DetachedSignaturePage = lazyPage(() => import("../pages/DetachedSignaturePage"), "DetachedSignaturePage");
@@ -101,6 +105,10 @@ const AdminConfigurationPage = lazyPage(() => import("../pages/AdminConfiguratio
 const AdminPoliciesPage = lazyPage(() => import("../pages/AdminPoliciesPage"), "AdminPoliciesPage");
 const AdminPolicyDetailPage = lazyPage(() => import("../pages/AdminPolicyDetailPage"), "AdminPolicyDetailPage");
 const AdminAnalyticsPage = lazyPage(() => import("../pages/AdminAnalyticsPage"), "AdminAnalyticsPage");
+const AdminInboxPage = lazyPage(() => import("../pages/AdminInboxPage"), "AdminInboxPage");
+const AdminBugsPage = lazyPage(() => import("../pages/AdminBugsPage"), "AdminBugsPage");
+const SupportInboxPage = lazyPage(() => import("../pages/SupportInboxPage"), "SupportInboxPage");
+const BugsPage = lazyPage(() => import("../pages/BugsPage"), "BugsPage");
 const DeveloperDashboardPage = lazyPage(() => import("../pages/DeveloperDashboardPage"), "DeveloperDashboardPage");
 const DeveloperKeysPage = lazyPage(() => import("../pages/DeveloperKeysPage"), "DeveloperKeysPage");
 const DeveloperWebhooksPage = lazyPage(() => import("../pages/DeveloperWebhooksPage"), "DeveloperWebhooksPage");
@@ -152,6 +160,7 @@ function AppRoutes() {
   return (
     <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/verification/public" element={<PublicVerificationPage />} />
             <Route
               path="/certificates/verify/:publicId"
@@ -224,6 +233,8 @@ function AppRoutes() {
                 }
               />
               <Route path="/admin/analytics" element={<LazyPublic><AdminAnalyticsPage /></LazyPublic>} />
+              <Route path="/admin/inbox" element={<LazyPublic><AdminInboxPage /></LazyPublic>} />
+              <Route path="/admin/bugs" element={<LazyPublic><AdminBugsPage /></LazyPublic>} />
               <Route
                 path="/platform"
                 element={
@@ -243,13 +254,14 @@ function AppRoutes() {
 
               <Route element={<AppShellRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/billing" element={<BillingPage />} />
               <Route path="/organizations" element={<OrganizationsPage />} />
               <Route path="/organizations/:organizationId" element={<OrganizationLayout />}>
                 <Route index element={<OrganizationDetailPage />} />
                 <Route path="settings" element={<OrganizationSettingsPage />} />
                 <Route path="members" element={<OrganizationMembersPage />} />
                 <Route path="join-requests" element={<OrganizationJoinRequestsPage />} />
-                <Route path="invitations" element={<OrganizationInvitationsPage />} />
+                <Route path="invitations" element={<Navigate to="join-requests" replace />} />
                 <Route path="departments" element={<OrganizationDepartmentsPage />} />
                 <Route path="branches" element={<OrganizationBranchesPage />} />
               </Route>
@@ -264,6 +276,7 @@ function AppRoutes() {
               <Route path="/verification/history" element={<VerificationHistoryPage />} />
               <Route path="/verification/hash" element={<VerificationHashPage />} />
               <Route path="/verification/upload" element={<VerificationUploadPage />} />
+              <Route path="/verification/bulk" element={<VerificationBulkPage />} />
               <Route path="/verification/:verificationId" element={<VerificationDetailPage />} />
               <Route path="/qr" element={<QrPage />} />
               <Route path="/qr/templates" element={<QrTemplatesPage />} />
@@ -276,6 +289,10 @@ function AppRoutes() {
               <Route path="/certificates/templates" element={<CertificateTemplatesPage />} />
               <Route path="/certificates/bulk" element={<BulkUploadPage />} />
               <Route path="/certificates/analytics" element={<CertificateAnalyticsPage />} />
+              <Route path="/certificates/reports" element={<CertificateTrustReportPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/support" element={<SupportInboxPage />} />
+              <Route path="/bugs" element={<BugsPage />} />
               <Route path="/certificates/:certificateId" element={<CertificateLayout />}>
                 <Route index element={<CertificateDetailPage />} />
                 <Route path="history" element={<CertificateHistoryPage />} />

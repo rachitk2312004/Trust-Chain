@@ -1,6 +1,14 @@
 /// <reference types="vitest" />
 import { describe, expect, it } from "vitest";
-import { can, isOrgAdmin, rolesForDisplay, showHolderFeatures } from "./permissions";
+import {
+  can,
+  canReportBugs,
+  canUsePlatformQueries,
+  isOrgAdmin,
+  isOrgMember,
+  rolesForDisplay,
+  showHolderFeatures,
+} from "./permissions";
 
 describe("permissions", () => {
   const admin = [
@@ -65,6 +73,22 @@ describe("permissions", () => {
     expect(rolesForDisplay(mixed).map((r) => r.roleKey)).toEqual(["super_admin"]);
   });
 
+  it("limits platform queries to org admins and bugs to everyone except super admin", () => {
+    const superAdmin = [
+      { roleKey: "super_admin", roleName: "Super Admin", organizationId: null },
+    ];
+    const holder = [
+      { roleKey: "public_user", roleName: "Public User", organizationId: "org-1" },
+    ];
+    expect(canUsePlatformQueries(admin)).toBe(true);
+    expect(canUsePlatformQueries(employee)).toBe(false);
+    expect(canUsePlatformQueries(superAdmin)).toBe(false);
+    expect(canReportBugs(admin)).toBe(true);
+    expect(canReportBugs(employee)).toBe(true);
+    expect(canReportBugs(holder)).toBe(true);
+    expect(canReportBugs(superAdmin)).toBe(false);
+  });
+
   it("hides holder navigation for org and platform admins", () => {
     expect(
       showHolderFeatures([
@@ -80,6 +104,17 @@ describe("permissions", () => {
       showHolderFeatures([
         { roleKey: "public_user", roleName: "Public User", organizationId: "org-1" },
       ], "org-1"),
+    ).toBe(true);
+    expect(
+      showHolderFeatures([
+        { roleKey: "employee", roleName: "Employee", organizationId: "org-1" },
+      ]),
+    ).toBe(false);
+    expect(
+      isOrgMember(
+        [{ roleKey: "employee", roleName: "Employee", organizationId: "org-1" }],
+        null,
+      ),
     ).toBe(true);
   });
 });

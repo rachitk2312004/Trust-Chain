@@ -14,6 +14,8 @@ import {
 } from "@trustchain/ui";
 import {
   useApproveJoinRequest,
+  useBranches,
+  useDepartments,
   useOrganizationJoinRequests,
   useRejectJoinRequest,
 } from "../features/organizations/hooks";
@@ -29,6 +31,10 @@ export function OrganizationJoinRequestsPage() {
   const feedback = useFeedback();
   const [query, setQuery] = useState("");
   const [roleByRequest, setRoleByRequest] = useState<Record<string, string>>({});
+  const [branchByRequest, setBranchByRequest] = useState<Record<string, string>>({});
+  const [departmentByRequest, setDepartmentByRequest] = useState<Record<string, string>>({});
+  const branches = useBranches(organizationId);
+  const departments = useDepartments(organizationId);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,8 +52,8 @@ export function OrganizationJoinRequestsPage() {
         <div>
           <h2 className="font-display text-lg font-semibold text-tc-fg">Join requests</h2>
           <p className="mt-1 max-w-2xl text-sm text-tc-muted">
-            People who applied to join without an invitation. Approve to enroll them immediately
-            with the role you choose.
+            People who applied to join this organization. Assign a role, branch, and department
+            when you approve so they only work inside that site.
           </p>
         </div>
         <Badge tone={filtered.length ? "warning" : "info"} className="gap-1">
@@ -91,6 +97,12 @@ export function OrganizationJoinRequestsPage() {
           {filtered.map((request) => {
             const name = [request.firstName, request.lastName].filter(Boolean).join(" ") || "—";
             const roleKey = roleByRequest[request.id] ?? request.requestedRole ?? "employee";
+            const branchId = branchByRequest[request.id] ?? "";
+            const departmentId = departmentByRequest[request.id] ?? "";
+            const departmentOptions = (departments.data ?? []).filter(
+              (department) => !department.branchId || department.branchId === branchId,
+            );
+            const needsBranch = roleKey === "employee" && (branches.data?.length ?? 0) > 0;
             return (
               <Card
                 key={request.id}
@@ -116,7 +128,7 @@ export function OrganizationJoinRequestsPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div className="min-w-[11rem]">
                       <label className="mb-1 block text-xs font-medium text-tc-muted">
-                        Assign role on approve
+                        Assign role
                       </label>
                       <Select
                         className="h-9 w-full"
@@ -130,16 +142,62 @@ export function OrganizationJoinRequestsPage() {
                         <option value="org_admin">Organization admin</option>
                       </Select>
                     </div>
+                    <div className="min-w-[11rem]">
+                      <label className="mb-1 block text-xs font-medium text-tc-muted">
+                        Branch{needsBranch ? " (required)" : ""}
+                      </label>
+                      <Select
+                        className="h-9 w-full"
+                        value={branchId}
+                        onChange={(e) => {
+                          setBranchByRequest((prev) => ({ ...prev, [request.id]: e.target.value }));
+                          setDepartmentByRequest((prev) => ({ ...prev, [request.id]: "" }));
+                        }}
+                      >
+                        <option value="">Organization-wide</option>
+                        {(branches.data ?? []).map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="min-w-[11rem]">
+                      <label className="mb-1 block text-xs font-medium text-tc-muted">
+                        Department
+                      </label>
+                      <Select
+                        className="h-9 w-full"
+                        value={departmentId}
+                        onChange={(e) =>
+                          setDepartmentByRequest((prev) => ({
+                            ...prev,
+                            [request.id]: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">None</option>
+                        {departmentOptions.map((department) => (
+                          <option key={department.id} value={department.id}>
+                            {department.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         className="gap-1.5"
-                        disabled={approve.isPending || reject.isPending}
+                        disabled={
+                          approve.isPending || reject.isPending || (needsBranch && !branchId)
+                        }
                         onClick={() =>
                           approve.mutate(
                             {
                               requestId: request.id,
                               roleKey: roleKey as "org_admin" | "employee" | "public_user",
+                              branchId: branchId || null,
+                              departmentId: departmentId || null,
                             },
                             {
                               onSuccess: () =>

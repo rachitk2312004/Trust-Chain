@@ -38,6 +38,10 @@ export function getApiErrorMessage(error: unknown, fallback = "Request failed"):
   return parsed.message;
 }
 
+export function isEmailNotVerified(error: unknown): boolean {
+  return parseApiError(error).code === "EMAIL_NOT_VERIFIED";
+}
+
 export function isInvalidCredentials(error: unknown): boolean {
   return parseApiError(error).code === "INVALID_CREDENTIALS";
 }

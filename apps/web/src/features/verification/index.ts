@@ -1,5 +1,6 @@
 export {
   useVerificationHistory,
+  useCheckHistory,
   useVerification,
   useVerifyHash,
   useVerifyFile,
@@ -7,6 +8,8 @@ export {
   usePublicVerification,
   useVerificationStatistics,
   useStartDocumentVerification,
+  useBulkVerify,
+  useIntakeVerify,
   verifyKeys,
   aggregateStats,
 } from "./hooks";

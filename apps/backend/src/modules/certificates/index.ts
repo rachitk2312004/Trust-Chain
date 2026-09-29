@@ -7,6 +7,11 @@ export {
   listCertificateTemplates,
   downloadCertificateExport,
 } from "./certificates.service.js";
+export {
+  publishCertificate,
+  getCertificatePublishStatus,
+  finalizeIssuedCertificate,
+} from "./certificates.publish.js";
 export { generateCertificateIdentity, hashCertificatePayload } from "./certificates.generator.js";
 export { verifyCertificate } from "./certificates.verifier.js";
 export { defaultCertificateLayout, resolveCertificateLayout } from "./certificates.layout.js";

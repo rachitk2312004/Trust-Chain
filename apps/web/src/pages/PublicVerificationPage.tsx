@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
+  Badge,
   Button,
   Card,
   CardDescription,
@@ -11,105 +12,126 @@ import {
   FormHint,
   Input,
   Label,
-  Select,
 } from "@trustchain/ui";
 import { PageHeader } from "../components/PageHeader";
-import {
-  OutcomeBadge,
-  VerificationMetadataViewer,
-} from "../features/verification/VerificationResultPanels";
+import { useBillingEntitlements } from "../features/billing/hooks";
+import { billingHref } from "../features/billing/PlanGate";
+import { useSessionStore } from "../lib/sessionStore";
+import { isCertificateHolderOnly } from "../lib/workspacePersona";
+import { OutcomeBadge, VerificationMetadataViewer } from "../features/verification/VerificationResultPanels";
+import { usePublicCertificateVerify } from "../features/certificates/publicVerifyHooks";
 import { usePublicVerification } from "../features/verification/hooks";
-import { getVerificationErrorMessage } from "../lib/verifyErrors";
-
-type LookupKind = "hash" | "code" | "document" | "tx" | "link" | "qr";
+import { getCertificateErrorMessage, verificationReasonLabel } from "../lib/certificateErrors";
+import { getVerificationErrorMessage, resolvePublicVerifyTarget } from "../lib/verifyErrors";
 
 /**
- * Anonymous-friendly public verification page (no org session required).
- * Uses /api/public endpoints only.
+ * Public lookup: paste a certificate URL or QR destination. No hash / code dropdowns.
  */
 export function PublicVerificationPage() {
   const location = useLocation();
   const embedded = location.pathname === "/verify";
   const publicVerify = usePublicVerification();
-  const [kind, setKind] = useState<LookupKind>("code");
   const [value, setValue] = useState("");
+  const [resolvedId, setResolvedId] = useState<string>("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const certLookup = usePublicCertificateVerify(resolvedId);
+  const accessToken = useSessionStore((s) => s.accessToken);
+  const roles = useSessionStore((s) => s.roles);
+  const organizationId = useSessionStore((s) => s.activeOrganizationId);
+  const holder = Boolean(accessToken) && isCertificateHolderOnly(roles, organizationId);
+  const billing = useBillingEntitlements(holder ? null : organizationId);
+  const holderQuota = billing.data?.user.quotas.holder_verifications;
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const trimmed = value.trim();
-    switch (kind) {
-      case "hash":
-        publicVerify.mutate({ kind: "hash", hash: trimmed });
-        break;
-      case "code":
-        publicVerify.mutate({ kind: "code", code: trimmed });
-        break;
-      case "document":
-        publicVerify.mutate({ kind: "document", publicVerifyCode: trimmed });
-        break;
-      case "tx":
-        publicVerify.mutate({ kind: "tx", transactionHash: trimmed });
-        break;
-      case "link":
-        publicVerify.mutate({ kind: "link", tokenOrUrl: trimmed });
-        break;
-      case "qr":
-        publicVerify.mutate({ kind: "qr", payload: trimmed });
-        break;
+    setLocalError(null);
+    setResolvedId("");
+    publicVerify.reset();
+    const target = resolvePublicVerifyTarget(value);
+    if (!target) {
+      setLocalError("Paste a certificate URL or the QR link. Example: …/certificates/verify/CERT-…");
+      return;
     }
+    if (target.kind === "certificate") {
+      setResolvedId(target.publicId);
+      return;
+    }
+    publicVerify.mutate({ kind: "qr", payload: value.trim() });
   }
 
   const report = publicVerify.data ?? null;
+  const cert = certLookup.data?.certificate;
+  const result = certLookup.data?.verification;
 
   const lookupForm = (
     <Card>
       <CardHeader>
-        <CardTitle>Lookup</CardTitle>
-        <CardDescription>Calls anonymous /api/public verification routes.</CardDescription>
+        <CardTitle>Certificate URL or QR</CardTitle>
+        <CardDescription>Paste the link from the PDF or scan the QR — that is the only public check.</CardDescription>
       </CardHeader>
       <form className="flex flex-col gap-3" onSubmit={onSubmit}>
         <Field>
-          <Label htmlFor="lookup-kind">Lookup type</Label>
-          <Select
-            id="lookup-kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as LookupKind)}
-          >
-            <option value="code">Verification code</option>
-            <option value="hash">Content hash</option>
-            <option value="document">Public document code</option>
-            <option value="tx">Transaction hash</option>
-            <option value="link">Public link token / URL</option>
-            <option value="qr">QR-linked payload / URL</option>
-          </Select>
-        </Field>
-        <Field>
-          <Label htmlFor="lookup-value">Value</Label>
+          <Label htmlFor="lookup-value">URL or QR payload</Label>
           <Input
             id="lookup-value"
             required
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder={
-              kind === "qr" || kind === "link" ? "Paste link URL or token" : "Paste identifier"
-            }
+            placeholder="https://…/certificates/verify/CERT-…"
           />
-          {kind === "qr" ? (
-            <FormHint>
-              Paste the QR destination URL or opaque link token. QR asset management is not part of
-              this step.
-            </FormHint>
-          ) : null}
+          <FormHint>
+            {holder && holderQuota
+              ? `Holder plan: ${holderQuota.used} of ${holderQuota.limit ?? "unlimited"} verifications used this month.`
+              : "Hashes, verification codes, and CSV lists are organization staff tools — not this page."}
+            {holder ? (
+              <>
+                {" "}
+                <Link to={billingHref()} className="text-[var(--tc-accent)] hover:underline">
+                  Upgrade
+                </Link>
+              </>
+            ) : null}
+          </FormHint>
         </Field>
         <FormError>
-          {publicVerify.error ? getVerificationErrorMessage(publicVerify.error) : null}
+          {localError ??
+            (publicVerify.error ? getVerificationErrorMessage(publicVerify.error) : null) ??
+            (certLookup.isError ? getCertificateErrorMessage(certLookup.error) : null)}
         </FormError>
-        <Button type="submit" disabled={publicVerify.isPending}>
-          {publicVerify.isPending ? "Verifying…" : "Verify"}
+        <Button type="submit" disabled={publicVerify.isPending || certLookup.isFetching}>
+          {publicVerify.isPending || certLookup.isFetching ? "Checking…" : "Verify"}
         </Button>
       </form>
     </Card>
   );
+
+  const certPanel =
+    cert && result ? (
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{cert.title}</CardTitle>
+            <CardDescription>
+              Issued to {cert.recipientName}
+              {cert.organizationName ? ` · ${cert.organizationName}` : ""}
+            </CardDescription>
+          </CardHeader>
+          <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
+            <Badge tone={result.valid ? "success" : "danger"}>
+              {result.valid ? "Verified" : "Not verified"}
+            </Badge>
+            <Badge tone="neutral">{cert.publicId}</Badge>
+          </div>
+        </Card>
+        {result.reasons?.length ? (
+          <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--tc-muted)]">
+            {result.reasons.map((reason) => (
+              <li key={reason}>{verificationReasonLabel(reason)}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    ) : null;
 
   const resultPanel = report ? (
     <div className="flex flex-col gap-4">
@@ -120,44 +142,25 @@ export function PublicVerificationPage() {
         </span>
       </div>
       <VerificationMetadataViewer publicReport={report} />
-      {report.urls ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Public URLs</CardTitle>
-          </CardHeader>
-          <ul className="space-y-1 px-1 text-sm">
-            {Object.entries(report.urls).map(([key, url]) => (
-              <li key={key}>
-                <span className="text-[var(--tc-muted)]">{key}: </span>
-                {url ? (
-                  <a
-                    href={url}
-                    className="break-all text-[var(--tc-accent)] hover:underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {url}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
     </div>
   ) : null;
+
+  const body = (
+    <div className="space-y-6">
+      {lookupForm}
+      {certPanel}
+      {resultPanel}
+    </div>
+  );
 
   if (embedded) {
     return (
       <div className="mx-auto w-full max-w-2xl space-y-6">
         <PageHeader
-          title="Verify document"
-          description="Look up a TrustChain document by hash, code, transaction, or QR/link token."
+          title="Verify a certificate"
+          description="Paste the certificate URL or QR link from a TrustChain PDF."
         />
-        {lookupForm}
-        {resultPanel}
+        {body}
       </div>
     );
   }
@@ -173,16 +176,13 @@ export function PublicVerificationPage() {
             Public verification
           </h1>
           <p className="mt-1 text-sm text-[var(--tc-muted)]">
-            Look up a TrustChain document by hash, code, transaction, or QR/link token.
+            Paste the certificate URL or the QR destination. Nothing else is needed.
           </p>
           <Link to="/login" className="mt-2 inline-block text-sm text-[var(--tc-accent)] hover:underline">
             Sign in
           </Link>
         </div>
-
-        {lookupForm}
-
-        {resultPanel}
+        {body}
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 export {
   useLogin,
   useRegister,
+  useVerifyEmailOtp,
+  useResendEmailVerification,
   useLogout,
   useForgotPassword,
   useResetPassword,

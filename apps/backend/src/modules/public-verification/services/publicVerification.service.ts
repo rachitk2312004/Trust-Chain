@@ -62,7 +62,8 @@ async function runEngineForDocument(input: {
       mode: "sync",
       documentVersionId: input.documentVersionId,
       requireAnchor: input.requireAnchor !== false,
-      rehashFromR2: false,
+      rehashFromR2: true,
+      requireLiveChain: (await import("../../blockchain/chainConfig.js")).isChainEnabled(),
       idempotencyKey: `public:${input.documentId}:${input.documentVersionId ?? "current"}:${Date.now()}`,
     },
   );

@@ -62,7 +62,14 @@ export function OrganizationDepartmentsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-tc-fg">Departments</h2>
+          <p className="mt-1 max-w-2xl text-sm text-tc-muted">
+            A department is a team or function (HR, Finance, Engineering). It can sit under a
+            branch. Members can be assigned to one department for reporting and access grouping.
+          </p>
+        </div>
         <Can capability="org.departments.manage" organizationId={organizationId}>
           <Button onClick={() => setOpen(true)}>Add department</Button>
         </Can>

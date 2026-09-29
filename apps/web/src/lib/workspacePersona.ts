@@ -1,7 +1,6 @@
 import { RoleKeys } from "@trustchain/config";
 import { isOrgAdminOnly } from "./homeRoute";
 import {
-  isOrgMember,
   isSuperAdmin,
   showHolderFeatures,
   type RoleBinding,
@@ -87,13 +86,13 @@ export function getWorkspacePersona(
     };
   }
 
-  if (isEmployeePersona(roles, organizationId) && isOrgMember(roles, organizationId)) {
+  if (isEmployeePersona(roles, organizationId)) {
     return {
       kind: "employee",
       title: "Employee",
-      subtitle: "Organization member · workspace tools",
-      consoleTitle: "Employee workspace",
-      consoleSubtitle: "Organization member tools",
+      subtitle: "Organization staff · issue and verify credentials",
+      consoleTitle: "Employee console",
+      consoleSubtitle: "Issue, verify, and message your team",
       accentClass: "text-sky-600 dark:text-sky-400",
       iconClass: "bg-sky-500/15 text-sky-400",
     };

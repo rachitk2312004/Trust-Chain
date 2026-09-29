@@ -2,6 +2,8 @@ import { RoleKeys } from "@trustchain/config";
 import { AppError } from "../../lib/errors.js";
 import { createUploadUrl } from "../../integrations/objectStorage.js";
 import { userHasRole } from "../auth/rbac.repository.js";
+import { assertOrgFeature } from "../billing/billing.entitlements.js";
+import { BillingFeatureKeys } from "../billing/billing.plans.js";
 import { getBranding, toPublicBranding, upsertBranding } from "./branding.repository.js";
 
 async function assertOrgAdmin(userId: string, organizationId: string): Promise<void> {
@@ -39,6 +41,7 @@ export async function updateOrgBranding(
   },
 ) {
   await assertOrgAdmin(userId, organizationId);
+  await assertOrgFeature(userId, organizationId, BillingFeatureKeys.customBranding);
   const branding = await upsertBranding({
     organizationId,
     displayName: input.displayName,
@@ -55,6 +58,7 @@ export async function createLogoUploadUrl(
   contentType: string,
 ) {
   await assertOrgAdmin(userId, organizationId);
+  await assertOrgFeature(userId, organizationId, BillingFeatureKeys.customBranding);
   const extension = contentType.split("/")[1] ?? "bin";
   const objectKey = `orgs/${organizationId}/branding/logo-${Date.now()}.${extension}`;
   return createUploadUrl({ objectKey, contentType });

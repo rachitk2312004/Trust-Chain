@@ -22,6 +22,21 @@ organizationVerificationRouter.get(
 organizationVerificationRouter.get("/verifications", asyncHandler(controller.listVerifications));
 
 organizationVerificationRouter.get(
+  "/verifications/checks",
+  asyncHandler(controller.listCheckHistory),
+);
+
+organizationVerificationRouter.post(
+  "/verifications/bulk",
+  asyncHandler(controller.postBulkVerify),
+);
+
+organizationVerificationRouter.post(
+  "/verifications/intake",
+  asyncHandler(controller.postIntakeVerify),
+);
+
+organizationVerificationRouter.get(
   "/verifications/:verificationId",
   asyncHandler(controller.getVerification),
 );

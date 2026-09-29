@@ -12,9 +12,26 @@ export function normalizeSessionRoles(roles: RoleBinding[]): RoleBinding[] {
 
 export function applySessionRoles(roles: RoleBinding[]): void {
   const normalized = normalizeSessionRoles(roles);
-  const { setRoles, setActiveOrganizationId } = useSessionStore.getState();
+  const { setRoles, setActiveOrganizationId, activeOrganizationId } = useSessionStore.getState();
   setRoles(normalized);
   if (isSuperAdmin(normalized)) {
     setActiveOrganizationId(null);
+    return;
+  }
+
+  const staffOrgIds = normalized
+    .filter(
+      (r) =>
+        (r.roleKey === RoleKeys.orgAdmin || r.roleKey === RoleKeys.employee) &&
+        r.organizationId,
+    )
+    .map((r) => r.organizationId)
+    .filter((id): id is string => Boolean(id));
+  const firstStaffOrg = staffOrgIds[0];
+  if (
+    firstStaffOrg &&
+    (!activeOrganizationId || !staffOrgIds.includes(activeOrganizationId))
+  ) {
+    setActiveOrganizationId(firstStaffOrg);
   }
 }

@@ -14,6 +14,7 @@ import {
 import { Can } from "../components/Can";
 import {
   CertificatePreview,
+  CertificatePublishPanel,
   RevokeCertificateDialog,
   useCertificate,
   useCertificateDownload,
@@ -196,6 +197,18 @@ export function CertificateDetailPage() {
               >
                 {verify.isPending ? "Verifying…" : "Quick verify"}
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  void navigator.clipboard.writeText(data.verificationUrl).then(
+                    () => feedback.success("Verification link copied"),
+                    () => feedback.error(null, "Could not copy link"),
+                  );
+                }}
+              >
+                Copy verify link
+              </Button>
             </div>
             {downloadWarnings.length ? (
               <div className="mt-2">
@@ -222,6 +235,8 @@ export function CertificateDetailPage() {
                   <li>Not revoked: {String(verify.data.verification.checks.notRevoked)}</li>
                   <li>Not expired: {String(verify.data.verification.checks.notExpired)}</li>
                   <li>Document OK: {String(verify.data.verification.checks.documentOk)}</li>
+                  <li>PDF artifact: {String(verify.data.verification.checks.artifact)}</li>
+                  <li>Blockchain: {String(verify.data.verification.checks.chain)}</li>
                 </ul>
                 {verify.data.verification.reasons.length ? (
                   <p className="mt-2 text-xs">
@@ -232,6 +247,12 @@ export function CertificateDetailPage() {
               </div>
             ) : null}
           </Card>
+
+          <CertificatePublishPanel
+            organizationId={organizationId!}
+            certificateId={certificateId}
+            status={data.status}
+          />
         </div>
       </div>
 

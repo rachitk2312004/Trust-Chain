@@ -38,8 +38,12 @@ export function useMyCertificate(certificateId: string | undefined) {
 export function useMyCertificateDownload() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { certificateId: string; format: CertificateExportFormat }) => {
-      return myCertificateApi.download(input.certificateId, input.format);
+    mutationFn: async (input: {
+      certificateId: string;
+      format: CertificateExportFormat;
+      publicId?: string;
+    }) => {
+      return myCertificateApi.download(input.certificateId, input.format, input.publicId);
     },
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({

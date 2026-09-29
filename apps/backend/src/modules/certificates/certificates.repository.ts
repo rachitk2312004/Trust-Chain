@@ -97,10 +97,16 @@ export async function findCertificateByPublicId(publicId: string) {
 
 export async function listCertificatesForRecipient(
   recipientUserId: string,
-  input: { status?: string; limit: number; offset: number },
+  input: { status?: string; limit: number; offset: number; email?: string | null },
 ) {
+  const email = input.email?.trim().toLowerCase() || null;
   const where: Prisma.CertificateWhereInput = {
-    recipientUserId,
+    OR: [
+      { recipientUserId },
+      ...(email
+        ? [{ recipientUserId: null, recipientEmail: { equals: email, mode: "insensitive" as const } }]
+        : []),
+    ],
     ...(input.status ? { status: input.status } : {}),
   };
   const [items, total] = await Promise.all([
@@ -115,20 +121,39 @@ export async function listCertificatesForRecipient(
   return { items, total, limit: input.limit, offset: input.offset };
 }
 
-export async function findCertificateForRecipient(recipientUserId: string, certificateId: string) {
+export async function findCertificateForRecipient(
+  recipientUserId: string,
+  certificateId: string,
+  email?: string | null,
+) {
+  const normalized = email?.trim().toLowerCase() || null;
   return prisma.certificate.findFirst({
-    where: { id: certificateId, recipientUserId },
+    where: {
+      id: certificateId,
+      OR: [
+        { recipientUserId },
+        ...(normalized
+          ? [
+              {
+                recipientUserId: null,
+                recipientEmail: { equals: normalized, mode: "insensitive" as const },
+              },
+            ]
+          : []),
+      ],
+    },
     include: { document: { select: { id: true, status: true, deletedAt: true, title: true } } },
   });
 }
 
 export async function listCertificates(
   organizationId: string,
-  input: { status?: string; limit: number; offset: number },
+  input: { status?: string; limit: number; offset: number; issuedById?: { in: string[] } },
 ) {
   const where: Prisma.CertificateWhereInput = {
     organizationId,
     ...(input.status ? { status: input.status } : {}),
+    ...(input.issuedById ? { issuedById: input.issuedById } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.certificate.findMany({

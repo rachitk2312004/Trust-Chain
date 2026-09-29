@@ -3,11 +3,14 @@ import { AppError } from "../../../lib/errors.js";
 import { parseBody, parseParams, parseQuery } from "../../../lib/validate.js";
 import * as verification from "../services/verification.service.js";
 import {
+  checkHistoryQuerySchema,
   historyQuerySchema,
   listVerificationsQuerySchema,
   orgDocumentParamsSchema,
   orgIdParamsSchema,
   orgVerificationParamsSchema,
+  bulkVerifyBodySchema,
+  intakeVerifyBodySchema,
   verifyBodySchema,
 } from "../routes/verification.schemas.js";
 import { VerificationModes } from "@trustchain/config";
@@ -60,6 +63,15 @@ export async function getVerificationHistory(req: Request, res: Response): Promi
   res.status(200).json(history);
 }
 
+export async function listCheckHistory(req: Request, res: Response): Promise<void> {
+  const userId = requireUser(req);
+  const { id: orgId } = parseParams(orgIdParamsSchema, req.params);
+  const query = parseQuery(checkHistoryQuerySchema, req.query);
+  const { listCheckHistory } = await import("../services/verification.checks.js");
+  const result = await listCheckHistory(userId, orgId, query);
+  res.status(200).json(result);
+}
+
 export async function listVerifications(req: Request, res: Response): Promise<void> {
   const userId = requireUser(req);
   const { id: orgId } = parseParams(orgIdParamsSchema, req.params);
@@ -72,6 +84,24 @@ export async function getVerification(req: Request, res: Response): Promise<void
   const userId = requireUser(req);
   const { id: orgId, verificationId } = parseParams(orgVerificationParamsSchema, req.params);
   const result = await verification.getVerificationById(userId, orgId, verificationId);
+  res.status(200).json(result);
+}
+
+export async function postBulkVerify(req: Request, res: Response): Promise<void> {
+  const userId = requireUser(req);
+  const { id: orgId } = parseParams(orgIdParamsSchema, req.params);
+  const body = parseBody(bulkVerifyBodySchema, req.body ?? {});
+  const { runBulkVerification } = await import("../services/verification.bulk.js");
+  const result = await runBulkVerification(userId, orgId, body);
+  res.status(200).json(result);
+}
+
+export async function postIntakeVerify(req: Request, res: Response): Promise<void> {
+  const userId = requireUser(req);
+  const { id: orgId } = parseParams(orgIdParamsSchema, req.params);
+  const body = parseBody(intakeVerifyBodySchema, req.body ?? {});
+  const { runIntakeVerification } = await import("../services/verification.intake.js");
+  const result = await runIntakeVerification(userId, orgId, body.submissions);
   res.status(200).json(result);
 }
 

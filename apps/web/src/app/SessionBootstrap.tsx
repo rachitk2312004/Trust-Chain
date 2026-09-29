@@ -63,31 +63,28 @@ export function SessionBootstrap({ children }: { children: ReactNode }) {
     if (cached) {
       useSessionStore.getState().setUser(cached.user);
       applySessionRoles(cached.roles ?? []);
-      return;
-    }
-
-    const { roles, user } = useSessionStore.getState();
-    if (roles.length > 0 && user) {
-      applySessionRoles(roles);
-      const normalized = normalizeSessionRoles(roles);
-      // Hydrate React Query from persisted session so we don't hit /me on every load.
-      queryClient.setQueryData<MeResponse>(meQueryKey, {
-        user,
-        roles: normalized,
-        memberships: [],
-      });
-      const state = queryClient.getQueryState<MeResponse>(meQueryKey);
-      const fresh =
-        state?.dataUpdatedAt != null && Date.now() - state.dataUpdatedAt < 10 * 60_000;
-      if (!fresh) {
-        void queryClient.fetchQuery(meQueryOptions()).catch(() => {});
+    } else {
+      const { roles, user } = useSessionStore.getState();
+      if (roles.length > 0 && user) {
+        applySessionRoles(roles);
+        const normalized = normalizeSessionRoles(roles);
+        queryClient.setQueryData<MeResponse>(meQueryKey, {
+          user,
+          roles: normalized,
+          memberships: [],
+        });
       }
-      return;
     }
 
-    void queryClient.fetchQuery(meQueryOptions()).catch(() => {
-      // Non-fatal; permissions stay empty until next successful fetch
-    });
+    // Always refresh /me so newly assigned employee/org roles replace a stale holder session.
+    void queryClient
+      .fetchQuery({
+        ...meQueryOptions(),
+        staleTime: 0,
+      })
+      .catch(() => {
+        // Non-fatal; permissions stay empty until next successful fetch
+      });
   }, [accessToken, queryClient]);
 
   useEffect(() => {

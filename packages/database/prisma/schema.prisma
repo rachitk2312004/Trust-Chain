@@ -18,6 +18,7 @@ model User {
   lastName        String?   @map("last_name")
   status          String    @default("active")
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  firebaseUid     String?   @unique(map: "users_firebase_uid_unique_idx") @map("firebase_uid")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
@@ -42,6 +43,7 @@ model User {
   documentUploadSessions   DocumentUploadSession[]   @relation("DocumentUploadSessionCreator")
   verificationRequests     VerificationRequest[]     @relation("VerificationRequestedBy")
   verificationAuditEntries VerificationAuditEntry[]  @relation("VerificationAuditActor")
+  verificationCheckRunsCreated VerificationCheckRun[] @relation("VerificationCheckRunCreatedBy")
   publicVerificationTokens PublicVerificationToken[] @relation("PublicTokenCreatedBy")
   publicVerificationLinks  PublicVerificationLink[]  @relation("PublicLinkCreatedBy")
   qrTemplatesCreated       QrTemplate[]              @relation("QrTemplateCreatedBy")
@@ -129,6 +131,16 @@ model User {
   reputationAlertsResolved    ReputationAlert[]       @relation("ReputationAlertResolver")
   platformConfigsUpdated      PlatformConfiguration[] @relation("PlatformConfigurationUpdatedBy")
   platformReadinessTriggered  PlatformReadinessReport[] @relation("PlatformReadinessTriggeredBy")
+  conversationsCreated        Conversation[]          @relation("ConversationCreatedBy")
+  conversationMemberships     ConversationMember[]
+  chatMessages                ChatMessage[]           @relation("ChatMessageSender")
+  chatMessageHides            ChatMessageHide[]
+  platformInquiriesCreated    PlatformInquiry[]       @relation("PlatformInquiryCreator")
+  platformInquiryMessages     PlatformInquiryMessage[] @relation("PlatformInquiryMessageSender")
+  bugReportsFiled             BugReport[]             @relation("BugReportReporter")
+  bugReportResponses          BugReportResponse[]     @relation("BugReportResponseActor")
+  billingAccount              BillingAccount?
+  billingOrdersCreated        BillingOrder[]          @relation("BillingOrderCreatedBy")
 
   @@index([email], map: "users_email_idx")
   @@map("users")
@@ -179,6 +191,8 @@ model Organization {
   verificationResults         VerificationResult[]
   verificationAuditEntries    VerificationAuditEntry[]
   verificationCaches          VerificationCache[]
+  verificationCheckRuns       VerificationCheckRun[]
+  verificationCheckRows       VerificationCheckRow[]
   publicVerificationTokens    PublicVerificationToken[]
   publicVerificationLinks     PublicVerificationLink[]
   publicVerificationEvents    PublicVerificationEvent[]
@@ -211,6 +225,7 @@ model Organization {
   opsPolicies                 OpsPolicy[]
   subscriptions               Subscription[]
   invoices                    Invoice[]
+  billingAccount              BillingAccount?
   usageMetrics                UsageMetric[]
   featureFlags                FeatureFlag[]
   complianceEvents            ComplianceEvent[]
@@ -302,6 +317,9 @@ model Organization {
   reputationProfiles          ReputationProfile[]
   reputationHistory           ReputationHistoryEvent[]
   reputationAlerts            ReputationAlert[]
+  conversations               Conversation[]
+  platformInquiries           PlatformInquiry[]
+  bugReports                  BugReport[]
 
   @@unique([slug], map: "organizations_slug_unique_idx")
   @@index([slug], map: "organizations_slug_idx")
@@ -1071,6 +1089,53 @@ model VerificationCache {
   @@index([organizationId, documentId], map: "verification_caches_organization_id_document_id_idx")
   @@index([expiresAt], map: "verification_caches_expires_at_idx")
   @@map("verification_caches")
+}
+
+model VerificationCheckRun {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  createdById    String   @map("created_by_id") @db.Uuid
+  kind           String
+  scope          String
+  total          Int
+  validCount     Int      @map("valid_count")
+  failedCount    Int      @map("failed_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                  @relation("VerificationCheckRunCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  rows         VerificationCheckRow[]
+
+  @@index([organizationId, createdAt], map: "verification_check_runs_org_created_idx")
+  @@map("verification_check_runs")
+}
+
+model VerificationCheckRow {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId          String   @map("run_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  inputLabel     String   @map("input_label")
+  fileName       String?  @map("file_name")
+  outcome        String
+  verdict        String?
+  valid          Boolean
+  recipientName  String?  @map("recipient_name")
+  publicId       String?  @map("public_id")
+  title          String?
+  uniqueId       String?  @map("unique_id")
+  contentHash    String?  @map("content_hash")
+  certificateId  String?  @map("certificate_id") @db.Uuid
+  documentId     String?  @map("document_id") @db.Uuid
+  requestId      String?  @map("request_id") @db.Uuid
+  detail         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run          VerificationCheckRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt], map: "verification_check_rows_org_created_idx")
+  @@index([runId], map: "verification_check_rows_run_idx")
+  @@map("verification_check_rows")
 }
 
 /// Wave 5 — Public verification layer
@@ -2023,6 +2088,70 @@ model Invoice {
 
   @@index([organizationId, createdAt], map: "invoices_org_created_at_idx")
   @@map("invoices")
+}
+
+/// Razorpay-backed commercial plan for a holder (user) or an issuing organization.
+model BillingAccount {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerType          String    @map("owner_type")
+  userId             String?   @unique @map("user_id") @db.Uuid
+  organizationId     String?   @unique @map("organization_id") @db.Uuid
+  planKey            String    @default("free") @map("plan_key")
+  status             String    @default("active")
+  periodStart        DateTime? @map("period_start") @db.Timestamptz(6)
+  periodEnd          DateTime? @map("period_end") @db.Timestamptz(6)
+  razorpayCustomerId String?   @map("razorpay_customer_id")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       BillingOrder[]
+  usage        BillingUsage[]
+
+  @@index([planKey, status], map: "billing_accounts_plan_status_idx")
+  @@map("billing_accounts")
+}
+
+model BillingOrder {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId         String    @map("account_id") @db.Uuid
+  createdById       String    @map("created_by_id") @db.Uuid
+  planKey           String    @map("plan_key")
+  amountPaise       Int       @map("amount_paise")
+  currency          String    @default("INR")
+  status            String    @default("created")
+  razorpayOrderId   String?   @unique @map("razorpay_order_id")
+  razorpayPaymentId String?   @map("razorpay_payment_id")
+  razorpaySignature String?   @map("razorpay_signature")
+  receipt           String?
+  notesJson         Json?     @map("notes_json")
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  account   BillingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("BillingOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt], map: "billing_orders_account_created_idx")
+  @@index([status], map: "billing_orders_status_idx")
+  @@map("billing_orders")
+}
+
+model BillingUsage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  metricKey String   @map("metric_key")
+  periodYm  String   @map("period_ym")
+  usedCount Int      @default(0) @map("used_count")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  account BillingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, metricKey, periodYm], map: "billing_usage_account_metric_period_unique")
+  @@index([accountId, periodYm], map: "billing_usage_account_period_idx")
+  @@map("billing_usage")
 }
 
 model UsageMetric {
@@ -4363,5 +4492,145 @@ model PlatformTraceAggregate {
 
   @@index([windowKey, createdAt], map: "platform_trace_aggregates_window_created_idx")
   @@map("platform_trace_aggregates")
+}
+
+/// Organization staff messaging — DMs and group chats for employees and org admins.
+model Conversation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// dm | group
+  type           String
+  title          String?
+  createdById    String    @map("created_by_id") @db.Uuid
+  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  members      ConversationMember[]
+  messages     ChatMessage[]
+
+  @@index([organizationId, lastMessageAt], map: "conversations_org_last_message_idx")
+  @@index([createdById], map: "conversations_created_by_idx")
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  lastReadAt     DateTime? @map("last_read_at") @db.Timestamptz(6)
+  joinedAt       DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId], map: "conversation_members_conversation_user_key")
+  @@index([userId], map: "conversation_members_user_idx")
+  @@map("conversation_members")
+}
+
+model ChatMessage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  senderId       String    @map("sender_id") @db.Uuid
+  body           String
+  editedAt       DateTime? @map("edited_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  hides        ChatMessageHide[]
+
+  @@index([conversationId, createdAt], map: "chat_messages_conversation_created_idx")
+  @@index([senderId], map: "chat_messages_sender_idx")
+  @@map("chat_messages")
+}
+
+model ChatMessageHide {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId], map: "chat_message_hides_message_user_key")
+  @@index([userId], map: "chat_message_hides_user_idx")
+  @@map("chat_message_hides")
+}
+
+/// Super admin <-> org admin query threads.
+model PlatformInquiry {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdById    String    @map("created_by_id") @db.Uuid
+  subject        String
+  status         String    @default("open")
+  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy    User                     @relation("PlatformInquiryCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  messages     PlatformInquiryMessage[]
+
+  @@index([createdById, createdAt], map: "platform_inquiries_creator_created_idx")
+  @@index([status, lastMessageAt], map: "platform_inquiries_status_last_idx")
+  @@map("platform_inquiries")
+}
+
+model PlatformInquiryMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inquiryId String   @map("inquiry_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  inquiry PlatformInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  sender  User            @relation("PlatformInquiryMessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([inquiryId, createdAt], map: "platform_inquiry_messages_inquiry_created_idx")
+  @@map("platform_inquiry_messages")
+}
+
+/// Bug reports from any non-super-admin role.
+model BugReport {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId       String    @map("reporter_id") @db.Uuid
+  organizationId   String?   @map("organization_id") @db.Uuid
+  title            String
+  description      String
+  imageObjectKey   String?   @map("image_object_key")
+  imageContentType String?   @map("image_content_type")
+  status           String    @default("open")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reporter     User               @relation("BugReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  organization Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  responses    BugReportResponse[]
+
+  @@index([reporterId, createdAt], map: "bug_reports_reporter_created_idx")
+  @@index([status, createdAt], map: "bug_reports_status_created_idx")
+  @@map("bug_reports")
+}
+
+model BugReportResponse {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId    String   @map("report_id") @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  body        String
+  statusAfter String?  @map("status_after")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  report BugReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor  User      @relation("BugReportResponseActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([reportId, createdAt], map: "bug_report_responses_report_created_idx")
+  @@map("bug_report_responses")
 }
 

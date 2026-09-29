@@ -44,8 +44,11 @@ export function OrganizationMembersPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roleDraft, setRoleDraft] = useState<Record<string, MemberRoleKey>>({});
   const members = useOrganizationMembers(organizationId);
-  const branches = useBranches(organizationId, inviteOpen);
-  const departments = useDepartments(organizationId, inviteOpen);
+  const branches = useBranches(organizationId);
+  const departments = useDepartments(organizationId);
+  const [placementDraft, setPlacementDraft] = useState<
+    Record<string, { branchId: string; departmentId: string }>
+  >({});
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,8 +94,8 @@ export function OrganizationMembersPage() {
       <div>
         <h2 className="font-display text-lg font-semibold text-tc-fg">Members</h2>
         <p className="mt-1 text-sm text-tc-muted">
-          Search, assign roles, suspend, or disable organization members. Organization admin
-          accounts can only be changed by a platform administrator.
+          Search, assign roles, place people in a branch and department, or suspend members.
+          Branch placement controls which certificates and verifications an employee can see.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -121,6 +124,8 @@ export function OrganizationMembersPage() {
               <TH>Email</TH>
               <TH>Name</TH>
               <TH>Title</TH>
+              <TH>Branch</TH>
+              <TH>Department</TH>
               <TH>Role</TH>
               <TH>Status</TH>
               <TH />
@@ -131,6 +136,12 @@ export function OrganizationMembersPage() {
               const currentRole = roleDraft[member.id] ?? primaryRole(member);
               const memberManageable = canManageMember(member);
               const orgAdminMember = isOrgAdminMember(member);
+              const draftPlacement = placementDraft[member.id];
+              const placementDirty = Boolean(
+                draftPlacement &&
+                  ((draftPlacement.branchId || null) !== (member.branchId || null) ||
+                    (draftPlacement.departmentId || null) !== (member.departmentId || null)),
+              );
               return (
                 <TR key={member.id}>
                   <TD>{member.email}</TD>
@@ -138,6 +149,71 @@ export function OrganizationMembersPage() {
                     {[member.firstName, member.lastName].filter(Boolean).join(" ") || "—"}
                   </TD>
                   <TD>{member.title ?? "—"}</TD>
+                  <TD>
+                    {memberManageable && member.status === "active" ? (
+                      <Select
+                        className="h-8 min-w-[8rem]"
+                        value={
+                          placementDraft[member.id]?.branchId ?? member.branchId ?? ""
+                        }
+                        onChange={(e) =>
+                          setPlacementDraft((prev) => ({
+                            ...prev,
+                            [member.id]: {
+                              branchId: e.target.value,
+                              departmentId: "",
+                            },
+                          }))
+                        }
+                      >
+                        <option value="">Organization-wide</option>
+                        {(branches.data ?? []).map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      (branches.data ?? []).find((branch) => branch.id === member.branchId)
+                        ?.name ?? "Organization-wide"
+                    )}
+                  </TD>
+                  <TD>
+                    {memberManageable && member.status === "active" ? (
+                      <Select
+                        className="h-8 min-w-[8rem]"
+                        value={
+                          placementDraft[member.id]?.departmentId ?? member.departmentId ?? ""
+                        }
+                        onChange={(e) =>
+                          setPlacementDraft((prev) => ({
+                            ...prev,
+                            [member.id]: {
+                              branchId:
+                                prev[member.id]?.branchId ?? member.branchId ?? "",
+                              departmentId: e.target.value,
+                            },
+                          }))
+                        }
+                      >
+                        <option value="">None</option>
+                        {(departments.data ?? [])
+                          .filter((department) => {
+                            const selectedBranch =
+                              placementDraft[member.id]?.branchId ?? member.branchId ?? "";
+                            return !department.branchId || department.branchId === selectedBranch;
+                          })
+                          .map((department) => (
+                            <option key={department.id} value={department.id}>
+                              {department.name}
+                            </option>
+                          ))}
+                      </Select>
+                    ) : (
+                      (departments.data ?? []).find((department) => department.id === member.departmentId)
+                        ?.name ?? "—"
+                    )}
+                  </TD>
                   <TD>
                     {memberManageable && member.status === "active" ? (
                       <Select
@@ -171,6 +247,35 @@ export function OrganizationMembersPage() {
                   <TD>
                     {memberManageable ? (
                       <div className="flex flex-wrap justify-end gap-2">
+                        {member.status === "active" && placementDirty ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={updateMember.isPending}
+                            onClick={() =>
+                              updateMember.mutate(
+                                {
+                                  membershipId: member.id,
+                                  branchId: draftPlacement?.branchId || null,
+                                  departmentId: draftPlacement?.departmentId || null,
+                                },
+                                {
+                                  onSuccess: () => {
+                                    setPlacementDraft((prev) => {
+                                      const next = { ...prev };
+                                      delete next[member.id];
+                                      return next;
+                                    });
+                                    feedback.success("Branch and department saved");
+                                  },
+                                  onError: (err) => feedback.error(err, "Placement update failed"),
+                                },
+                              )
+                            }
+                          >
+                            Save place
+                          </Button>
+                        ) : null}
                         {member.status === "active" &&
                         currentRole !== primaryRole(member) ? (
                           <Button

@@ -20,10 +20,15 @@ export function certificateKeys(organizationId?: string, certificateId?: string)
     history: ["certificates", organizationId, certificateId, "history"] as const,
     templates: ["certificates", organizationId, "templates"] as const,
     preview: (id: string) => ["certificates", organizationId, id, "preview"] as const,
+    templatePreview: (fingerprint: string) =>
+      ["certificates", organizationId, "template-preview", fingerprint] as const,
     download: (id: string, format: string) =>
       ["certificates", organizationId, id, "download", format] as const,
+    chain: (id: string) => ["certificates", organizationId, id, "chain"] as const,
     bulkJob: (jobId: string) => ["certificates", organizationId, "bulk", jobId] as const,
     analytics: ["certificates", organizationId, "analytics"] as const,
+    trustReport: ["certificates", organizationId, "trust-report"] as const,
+    recipients: (q: string) => ["certificates", organizationId, "recipients", q] as const,
   };
 }
 
@@ -77,12 +82,29 @@ export function useCertificateTemplates(organizationId: string | null | undefine
   });
 }
 
+export function useLookupCertificateRecipients(
+  organizationId: string | null | undefined,
+  q: string,
+) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  const query = q.trim();
+  return useQuery({
+    queryKey: certificateKeys(organizationId ?? undefined).recipients(query.toLowerCase()),
+    queryFn: async () => {
+      const { data } = await certificateApi.lookupRecipients(organizationId!, query);
+      return data;
+    },
+    enabled: Boolean(accessToken && organizationId && query.length >= 2),
+    staleTime: 15_000,
+  });
+}
+
 export function useCreateCertificate(organizationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: Omit<IssueCertificateInput, "organizationId">) => {
       const { data } = await certificateApi.issue({ ...input, organizationId });
-      return data.certificate;
+      return data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: certificateKeys(organizationId).all });
@@ -158,6 +180,45 @@ export function useRevokeCertificate(organizationId: string) {
   });
 }
 
+export function useCertificateChain(
+  organizationId: string | null | undefined,
+  certificateId: string | undefined,
+) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: certificateKeys(organizationId ?? undefined, certificateId).chain(certificateId ?? ""),
+    queryFn: async () => {
+      const { data } = await certificateApi.chain(organizationId!, certificateId!);
+      return data;
+    },
+    enabled: Boolean(accessToken && organizationId && certificateId),
+    staleTime: 15_000,
+  });
+}
+
+export function usePublishCertificate(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { certificateId: string; publishToChain?: boolean }) => {
+      const { data } = await certificateApi.publish(input.certificateId, {
+        organizationId,
+        publishToChain: input.publishToChain,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: certificateKeys(organizationId).all });
+      void queryClient.invalidateQueries({
+        queryKey: certificateKeys(organizationId, data.certificate.id).detail,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: certificateKeys(organizationId, data.certificate.id).chain(data.certificate.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: myCertificateKeys.all });
+    },
+  });
+}
+
 export function useCertificateHistory(
   organizationId: string | null | undefined,
   certificateId: string | undefined,
@@ -171,6 +232,29 @@ export function useCertificateHistory(
     },
     enabled: Boolean(accessToken && organizationId && certificateId),
     staleTime: 60_000,
+  });
+}
+
+export function useTemplateLayoutPreview(
+  organizationId: string | null | undefined,
+  layout: Record<string, unknown> | null,
+  enabled = true,
+) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  const fingerprint = layout ? JSON.stringify(layout) : "";
+  return useQuery({
+    queryKey: certificateKeys(organizationId ?? undefined).templatePreview(fingerprint),
+    queryFn: async () => {
+      const result = await certificateApi.previewTemplate({
+        organizationId: organizationId!,
+        layout: layout ?? undefined,
+      });
+      const url = URL.createObjectURL(result.blob);
+      return { url, warnings: result.warnings };
+    },
+    enabled: Boolean(accessToken && organizationId && layout && enabled),
+    staleTime: 15_000,
+    gcTime: 60_000,
   });
 }
 
@@ -318,6 +402,20 @@ export function useCertificateDownloadAnalytics(organizationId: string | null | 
     },
     enabled: Boolean(accessToken && organizationId),
     staleTime: 30_000,
+  });
+}
+
+export function useCertificateTrustReport(organizationId: string | null | undefined) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: certificateKeys(organizationId ?? undefined).trustReport,
+    queryFn: async () => {
+      const { data } = await certificateApi.trustReport(organizationId!);
+      return data.report;
+    },
+    enabled: Boolean(accessToken && organizationId),
+    staleTime: 10_000,
+    refetchInterval: 15_000,
   });
 }
 

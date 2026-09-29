@@ -14,13 +14,25 @@ export type CertificateIntegrityPayload = {
   metadata: Record<string, unknown>;
 };
 
+/** Publish-time fields that must not change the issued identity hash. */
+const DERIVED_METADATA_KEYS = new Set(["documentContentHash"]);
+
+function integrityMetadata(value: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort()) {
+    if (DERIVED_METADATA_KEYS.has(key)) continue;
+    out[key] = value[key];
+  }
+  return out;
+}
+
 /** Canonical JSON for hashing (sorted keys, stable). */
 export function canonicalizeCertificatePayload(payload: CertificateIntegrityPayload): string {
   const ordered = {
     documentId: payload.documentId,
     expiresAt: payload.expiresAt,
     issuedAt: payload.issuedAt,
-    metadata: sortKeys(payload.metadata),
+    metadata: integrityMetadata(payload.metadata),
     organizationId: payload.organizationId,
     publicId: payload.publicId,
     recipientEmail: payload.recipientEmail,
@@ -29,14 +41,6 @@ export function canonicalizeCertificatePayload(payload: CertificateIntegrityPayl
     title: payload.title,
   };
   return JSON.stringify(ordered);
-}
-
-function sortKeys(value: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(value).sort()) {
-    out[key] = value[key];
-  }
-  return out;
 }
 
 export function hashCertificatePayload(payload: CertificateIntegrityPayload): string {

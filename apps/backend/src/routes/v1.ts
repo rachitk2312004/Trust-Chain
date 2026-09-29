@@ -30,6 +30,9 @@ import { integrationRouter } from "../modules/integration/integration.router.js"
 import { marketplaceRouter } from "../modules/marketplace/marketplace.router.js";
 import { reputationRouter } from "../modules/reputation/reputation.router.js";
 import { platformRouter } from "../modules/platform/platform.router.js";
+import { messagesRouter } from "../modules/messages/messages.router.js";
+import { supportRouter } from "../modules/support/support.router.js";
+import { billingRouter } from "../modules/billing/billing.router.js";
 
 export const v1Router = Router();
 
@@ -59,6 +62,9 @@ v1Router.use("/integrations", integrationRouter);
 v1Router.use("/marketplace", marketplaceRouter);
 v1Router.use("/reputation", reputationRouter);
 v1Router.use("/platform", platformRouter);
+v1Router.use("/messages", messagesRouter);
+v1Router.use("/support", supportRouter);
+v1Router.use("/billing", billingRouter);
 v1Router.use("/ai", aiRouter);
 v1Router.use(opsRouter);
 

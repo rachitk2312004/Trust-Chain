@@ -8,6 +8,7 @@ import { requireAuth } from "../../middleware/requireAuth.js";
 import { prisma } from "@trustchain/database";
 import { listRoleBindingsForUser } from "../auth/rbac.repository.js";
 import { toPublicUser } from "../auth/users.repository.js";
+import { activatePendingStaffMemberships } from "../organizations/organizations.repository.js";
 import {
   downloadMyCertificateExport,
   getMyCertificate,
@@ -77,6 +78,13 @@ meRouter.get(
       );
     }
 
+    if (!isSuperAdmin) {
+      await activatePendingStaffMemberships(req.user.id);
+    }
+
+    const { claimCertificatesForUser } = await import("../certificates/certificates.claim.js");
+    await claimCertificatesForUser(req.user.id, req.user.email);
+
     const memberships = isSuperAdmin
       ? []
       : await prisma.$queryRaw<
@@ -87,6 +95,10 @@ meRouter.get(
         organizationSlug: string;
         status: string;
         title: string | null;
+        branchId: string | null;
+        departmentId: string | null;
+        branchName: string | null;
+        departmentName: string | null;
       }>
     >`
       SELECT
@@ -95,9 +107,15 @@ meRouter.get(
         o.name AS "organizationName",
         o.slug AS "organizationSlug",
         m.status,
-        m.title
+        m.title,
+        m.branch_id AS "branchId",
+        m.department_id AS "departmentId",
+        b.name AS "branchName",
+        d.name AS "departmentName"
       FROM memberships m
       INNER JOIN organizations o ON o.id = m.organization_id
+      LEFT JOIN branches b ON b.id = m.branch_id
+      LEFT JOIN departments d ON d.id = m.department_id
       WHERE m.user_id = ${req.user.id}::uuid
       ORDER BY o.name ASC
     `;
@@ -112,6 +130,10 @@ meRouter.get(
         organizationSlug: row.organizationSlug,
         status: row.status,
         title: row.title,
+        branchId: row.branchId,
+        departmentId: row.departmentId,
+        branchName: row.branchName,
+        departmentName: row.departmentName,
       })),
     });
   }),

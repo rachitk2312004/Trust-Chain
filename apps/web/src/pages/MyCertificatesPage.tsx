@@ -29,7 +29,11 @@ export function MyCertificatesPage() {
 
   async function handleDownload(certificateId: string, publicId: string) {
     try {
-      const result = await download.mutateAsync({ certificateId, format: "pdf" });
+      const result = await download.mutateAsync({
+        certificateId,
+        format: "pdf",
+        publicId,
+      });
       const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement("a");
       anchor.href = url;

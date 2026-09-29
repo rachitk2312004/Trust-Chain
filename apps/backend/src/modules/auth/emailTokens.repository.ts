@@ -37,6 +37,32 @@ export async function createEmailToken(input: {
   };
 }
 
+export async function findValidEmailTokenForUser(
+  userId: string,
+  tokenHash: string,
+  purpose: EmailTokenPurpose,
+): Promise<EmailTokenRow | null> {
+  const row = await prisma.emailToken.findFirst({
+    where: {
+      userId,
+      tokenHash,
+      purpose,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    user_id: row.userId,
+    purpose: row.purpose as EmailTokenPurpose,
+    token_hash: row.tokenHash,
+    expires_at: row.expiresAt,
+    used_at: row.usedAt,
+    created_at: row.createdAt,
+  };
+}
+
 export async function findValidEmailToken(
   tokenHash: string,
   purpose: EmailTokenPurpose,

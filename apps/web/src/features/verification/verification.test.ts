@@ -12,9 +12,11 @@ import {
   isVerifyForbidden,
   isVerifyNotFound,
   outcomeTone,
+  resolvePublicVerifyTarget,
 } from "../../lib/verifyErrors";
 import type { ApiErrorBody } from "../../types/api";
 import { aggregateStats, verifyKeys } from "./hooks";
+import { parseCertClaims, parseVerificationListText } from "../../lib/verificationCsv";
 
 function axiosError(status: number, code: string, message: string): AxiosError<ApiErrorBody> {
   return new AxiosError(message, undefined, undefined, undefined, {
@@ -54,6 +56,12 @@ describe("upload verification", () => {
 });
 
 describe("public verification", () => {
+  it("extracts CERT ids from public verify URLs", () => {
+    expect(
+      resolvePublicVerifyTarget("http://localhost:5173/certificates/verify/CERT-MTTBIU71-CEB87247"),
+    ).toEqual({ kind: "certificate", publicId: "CERT-MTTBIU71-CEB87247" });
+  });
+
   it("extracts link tokens from QR-style URLs", () => {
     expect(extractPublicLinkToken("https://verify.example.com/link/abc123token")).toBe(
       "abc123token",
@@ -70,6 +78,20 @@ describe("public verification", () => {
   it("maps public not found", () => {
     const error = axiosError(404, "PUBLIC_VERIFY_NOT_FOUND", "Verification not found");
     expect(isVerifyNotFound(error)).toBe(true);
+  });
+});
+
+describe("csv list parsing", () => {
+  it("reads hash column from a csv", () => {
+    const csv = "hash,name\nabc,Ada\ndef,Bob\n";
+    expect(parseVerificationListText(csv, "hashes")).toEqual(["abc", "def"]);
+  });
+
+  it("reads cert ids and names together", () => {
+    const csv = "cert_id,name\nCERT-MTTBIU71-CEB87247,Ravi\n";
+    expect(parseCertClaims(csv)).toEqual([
+      { identifier: "CERT-MTTBIU71-CEB87247", name: "Ravi" },
+    ]);
   });
 });
 

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getApiBaseUrl } from "../lib/apiBase";
-import type { CertificateVerificationResult } from "../types/api";
+import type { CertificateTrustChain, CertificateVerificationResult } from "../types/api";
 
 export type PublicCertificateVerifyResponse = {
   certificate: {
@@ -13,14 +13,26 @@ export type PublicCertificateVerifyResponse = {
     revokedAt: string | null;
     revokeReason: string | null;
     organizationName: string | null;
+    integrityHash?: string;
+    verificationUrl?: string;
   };
   verification: CertificateVerificationResult;
+  chain?: CertificateTrustChain;
 };
+
+import { tokenVault } from "../lib/tokenVault";
+import { useSessionStore } from "../lib/sessionStore";
 
 const publicClient = axios.create({
   baseURL: `${getApiBaseUrl()}/api/public`,
   headers: { "content-type": "application/json" },
   timeout: 30_000,
+});
+
+publicClient.interceptors.request.use((config) => {
+  const token = tokenVault.getAccessToken() ?? useSessionStore.getState().accessToken;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
 export const publicCertificateApi = {

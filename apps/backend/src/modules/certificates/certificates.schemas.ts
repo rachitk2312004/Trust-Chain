@@ -5,6 +5,11 @@ export const organizationIdQuerySchema = z.object({
   organizationId: z.string().uuid(),
 });
 
+export const lookupRecipientQuerySchema = z.object({
+  organizationId: z.string().uuid(),
+  q: z.string().trim().min(2).max(200),
+});
+
 export const listCertificatesQuerySchema = z.object({
   organizationId: z.string().uuid(),
   status: z.enum(CertificateStatusList as [string, ...string[]]).optional(),
@@ -20,16 +25,29 @@ export const templateIdParamsSchema = z.object({
   templateId: z.string().uuid(),
 });
 
+export function slugifyTemplateCode(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
 export const createTemplateBodySchema = z.object({
   organizationId: z.string().uuid(),
-  code: z
-    .string()
-    .min(2)
-    .max(64)
-    .regex(/^[a-z0-9_-]+$/i, "code must be alphanumeric"),
+  code: z.preprocess(
+    (value) => (typeof value === "string" ? slugifyTemplateCode(value) : value),
+    z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:[_-]?[a-z0-9]+)*$/, "Use letters, numbers, hyphens, or underscores"),
+  ),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).nullable().optional(),
-  layout: z.record(z.unknown()).optional(),
+  layout: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateTemplateBodySchema = z.object({
@@ -65,8 +83,23 @@ export const issueCertificateBodySchema = z.object({
   documentId: z.string().uuid().nullable().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   metadata: z.record(z.unknown()).optional(),
-  /** When true and documentId is set, create a document QR and link it. */
-  createQr: z.boolean().optional().default(false),
+  /** Embed and register a verification QR (default true). */
+  createQr: z.boolean().optional().default(true),
+  /** Anchor the certificate document hash on-chain (default true). */
+  publishToChain: z.boolean().optional().default(true),
+});
+
+export const previewTemplateBodySchema = z.object({
+  organizationId: z.string().uuid(),
+  templateId: z.string().uuid().nullable().optional(),
+  layout: z.record(z.unknown()).optional(),
+  title: z.string().min(1).max(300).optional(),
+  recipientName: z.string().min(1).max(200).optional(),
+});
+
+export const publishCertificateBodySchema = z.object({
+  organizationId: z.string().uuid(),
+  publishToChain: z.boolean().optional().default(true),
 });
 
 export const revokeCertificateBodySchema = z.object({

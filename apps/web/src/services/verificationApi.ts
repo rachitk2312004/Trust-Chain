@@ -2,8 +2,11 @@ import axios from "axios";
 import { apiClient } from "./http";
 import { getApiBaseUrl } from "../lib/apiBase";
 import type {
+  BulkVerifyResponse,
+  IntakeVerifyResponse,
   PublicVerificationReport,
   StartVerificationResponse,
+  VerificationCheckHistoryResponse,
   VerificationDetailResponse,
   VerificationListResponse,
 } from "../types/api";
@@ -51,6 +54,15 @@ export const verificationApi = {
       params,
     });
   },
+  checkHistory(
+    organizationId: string,
+    params?: { kind?: string; limit?: number; offset?: number },
+  ) {
+    return apiClient.get<VerificationCheckHistoryResponse>(
+      `${orgPath(organizationId)}/verifications/checks`,
+      { params },
+    );
+  },
   get(organizationId: string, verificationId: string) {
     return apiClient.get<VerificationDetailResponse>(
       `${orgPath(organizationId)}/verifications/${verificationId}`,
@@ -73,6 +85,38 @@ export const verificationApi = {
     return apiClient.post<StartVerificationResponse>(
       `${orgPath(organizationId)}/documents/${documentId}/verify`,
       body,
+    );
+  },
+  bulkVerify(
+    organizationId: string,
+    body: {
+      category: "documents" | "certificates" | "hashes" | "identifiers";
+      documentIds?: string[];
+      categoryId?: string | null;
+      certificateIds?: string[];
+      hashes?: string[];
+      identifiers?: string[];
+      claims?: Array<{ identifier: string; name?: string }>;
+    },
+  ) {
+    return apiClient.post<BulkVerifyResponse>(`${orgPath(organizationId)}/verifications/bulk`, body, {
+      timeout: 90_000,
+    });
+  },
+  intakeVerify(
+    organizationId: string,
+    submissions: Array<{
+      fileName: string;
+      contentHash: string;
+      publicIds?: string[];
+      fileBase64?: string;
+      claimedName?: string;
+    }>,
+  ) {
+    return apiClient.post<IntakeVerifyResponse>(
+      `${orgPath(organizationId)}/verifications/intake`,
+      { submissions },
+      { timeout: 90_000 },
     );
   },
   publicVerify(body: PublicVerifyBody) {

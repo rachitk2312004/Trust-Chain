@@ -55,6 +55,7 @@ infrastructure/docker/data/
 # Misc
 *.pem
 .cache/
+.data/
 
 # Python (AI service)
 __pycache__/

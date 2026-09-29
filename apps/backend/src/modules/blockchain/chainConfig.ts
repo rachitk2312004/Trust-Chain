@@ -1,9 +1,14 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   BlockchainAllowedNetworks,
   BlockchainChainIds,
   BlockchainNetworkKeys,
 } from "@trustchain/config";
 import { AppError } from "../../lib/errors.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export type SupportedChainNetwork = (typeof BlockchainAllowedNetworks)[number];
 
@@ -42,12 +47,34 @@ export function getConfirmationsRequired(): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
 }
 
-export function getDocumentRegistryAddress(): string {
-  const address = process.env.CHAIN_DOCUMENT_REGISTRY_ADDRESS;
-  if (!address) {
-    throw new AppError(503, "CHAIN_NOT_CONFIGURED", "CHAIN_DOCUMENT_REGISTRY_ADDRESS is required");
+function readDeployedRegistryAddress(): string | null {
+  const candidates = [
+    process.env.CHAIN_DOCUMENT_REGISTRY_ADDRESS_FILE,
+    join(process.cwd(), "blockchain/abis/DocumentRegistry.address.json"),
+    join(process.cwd(), "../../blockchain/abis/DocumentRegistry.address.json"),
+    join(__dirname, "../../../../../blockchain/abis/DocumentRegistry.address.json"),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const file of candidates) {
+    try {
+      if (!existsSync(file)) continue;
+      const parsed = JSON.parse(readFileSync(file, "utf8")) as { address?: string };
+      if (parsed.address && /^0x[0-9a-fA-F]{40}$/.test(parsed.address)) {
+        return parsed.address;
+      }
+    } catch {
+      // try next candidate
+    }
   }
-  return address;
+  return null;
+}
+
+export function getDocumentRegistryAddress(): string {
+  const fromEnv = process.env.CHAIN_DOCUMENT_REGISTRY_ADDRESS?.trim();
+  if (fromEnv) return fromEnv;
+  const fromFile = readDeployedRegistryAddress();
+  if (fromFile) return fromFile;
+  throw new AppError(503, "CHAIN_NOT_CONFIGURED", "CHAIN_DOCUMENT_REGISTRY_ADDRESS is required");
 }
 
 export function expectedChainId(network: SupportedChainNetwork): number {

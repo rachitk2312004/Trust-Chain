@@ -219,7 +219,12 @@ export async function approveJoinRequest(
   actorUserId: string,
   organizationId: string,
   requestId: string,
-  input: { roleKey?: "org_admin" | "employee" | "public_user"; reviewNote?: string },
+  input: {
+    roleKey?: "org_admin" | "employee" | "public_user";
+    reviewNote?: string;
+    branchId?: string | null;
+    departmentId?: string | null;
+  },
 ) {
   await assertOrgAdmin(actorUserId, organizationId);
 
@@ -232,6 +237,12 @@ export async function approveJoinRequest(
   }
 
   const roleKey = input.roleKey ?? (request.requestedRole as "employee" | "public_user") ?? "employee";
+  const { loadAndResolvePlacement } = await import("./orgPlacement.js");
+  const placement = await loadAndResolvePlacement(
+    organizationId,
+    input.branchId,
+    input.departmentId,
+  );
 
   await prisma.membership.upsert({
     where: {
@@ -241,9 +252,13 @@ export async function approveJoinRequest(
       organizationId,
       userId: request.userId,
       status: "active",
+      branchId: placement.branchId,
+      departmentId: placement.departmentId,
     },
     update: {
       status: "active",
+      branchId: placement.branchId,
+      departmentId: placement.departmentId,
     },
   });
 

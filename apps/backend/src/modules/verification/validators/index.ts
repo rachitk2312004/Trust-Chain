@@ -1,4 +1,5 @@
 import { DocumentPermissions } from "@trustchain/config";
+import { contentHashesEqual } from "../../../lib/contentHash.js";
 import { permissionAtLeast } from "../../documents/documents.access.js";
 import { resolveDocumentPermission } from "../../documents/documents.access.js";
 import type { VerificationCheck, Validator } from "../types/verification.types.js";
@@ -134,14 +135,18 @@ export const blockchainValidator: Validator = {
   run(ctx): VerificationCheck {
     const requireAnchor = ctx.options.requireAnchor !== false;
     if (!ctx.anchor) {
-      if (!requireAnchor) {
+      if (ctx.options.requireLiveChain && ctx.liveChain?.exists) {
+        // Live registry is enough when the local index has not caught up.
+      } else if (!requireAnchor) {
         return { name: "blockchain_anchor", passed: true, detail: "anchor not required" };
+      } else {
+        return { name: "blockchain_anchor", passed: false, code: "anchor_missing" };
       }
-      return { name: "blockchain_anchor", passed: false, code: "anchor_missing" };
     }
     if (
+      ctx.anchor &&
       ctx.version &&
-      ctx.anchor.contentHash.toLowerCase() !== ctx.version.contentHash.toLowerCase()
+      !contentHashesEqual(ctx.anchor.contentHash, ctx.version.contentHash)
     ) {
       return {
         name: "blockchain_anchor",
@@ -150,7 +155,15 @@ export const blockchainValidator: Validator = {
         detail: "Anchor contentHash does not match version",
       };
     }
-    if (ctx.liveChain && ctx.options.requireLiveChain) {
+    if (ctx.options.requireLiveChain) {
+      if (!ctx.liveChain) {
+        return {
+          name: "blockchain_anchor",
+          passed: false,
+          code: "chain_unreachable",
+          detail: "live chain read failed",
+        };
+      }
       if (!ctx.liveChain.exists) {
         return {
           name: "blockchain_anchor",
@@ -162,7 +175,7 @@ export const blockchainValidator: Validator = {
       if (
         ctx.liveChain.contentHash &&
         ctx.version &&
-        ctx.liveChain.contentHash.toLowerCase() !== ctx.version.contentHash.toLowerCase()
+        !contentHashesEqual(ctx.liveChain.contentHash, ctx.version.contentHash)
       ) {
         return {
           name: "blockchain_anchor",
@@ -171,7 +184,7 @@ export const blockchainValidator: Validator = {
         };
       }
     }
-    if (ctx.anchor.status === "pending" || ctx.anchor.status === "failed") {
+    if (ctx.anchor?.status === "pending" || ctx.anchor?.status === "failed") {
       return {
         name: "blockchain_anchor",
         passed: false,
@@ -179,7 +192,7 @@ export const blockchainValidator: Validator = {
         detail: ctx.anchor.status,
       };
     }
-    return { name: "blockchain_anchor", passed: true, detail: ctx.anchor.status };
+    return { name: "blockchain_anchor", passed: true, detail: ctx.anchor?.status ?? "live" };
   },
 };
 

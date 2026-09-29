@@ -6,8 +6,9 @@ import {
 } from "@trustchain/config";
 import { prisma, type Prisma } from "@trustchain/database";
 import { createHash } from "node:crypto";
+import { normalizeContentHash } from "../../../lib/contentHash.js";
 import { getObjectBuffer } from "../../../integrations/objectStorage.js";
-import { resolveConfiguredNetwork } from "../../blockchain/chainConfig.js";
+import { isChainEnabled, resolveConfiguredNetwork } from "../../blockchain/chainConfig.js";
 import { getDocumentRegistryContract } from "../../blockchain/chainProvider.js";
 import { buildVerificationCacheKey } from "../utils/cacheKey.js";
 import { resolveOutcome } from "../utils/outcome.js";
@@ -21,18 +22,12 @@ import type {
   VerifyOptions,
 } from "../types/verification.types.js";
 
-// Re-export isChainEnabled check via local helper — config may not export a function
-function chainWritesEnabled(): boolean {
-  const value = (process.env.CHAIN_ENABLED ?? "true").toLowerCase();
-  return value !== "false" && value !== "0";
-}
-
 async function loadLiveChain(
   orgIdBytes32: string,
   documentIdBytes32: string,
   versionNumber: number,
 ): Promise<VerificationContext["liveChain"]> {
-  if (!chainWritesEnabled() || !process.env.CHAIN_DOCUMENT_REGISTRY_ADDRESS) {
+  if (!isChainEnabled()) {
     return null;
   }
   try {
@@ -44,7 +39,7 @@ async function loadLiveChain(
     return {
       exists,
       revoked: Boolean(anchor.revoked),
-      contentHash: exists ? String(anchor.contentHash) : null,
+      contentHash: exists ? normalizeContentHash(String(anchor.contentHash)) : null,
     };
   } catch {
     return null;
@@ -133,7 +128,7 @@ export async function runVerificationEngine(input: {
     }
 
     let liveChain: VerificationContext["liveChain"] = null;
-    if (version && input.options.requireLiveChain !== false && anchorCtx) {
+    if (version && input.options.requireLiveChain) {
       liveChain = await loadLiveChain(
         uuidToBytes32Local(input.organizationId),
         uuidToBytes32Local(input.documentId),

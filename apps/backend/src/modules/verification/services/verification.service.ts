@@ -129,10 +129,12 @@ export async function startDocumentVerification(
       })
     : null;
 
+  const { isChainEnabled } = await import("../../blockchain/chainConfig.js");
   const options: VerifyOptions = {
-    rehashFromR2: Boolean(input.rehashFromR2),
+    rehashFromR2: input.rehashFromR2 !== false,
     requireAnchor: input.requireAnchor !== false,
-    requireLiveChain: Boolean(input.requireLiveChain),
+    requireLiveChain:
+      input.requireLiveChain !== undefined ? Boolean(input.requireLiveChain) : isChainEnabled(),
   };
 
   if (version) {
@@ -488,6 +490,8 @@ export async function listOrganizationVerifications(
 
   const limit = query.limit ?? 50;
   const offset = query.offset ?? 0;
+  const { requestedByFilterForScope } = await import("../../organizations/orgPlacement.js");
+  const requesterFilter = await requestedByFilterForScope(userId, organizationId);
 
   const [docRows, certEvents] = await Promise.all([
     prisma.verificationRequest.findMany({
@@ -496,6 +500,7 @@ export async function listOrganizationVerifications(
         ...(query.documentId ? { documentId: query.documentId } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.outcome ? { result: { outcome: query.outcome } } : {}),
+        ...requesterFilter,
       },
       include: { result: true },
       orderBy: { createdAt: "desc" },
@@ -509,7 +514,11 @@ export async function listOrganizationVerifications(
             eventType: CertificateEventTypes.verified,
             payloadJson: { path: ["public"], equals: true },
           },
-          include: { certificate: { select: { id: true, publicId: true, title: true, status: true } } },
+          include: {
+            certificate: {
+              select: { id: true, publicId: true, title: true, status: true, issuedById: true },
+            },
+          },
           orderBy: { createdAt: "desc" },
           take: limit + offset,
         }),
@@ -523,7 +532,14 @@ export async function listOrganizationVerifications(
     report: (r.result?.report as VerificationReport) ?? null,
   }));
 
-  const certificateItems = certEvents.map((event) => {
+  const visibleIssuers = requesterFilter.requestedByUserId?.in
+    ? new Set(requesterFilter.requestedByUserId.in)
+    : null;
+  const scopedCertEvents = visibleIssuers
+    ? certEvents.filter((event) => visibleIssuers.has(event.certificate.issuedById))
+    : certEvents;
+
+  const certificateItems = scopedCertEvents.map((event) => {
     const payload =
       event.payloadJson && typeof event.payloadJson === "object" && !Array.isArray(event.payloadJson)
         ? (event.payloadJson as Record<string, unknown>)
@@ -590,6 +606,8 @@ export async function getVerificationById(
     include: { result: true, document: true },
   });
   if (!row) throw new AppError(404, "VERIFY_NOT_FOUND", "Verification not found");
+  const { assertIssuedWorkVisible } = await import("../../organizations/orgPlacement.js");
+  await assertIssuedWorkVisible(userId, organizationId, row.requestedByUserId);
 
   await assertDocumentPermission(
     userId,

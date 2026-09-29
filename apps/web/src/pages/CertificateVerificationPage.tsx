@@ -54,7 +54,7 @@ export function CertificateVerificationPage() {
         <CardHeader>
           <CardTitle>Verification panel</CardTitle>
           <CardDescription>
-            Checks integrity hash, revocation, expiration, and linked document status.
+            Checks metadata integrity, stored PDF hash, revocation, expiration, and live chain.
           </CardDescription>
         </CardHeader>
         <Button
@@ -90,6 +90,13 @@ export function CertificateVerificationPage() {
             <li>Not revoked: {result.checks.notRevoked ? "pass" : "fail"}</li>
             <li>Not expired: {result.checks.notExpired ? "pass" : "fail"}</li>
             <li>Document OK: {result.checks.documentOk ? "pass" : "fail"}</li>
+            <li>PDF artifact: {result.checks.artifact ? "pass" : "fail"}</li>
+            <li>Blockchain: {result.checks.chain ? "pass" : "fail"}</li>
+            {verify.data?.chain?.txHash ? (
+              <li className="font-mono text-xs text-[var(--tc-muted)]">
+                Tx {verify.data.chain.txHash}
+              </li>
+            ) : null}
           </ul>
           {result.reasons.length ? (
             <div>

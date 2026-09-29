@@ -1,4 +1,5 @@
 import { CertificateStatuses } from "@trustchain/config";
+import { contentHashesEqual } from "../../lib/contentHash.js";
 import {
   hashCertificatePayload,
   type CertificateIntegrityPayload,
@@ -22,6 +23,16 @@ export type CertificateVerifyInput = {
   documentDeletedAt?: Date | null;
 };
 
+export type CertificateVerifyEvidence = {
+  artifactPresent?: boolean;
+  artifactHash?: string | null;
+  expectedArtifactHash?: string | null;
+  chainEnabled?: boolean;
+  chainLive?: boolean;
+  chainRevoked?: boolean;
+  chainHash?: string | null;
+};
+
 export type CertificateVerifyResult = {
   valid: boolean;
   status: string;
@@ -30,6 +41,8 @@ export type CertificateVerifyResult = {
     notRevoked: boolean;
     notExpired: boolean;
     documentOk: boolean;
+    artifact: boolean;
+    chain: boolean;
   };
   integrityHash: string;
   expectedHash: string;
@@ -53,12 +66,49 @@ export function buildIntegrityPayloadFromCertificate(
   };
 }
 
+function evaluateArtifact(
+  cert: CertificateVerifyInput,
+  evidence?: CertificateVerifyEvidence,
+): { ok: boolean; reasons: string[] } {
+  if (!cert.documentId || !evidence) {
+    return { ok: true, reasons: [] };
+  }
+  if (!evidence.artifactPresent) {
+    return { ok: false, reasons: ["ARTIFACT_MISSING"] };
+  }
+  if (!contentHashesEqual(evidence.artifactHash, evidence.expectedArtifactHash)) {
+    return { ok: false, reasons: ["ARTIFACT_HASH_MISMATCH"] };
+  }
+  return { ok: true, reasons: [] };
+}
+
+function evaluateChain(
+  cert: CertificateVerifyInput,
+  evidence?: CertificateVerifyEvidence,
+): { ok: boolean; reasons: string[] } {
+  if (!evidence || evidence.chainEnabled === false) {
+    return { ok: true, reasons: [] };
+  }
+  if (evidence.chainRevoked) {
+    return { ok: false, reasons: ["CHAIN_REVOKED"] };
+  }
+  if (!evidence.chainLive) {
+    return { ok: false, reasons: [cert.documentId ? "CHAIN_NOT_ANCHORED" : "CHAIN_NOT_ANCHORED"] };
+  }
+  const expected = evidence.expectedArtifactHash ?? evidence.artifactHash;
+  if (expected && !contentHashesEqual(evidence.chainHash, expected)) {
+    return { ok: false, reasons: ["CHAIN_HASH_MISMATCH"] };
+  }
+  return { ok: true, reasons: [] };
+}
+
 /**
- * Foundation verifier — integrity hash + status/expiry (+ optional document state).
- * Does not perform advanced cryptographic signing.
+ * Certificate trust checks: canonical metadata hash, lifecycle, stored PDF hash, and chain.
+ * When evidence is omitted, artifact/chain checks pass so unit tests stay metadata-focused.
  */
 export function verifyCertificate(
   cert: CertificateVerifyInput,
+  evidence?: CertificateVerifyEvidence,
   now = new Date(),
 ): CertificateVerifyResult {
   const payload = buildIntegrityPayloadFromCertificate(cert);
@@ -73,19 +123,30 @@ export function verifyCertificate(
     (!cert.documentDeletedAt &&
       cert.documentStatus !== "archived" &&
       cert.documentStatus !== "deleted");
+  const artifact = evaluateArtifact(cert, evidence);
+  const chain = evaluateChain(cert, evidence);
 
   const reasons: string[] = [];
   if (!integrity) reasons.push("INTEGRITY_MISMATCH");
   if (!notRevoked) reasons.push("CERTIFICATE_REVOKED");
   if (!notExpired) reasons.push("CERTIFICATE_EXPIRED");
   if (!documentOk) reasons.push("LINKED_DOCUMENT_UNAVAILABLE");
+  reasons.push(...artifact.reasons, ...chain.reasons);
 
-  const valid = integrity && notRevoked && notExpired && documentOk;
+  const valid =
+    integrity && notRevoked && notExpired && documentOk && artifact.ok && chain.ok;
 
   return {
     valid,
     status: cert.status,
-    checks: { integrity, notRevoked, notExpired, documentOk },
+    checks: {
+      integrity,
+      notRevoked,
+      notExpired,
+      documentOk,
+      artifact: artifact.ok,
+      chain: chain.ok,
+    },
     integrityHash: cert.integrityHash,
     expectedHash,
     reasons,

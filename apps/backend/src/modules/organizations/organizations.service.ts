@@ -2,6 +2,7 @@ import { RoleKeys } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
 import { bindStaffRoleToUser } from "../auth/roles.repository.js";
+import { ensureOrgBillingAccount } from "../billing/billing.entitlements.js";
 import {
   userHasRole,
   userHasRoleFromBindings,
@@ -104,6 +105,7 @@ export async function createOrganizationForUser(
     roleKey: RoleKeys.orgAdmin,
     organizationId: org.id,
   });
+  await ensureOrgBillingAccount(org.id);
 
   return toPublicOrganization(org);
 }

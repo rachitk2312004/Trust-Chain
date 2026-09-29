@@ -80,6 +80,11 @@ export async function createOrgDepartment(
   input: { name: string; code?: string; branchId?: string },
 ) {
   await assertOrgAdmin(userId, organizationId);
+  if (input.branchId) {
+    const { loadAndResolvePlacement } = await import("./orgPlacement.js");
+    const placement = await loadAndResolvePlacement(organizationId, input.branchId, null);
+    input = { ...input, branchId: placement.branchId ?? undefined };
+  }
   const department = await createDepartment({ ...input, organizationId });
   return toPublicDepartment(department);
 }
@@ -226,13 +231,24 @@ export async function patchOrgMember(
     }
   }
 
+  let placement: { branchId?: string | null; departmentId?: string | null } = {};
+  if (input.branchId !== undefined || input.departmentId !== undefined) {
+    const { loadAndResolvePlacement } = await import("./orgPlacement.js");
+    placement = await loadAndResolvePlacement(
+      organizationId,
+      input.branchId !== undefined ? input.branchId : membership.branchId,
+      input.departmentId !== undefined ? input.departmentId : membership.departmentId,
+    );
+  }
+
   const result = await prisma.membership.updateMany({
     where: { id: membershipId, organizationId },
     data: {
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
-      ...(input.branchId !== undefined ? { branchId: input.branchId } : {}),
-      ...(input.departmentId !== undefined ? { departmentId: input.departmentId } : {}),
+      ...(input.branchId !== undefined || input.departmentId !== undefined
+        ? { branchId: placement.branchId ?? null, departmentId: placement.departmentId ?? null }
+        : {}),
     },
   });
   if (result.count === 0) {
@@ -252,6 +268,12 @@ export async function inviteToOrganization(
   },
 ) {
   await assertOrgAdmin(actorUserId, organizationId);
+  const { loadAndResolvePlacement } = await import("./orgPlacement.js");
+  const placement = await loadAndResolvePlacement(
+    organizationId,
+    input.branchId,
+    input.departmentId,
+  );
   const token = generateOpaqueToken();
   const invitation = await createInvitation({
     organizationId,
@@ -259,8 +281,8 @@ export async function inviteToOrganization(
     roleKey: input.roleKey,
     tokenHash: hashToken(token),
     invitedBy: actorUserId,
-    branchId: input.branchId,
-    departmentId: input.departmentId,
+    branchId: placement.branchId,
+    departmentId: placement.departmentId,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 

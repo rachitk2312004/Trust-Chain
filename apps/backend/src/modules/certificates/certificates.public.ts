@@ -2,7 +2,7 @@ import { CertificateEventTypes, CertificateStatuses } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
 import * as repo from "./certificates.repository.js";
-import { verifyCertificate } from "./certificates.verifier.js";
+import { evaluateCertificateTrust } from "./certificates.trust.js";
 import { auditCertificatePublicVerify } from "./certificate.audit.js";
 
 function asMetadata(value: unknown): Record<string, unknown> {
@@ -30,7 +30,7 @@ export async function verifyCertificateByPublicId(publicId: string) {
     select: { name: true },
   });
 
-  const result = verifyCertificate({
+  const { verification: result, chain } = await evaluateCertificateTrust({
     publicId: row.publicId,
     organizationId: row.organizationId,
     title: row.title,
@@ -78,7 +78,10 @@ export async function verifyCertificateByPublicId(publicId: string) {
       revokedAt: row.revokedAt?.toISOString() ?? null,
       revokeReason: row.revokeReason,
       organizationName: organization?.name ?? null,
+      integrityHash: row.integrityHash,
+      verificationUrl: row.verificationUrl,
     },
     verification: result,
+    chain,
   };
 }

@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import {
   can,
+  canReportBugs,
+  canUsePlatformQueries,
   documentActionAllowed,
   isOpsAdmin,
   isOrgAdmin,
+  isOrgAdminAnywhere,
   isOrgMember,
   isPlatformAdminOnly,
   isSuperAdmin,
@@ -28,6 +31,9 @@ export function usePermissions(organizationId?: string | null) {
       isPlatformAdminOnly: isPlatformAdminOnly(roles),
       isOpsAdmin: isOpsAdmin(roles),
       isOrgAdmin: isOrgAdmin(roles, orgId),
+      isOrgAdminAnywhere: isOrgAdminAnywhere(roles),
+      canUsePlatformQueries: canUsePlatformQueries(roles),
+      canReportBugs: canReportBugs(roles),
       isOrgMember: isOrgMember(roles, orgId),
       showHolderFeatures: showHolderFeatures(roles, orgId),
       can: check,

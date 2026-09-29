@@ -30,6 +30,16 @@ export const EnvKeys = {
   JWT_ACCESS_EXPIRES_IN: "JWT_ACCESS_EXPIRES_IN",
   JWT_REFRESH_EXPIRES_DAYS: "JWT_REFRESH_EXPIRES_DAYS",
   MFA_ENCRYPTION_KEY: "MFA_ENCRYPTION_KEY",
+  RAZORPAY_KEY_ID: "RAZORPAY_KEY_ID",
+  RAZORPAY_KEY_SECRET: "RAZORPAY_KEY_SECRET",
+  RAZORPAY_WEBHOOK_SECRET: "RAZORPAY_WEBHOOK_SECRET",
+  RAZORPAY_MOCK: "RAZORPAY_MOCK",
+  FIREBASE_SERVICE_ACCOUNT_JSON: "FIREBASE_SERVICE_ACCOUNT_JSON",
+  FIREBASE_PROJECT_ID: "FIREBASE_PROJECT_ID",
+  FIREBASE_CLIENT_EMAIL: "FIREBASE_CLIENT_EMAIL",
+  FIREBASE_PRIVATE_KEY: "FIREBASE_PRIVATE_KEY",
+  FIREBASE_WEB_API_KEY: "FIREBASE_WEB_API_KEY",
+  FIREBASE_API_KEY: "FIREBASE_API_KEY",
   DOCUMENT_KEY_V1: "DOCUMENT_KEY_V1",
   DOCUMENT_KEY_V2: "DOCUMENT_KEY_V2",
   DOCUMENT_KEY_V3: "DOCUMENT_KEY_V3",
@@ -499,6 +509,174 @@ export const BillingPlanKeys = {
   enterprise: "enterprise",
 } as const;
 
+/** Public commercial plans billed through Razorpay. */
+export const CommercialPlanKeys = {
+  free: "free",
+  premiumPro: "premium_pro",
+  maxPro: "max_pro",
+} as const;
+
+export type CommercialPlanKey = (typeof CommercialPlanKeys)[keyof typeof CommercialPlanKeys];
+
+export const BillingOwnerTypes = {
+  user: "user",
+  organization: "organization",
+} as const;
+
+export type BillingOwnerType = (typeof BillingOwnerTypes)[keyof typeof BillingOwnerTypes];
+
+export const BillingFeatureKeys = {
+  holderWallet: "holder_wallet",
+  holderVerification: "holder_verification",
+  issueCertificates: "issue_certificates",
+  certificateTemplates: "certificate_templates",
+  bulkIssue: "bulk_issue",
+  orgVerification: "org_verification",
+  messaging: "messaging",
+  reportsExport: "reports_export",
+  trustReports: "trust_reports",
+  customBranding: "custom_branding",
+  chainPublish: "chain_publish",
+  analytics: "analytics",
+  developerApi: "developer_api",
+} as const;
+
+export type BillingFeatureKey = (typeof BillingFeatureKeys)[keyof typeof BillingFeatureKeys];
+
+export const BillingMetricKeys = {
+  holderVerifications: "holder_verifications",
+  orgVerifications: "org_verifications",
+  certificateIssues: "certificate_issues",
+  bulkIssues: "bulk_issues",
+} as const;
+
+export type BillingMetricKey = (typeof BillingMetricKeys)[keyof typeof BillingMetricKeys];
+
+/** `null` means unlimited for the billing period. */
+export type BillingQuotaValue = number | null;
+
+export type CommercialPlanDefinition = {
+  key: CommercialPlanKey;
+  name: string;
+  audience: "holder" | "organization";
+  tagline: string;
+  monthlyAmountPaise: number;
+  currency: "INR";
+  rank: number;
+  features: Record<BillingFeatureKey, boolean>;
+  quotas: Record<BillingMetricKey, BillingQuotaValue>;
+  highlights: string[];
+};
+
+const FREE_FEATURES: Record<BillingFeatureKey, boolean> = {
+  holder_wallet: true,
+  holder_verification: true,
+  issue_certificates: false,
+  certificate_templates: false,
+  bulk_issue: false,
+  org_verification: false,
+  messaging: false,
+  reports_export: false,
+  trust_reports: false,
+  custom_branding: false,
+  chain_publish: false,
+  analytics: false,
+  developer_api: false,
+};
+
+const PREMIUM_PRO_FEATURES: Record<BillingFeatureKey, boolean> = {
+  ...FREE_FEATURES,
+  issue_certificates: true,
+  certificate_templates: true,
+  bulk_issue: true,
+  org_verification: true,
+  messaging: true,
+  reports_export: true,
+};
+
+const MAX_PRO_FEATURES: Record<BillingFeatureKey, boolean> = {
+  ...PREMIUM_PRO_FEATURES,
+  trust_reports: true,
+  custom_branding: true,
+  chain_publish: true,
+  analytics: true,
+  developer_api: true,
+};
+
+export const CommercialPlans: Record<CommercialPlanKey, CommercialPlanDefinition> = {
+  free: {
+    key: CommercialPlanKeys.free,
+    name: "Free",
+    audience: "holder",
+    tagline: "Certificate wallet with a monthly verification allowance.",
+    monthlyAmountPaise: 0,
+    currency: "INR",
+    rank: 0,
+    features: FREE_FEATURES,
+    quotas: {
+      holder_verifications: 10,
+      org_verifications: 0,
+      certificate_issues: 0,
+      bulk_issues: 0,
+    },
+    highlights: [
+      "Hold and download certificates issued to you",
+      "10 certificate verifications per month",
+      "Public URL and QR lookup",
+    ],
+  },
+  premium_pro: {
+    key: CommercialPlanKeys.premiumPro,
+    name: "Premium Pro",
+    audience: "organization",
+    tagline: "Issue, verify, and message with monthly caps.",
+    monthlyAmountPaise: 249_900,
+    currency: "INR",
+    rank: 1,
+    features: PREMIUM_PRO_FEATURES,
+    quotas: {
+      holder_verifications: 200,
+      org_verifications: 500,
+      certificate_issues: 200,
+      bulk_issues: 200,
+    },
+    highlights: [
+      "Issue up to 200 certificates per month",
+      "Templates, QR, and bulk issue (200/month)",
+      "Organization verification desk (500/month)",
+      "Team messaging and CSV reports",
+      "200 personal verifications per month",
+    ],
+  },
+  max_pro: {
+    key: CommercialPlanKeys.maxPro,
+    name: "Max Pro",
+    audience: "organization",
+    tagline: "Every TrustChain feature, without monthly caps.",
+    monthlyAmountPaise: 799_900,
+    currency: "INR",
+    rank: 2,
+    features: MAX_PRO_FEATURES,
+    quotas: {
+      holder_verifications: null,
+      org_verifications: null,
+      certificate_issues: null,
+      bulk_issues: null,
+    },
+    highlights: [
+      "Unlimited issue, bulk, and verification",
+      "Trust reports and full analytics",
+      "Custom branding and chain publish",
+      "Developer API and webhooks",
+      "Unlimited personal verifications",
+    ],
+  },
+};
+
+export const CommercialPlanList = Object.values(CommercialPlans);
+
+export const BillingPeriodDays = 30;
+
 export const OpsRateLimit = {
   windowMs: 5 * 60 * 1000,
   maxRequests: 60,
@@ -567,6 +745,8 @@ export const CertificateTemplateStatuses = {
 export const CertificateEventTypes = {
   created: "created",
   issued: "issued",
+  published: "published",
+  anchored: "anchored",
   revoked: "revoked",
   verified: "verified",
   updated: "updated",

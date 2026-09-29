@@ -1,5 +1,6 @@
 import { RoleKeys } from "@trustchain/config";
 import {
+  hasStaffOrganizationRole,
   isOrgMember,
   isSuperAdmin,
   showHolderFeatures,
@@ -26,6 +27,32 @@ export function resolveOrgAdminOrganizationId(
   return binding?.organizationId ?? memberships?.[0]?.organizationId ?? null;
 }
 
+/** First organization the user can operate as staff (employee or org admin). */
+export function resolveWorkspaceOrganizationId(
+  roles: RoleBinding[],
+  ctx: HomeRouteContext = {},
+): string | null {
+  const adminId = resolveOrgAdminOrganizationId(roles, ctx);
+  if (adminId) return adminId;
+
+  const { activeOrganizationId, memberships } = ctx;
+  if (activeOrganizationId) {
+    const staffHere = roles.some(
+      (r) =>
+        (r.roleKey === RoleKeys.orgAdmin || r.roleKey === RoleKeys.employee) &&
+        r.organizationId === activeOrganizationId,
+    );
+    if (staffHere) return activeOrganizationId;
+  }
+
+  const binding = roles.find(
+    (r) =>
+      (r.roleKey === RoleKeys.orgAdmin || r.roleKey === RoleKeys.employee) &&
+      r.organizationId,
+  );
+  return binding?.organizationId ?? memberships?.[0]?.organizationId ?? null;
+}
+
 export function isOrgAdminOnly(
   roles: RoleBinding[],
   organizationId?: string | null,
@@ -47,7 +74,7 @@ export function getHomeRoute(roles: RoleBinding[], ctx: HomeRouteContext = {}): 
     return orgId ? `/organizations/${orgId}` : "/organizations";
   }
 
-  if (isOrgMember(roles, ctx.activeOrganizationId ?? orgId)) {
+  if (isOrgMember(roles, ctx.activeOrganizationId ?? orgId) || hasStaffOrganizationRole(roles)) {
     return "/dashboard";
   }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Wallet } from "ethers";
 import { DocumentMaxUploadBytes, DocumentPermissions } from "@trustchain/config";
-import { generateOpaqueToken, hashToken } from "../dist/lib/crypto.js";
+import { generateOpaqueToken, generateNumericOtp, hashToken } from "../dist/lib/crypto.js";
 import { AppError } from "../dist/lib/errors.js";
 import { parseBody } from "../dist/lib/validate.js";
 import { registerBodySchema } from "../dist/modules/auth/auth.schemas.js";
@@ -28,6 +28,8 @@ function testCrypto() {
   const token = generateOpaqueToken();
   assert.equal(typeof token, "string");
   assert.ok(token.length > 20);
+  const otp = generateNumericOtp(6);
+  assert.match(otp, /^\d{6}$/);
   const a = hashToken(token);
   const b = hashToken(token);
   assert.equal(a, b);
@@ -183,18 +185,24 @@ async function testBlockchainHelpers() {
 }
 
 async function main() {
-  testCrypto();
-  testValidation();
+testCrypto();
+testValidation();
   testDocumentFile();
   testAccessRanks();
   testConfirmSchema();
   await testBlockchainHelpers();
-  const { testVerificationCodeFormat, testOutcomePrecedence, testReportProofFields } = await import(
-    "../dist/modules/verification/tests/verification.unit.js"
-  );
+  const {
+    testVerificationCodeFormat,
+    testOutcomePrecedence,
+    testReportProofFields,
+    testBulkVerifyHelpers,
+    testIntakeFileMatching,
+  } = await import("../dist/modules/verification/tests/verification.unit.js");
   testVerificationCodeFormat();
   testOutcomePrecedence();
   testReportProofFields();
+  testBulkVerifyHelpers();
+  testIntakeFileMatching();
   const { testPublicCodes, testReportSigning, testVisibilityAndLinkState } = await import(
     "../dist/modules/public-verification/tests/publicVerification.unit.js"
   );
@@ -362,13 +370,19 @@ async function main() {
     testCertificateVerification,
     testCertificateRevocationSemantics,
     testTemplateHandling,
+    testTemplateCodeSlugify,
+    testRecipientEmailClaimNormalize,
     testCertificateEventCreationShape,
+    testCertificateTrustEvidence,
   } = await import("../dist/modules/certificates/tests/certificates.unit.js");
   testCertificateIssuanceIdentity();
   testCertificateVerification();
   testCertificateRevocationSemantics();
   testTemplateHandling();
+  testTemplateCodeSlugify();
+  testRecipientEmailClaimNormalize();
   testCertificateEventCreationShape();
+  testCertificateTrustEvidence();
 
   const {
     testPlaceholderReplacement,
@@ -402,12 +416,67 @@ async function main() {
     testDownloadMetrics: testCertificateDownloadMetrics,
     testCleanupHelpers: testCertificateCleanupHelpers,
     testAdministrativeOperationsShape: testCertificateAdminOperations,
+    testTrustReportOutcomes,
+    testCertificateLookupOutcomeMapping,
   } = await import("../dist/modules/certificates/tests/certificates.analytics.unit.js");
   testCertificateStatisticsGeneration();
   testCertificateTemplateMetrics();
   testCertificateDownloadMetrics();
   testCertificateCleanupHelpers();
   testCertificateAdminOperations();
+  testTrustReportOutcomes();
+  testCertificateLookupOutcomeMapping();
+
+  const {
+    testDirectMessagePairKey,
+    testConversationValidation,
+    testMessageCacheKeys,
+    testMessageOwnershipAndPresence,
+  } = await import("../dist/modules/messages/tests/messages.unit.js");
+  testDirectMessagePairKey();
+  testConversationValidation();
+  testMessageCacheKeys();
+  testMessageOwnershipAndPresence();
+
+  const {
+    testSupportAccessRules,
+    testSupportStatusRules,
+    testSupportValidation,
+  } = await import("../dist/modules/support/tests/support.unit.js");
+  testSupportAccessRules();
+  testSupportStatusRules();
+  testSupportValidation();
+
+  const {
+    testBillingPlanCatalog,
+    testBillingEntitlementRules,
+    testRazorpaySignatures,
+    testRazorpayLiveKeysDisableMock,
+    testBillingValidation,
+  } = await import("../dist/modules/billing/tests/billing.unit.js");
+  testBillingPlanCatalog();
+  testBillingEntitlementRules();
+  testRazorpaySignatures();
+  testRazorpayLiveKeysDisableMock();
+  testBillingValidation();
+
+  const {
+    testEmailOtpValidation,
+    testNumericOtpFormat,
+  } = await import("../dist/modules/auth/tests/auth.unit.js");
+  testEmailOtpValidation();
+  testNumericOtpFormat();
+
+  const {
+    testPlacementAssignsBranchAndDepartment,
+    testPlacementInheritsBranchFromDepartment,
+    testPlacementRejectsDepartmentOnOtherBranch,
+    testPlacementRejectsUnknownBranch,
+  } = await import("../dist/modules/organizations/tests/orgPlacement.unit.js");
+  testPlacementAssignsBranchAndDepartment();
+  testPlacementInheritsBranchFromDepartment();
+  testPlacementRejectsDepartmentOnOtherBranch();
+  testPlacementRejectsUnknownBranch();
 
   const {
     testSignatureCreation,

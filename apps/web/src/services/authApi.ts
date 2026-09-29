@@ -35,7 +35,16 @@ export type MfaVerifyInput = {
 
 export const authApi = {
   register(input: RegisterInput) {
-    return apiClient.post<{ user: PublicUser }>("/auth/register", input);
+    return apiClient.post<{
+      user: PublicUser;
+      verification: { method: "otp"; expiresInSeconds: number };
+    }>("/auth/register", input);
+  },
+  verifyEmailOtp(input: { email: string; otp: string }) {
+    return apiClient.post<{ user: PublicUser }>("/auth/email/verify-otp", input);
+  },
+  resendVerification(email: string) {
+    return apiClient.post<{ ok: boolean }>("/auth/email/resend", { email });
   },
   login(input: LoginInput) {
     return apiClient.post<LoginResponse>("/auth/login", input);

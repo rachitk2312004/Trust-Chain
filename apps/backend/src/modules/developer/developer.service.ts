@@ -8,6 +8,8 @@ import {
 import { generateOpaqueToken } from "../../lib/crypto.js";
 import { AppError } from "../../lib/errors.js";
 import { assertDeveloperAdmin, hashDeveloperSecret } from "./developer.auth.js";
+import { assertOrgFeature } from "../billing/billing.entitlements.js";
+import { BillingFeatureKeys } from "../billing/billing.plans.js";
 import {
   createReplayDelivery,
   createTestDelivery,
@@ -43,6 +45,7 @@ import {
 
 export async function getDeveloperDashboard(actorId: string, organizationId: string) {
   await assertDeveloperAdmin(actorId, organizationId);
+  await assertOrgFeature(actorId, organizationId, BillingFeatureKeys.developerApi);
   const counts = await repo.countDeveloperResources(organizationId);
   return {
     organizationId,
@@ -111,6 +114,7 @@ export async function createApiKey(
   },
 ) {
   await assertDeveloperAdmin(actorId, input.organizationId);
+  await assertOrgFeature(actorId, input.organizationId, BillingFeatureKeys.developerApi);
   await assertDeveloperKeyCreateLimit(input.organizationId);
   const { assertOrganizationResourceQuota } = await import("./developer.quotas.js");
   await assertOrganizationResourceQuota(input.organizationId, "maxApiKeys");

@@ -11,6 +11,7 @@ import {
   FormHint,
 } from "@trustchain/ui";
 import { Can } from "../components/Can";
+import { DocumentChainPanel } from "../features/documents/DocumentChainPanel";
 import { DocumentArchiveDialog } from "../features/documents/DocumentArchiveDialog";
 import {
   DocumentAccessPolicyEditor,
@@ -198,6 +199,13 @@ export function DocumentDetailPage() {
           </div>
         </>
       ) : null}
+
+      <DocumentChainPanel
+        organizationId={organizationId}
+        documentId={documentId}
+        documentStatus={document.status}
+        hasVersion={Boolean(version)}
+      />
 
       <DocumentUploadDialog
         organizationId={organizationId}

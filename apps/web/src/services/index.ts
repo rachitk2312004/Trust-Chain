@@ -7,4 +7,7 @@ export { qrApi } from "./qrApi";
 export { certificateApi } from "./certificateApi";
 export { signatureApi } from "./signatureApi";
 export { notificationApi } from "./notificationApi";
+export { messageApi } from "./messageApi";
 export { adminApi } from "./adminApi";
+export { supportApi } from "./supportApi";
+export { billingApi } from "./billingApi";

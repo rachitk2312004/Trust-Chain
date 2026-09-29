@@ -14,6 +14,7 @@ import {
 } from "../features/certificates";
 import { AppShellLayout } from "../layouts/AppShellLayout";
 import { getCertificateErrorMessage } from "../lib/certificateErrors";
+import { PlanGate } from "../features/billing/PlanGate";
 import { useSessionStore } from "../lib/sessionStore";
 
 export function CertificateAnalyticsPage() {
@@ -47,6 +48,7 @@ export function CertificateAnalyticsPage() {
         <FormError>{getCertificateErrorMessage(analytics.error)}</FormError>
       ) : null}
 
+      <PlanGate feature="analytics" organizationId={organizationId}>
       {analytics.isLoading ? (
         <p className="text-sm text-[var(--tc-muted)]">Loading analytics…</p>
       ) : (
@@ -74,6 +76,7 @@ export function CertificateAnalyticsPage() {
           </Can>
         </div>
       )}
+      </PlanGate>
     </AppShellLayout>
   );
 }

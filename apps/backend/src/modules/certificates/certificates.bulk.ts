@@ -7,6 +7,8 @@ import {
 import { prisma, type Prisma } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
 import { userHasRole } from "../auth/rbac.repository.js";
+import { consumeOrgMetric, assertOrgFeature } from "../billing/billing.entitlements.js";
+import { BillingFeatureKeys, BillingMetricKeys } from "../billing/billing.plans.js";
 import {
   parseBulkImport,
   parseFlexibleDate,
@@ -92,6 +94,7 @@ export async function previewCertificateBulk(
   },
 ) {
   await assertOrgStaff(userId, input.organizationId);
+  await assertOrgFeature(userId, input.organizationId, BillingFeatureKeys.bulkIssue);
 
   let rows: BulkImportRow[];
   try {
@@ -133,6 +136,7 @@ export async function startCertificateBulk(
   },
 ) {
   await assertOrgStaff(userId, input.organizationId);
+  await assertOrgFeature(userId, input.organizationId, BillingFeatureKeys.bulkIssue);
 
   let rows: BulkImportRow[];
   try {
@@ -164,6 +168,13 @@ export async function startCertificateBulk(
   if (issuable.length === 0) {
     throw new AppError(400, "BULK_NO_VALID_ROWS", "No valid rows to issue", { preview });
   }
+  await consumeOrgMetric(
+    userId,
+    input.organizationId,
+    BillingMetricKeys.certificateIssues,
+    issuable.length,
+    BillingFeatureKeys.issueCertificates,
+  );
 
   const preErrors: BulkErrorEntry[] = preview.rows
     .filter((row) => row.errors.length > 0)
@@ -276,7 +287,8 @@ async function processCertificateBulkJob(jobId: string): Promise<void> {
         issuedAt: issueDate?.toISOString() ?? null,
         publicId: row.certificateIdentifier,
         metadata,
-        createQr: false,
+        createQr: true,
+        publishToChain: true,
       });
 
       issuedIds.push(result.certificate.id);

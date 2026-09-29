@@ -30,6 +30,17 @@ async function assertOrgAdmin(userId: string, organizationId: string): Promise<v
   }
 }
 
+async function assertOrgStaff(userId: string, organizationId: string): Promise<void> {
+  const allowed = await userHasRole(
+    userId,
+    [RoleKeys.superAdmin, RoleKeys.orgAdmin, RoleKeys.employee],
+    organizationId,
+  );
+  if (!allowed) {
+    throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+  }
+}
+
 async function getActiveNetworkRow() {
   const key = resolveConfiguredNetwork();
   const network = await prisma.blockchainNetwork.findUnique({ where: { key } });
@@ -144,7 +155,7 @@ export async function getCurrentBlockchainNetwork() {
 }
 
 export async function getOrganizationChainStatus(userId: string, organizationId: string) {
-  await assertOrgAdmin(userId, organizationId);
+  await assertOrgStaff(userId, organizationId);
   const network = await getActiveNetworkRow();
   const registration = await prisma.organizationChainRegistration.findUnique({
     where: {
@@ -170,7 +181,17 @@ export async function getOrganizationChainStatus(userId: string, organizationId:
 export async function registerOrganizationOnChain(userId: string, organizationId: string) {
   assertChainEnabled();
   await assertOrgAdmin(userId, organizationId);
+  return registerOrganizationOnChainInternal(organizationId);
+}
 
+/** Staff can trigger registration so employees can issue onto a live chain. */
+export async function ensureOrganizationRegisteredOnChain(userId: string, organizationId: string) {
+  assertChainEnabled();
+  await assertOrgStaff(userId, organizationId);
+  return registerOrganizationOnChainInternal(organizationId);
+}
+
+async function registerOrganizationOnChainInternal(organizationId: string) {
   const org = await prisma.organization.findUnique({ where: { id: organizationId } });
   if (!org) throw new AppError(404, "NOT_FOUND", "Organization not found");
 
@@ -287,7 +308,7 @@ export async function anchorDocumentOnChain(
   input?: { documentVersionId?: string },
 ) {
   assertChainEnabled();
-  await assertOrgAdmin(userId, organizationId);
+  await assertOrgStaff(userId, organizationId);
 
   const document = await prisma.document.findFirst({
     where: { id: documentId, organizationId },
@@ -517,7 +538,7 @@ export async function revokeDocumentOnChain(
   input?: { documentVersionId?: string },
 ) {
   assertChainEnabled();
-  await assertOrgAdmin(userId, organizationId);
+  await assertOrgStaff(userId, organizationId);
 
   const document = await prisma.document.findFirst({
     where: { id: documentId, organizationId },
@@ -660,7 +681,7 @@ export async function listDocumentAnchors(
   organizationId: string,
   documentId: string,
 ) {
-  await assertOrgAdmin(userId, organizationId);
+  await assertOrgStaff(userId, organizationId);
   const document = await prisma.document.findFirst({
     where: { id: documentId, organizationId },
   });
@@ -679,7 +700,7 @@ export async function getDocumentChainStatus(
   organizationId: string,
   documentId: string,
 ) {
-  await assertOrgAdmin(userId, organizationId);
+  await assertOrgStaff(userId, organizationId);
   const document = await prisma.document.findFirst({
     where: { id: documentId, organizationId },
     include: { currentVersion: true },

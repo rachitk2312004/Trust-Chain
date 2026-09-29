@@ -13,6 +13,8 @@ describe("workspacePersona", () => {
   it("identifies employee persona", () => {
     const roles = [{ roleKey: "employee", roleName: "Employee", organizationId: "org-1" }];
     expect(getWorkspacePersona(roles, "org-1").kind).toBe("employee");
+    expect(getWorkspacePersona(roles).kind).toBe("employee");
+    expect(getWorkspacePersona(roles).consoleTitle).toBe("Employee console");
     expect(canSelfJoinOrganization(roles)).toBe(true);
   });
 

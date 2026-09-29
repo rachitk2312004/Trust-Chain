@@ -1,32 +1,10 @@
-import { createClient, type RedisClientType } from "redis";
 import { prisma } from "@trustchain/database";
 import { AppError } from "./errors.js";
+import { getRedis } from "./redis.js";
 
 type MemoryBucket = { count: number; resetAt: number };
 
 const memoryBuckets = new Map<string, MemoryBucket>();
-let redisClient: RedisClientType | null | undefined;
-
-async function getRedis(): Promise<RedisClientType | null> {
-  if (redisClient !== undefined) return redisClient;
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    redisClient = null;
-    return null;
-  }
-  try {
-    const client = createClient({ url });
-    client.on("error", () => {
-      /* fall through to DB/memory on command failure */
-    });
-    await client.connect();
-    redisClient = client as RedisClientType;
-    return redisClient;
-  } catch {
-    redisClient = null;
-    return null;
-  }
-}
 
 async function assertViaRedis(
   key: string,

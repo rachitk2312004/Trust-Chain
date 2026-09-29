@@ -17,7 +17,10 @@ import {
   issueCertificateBodySchema,
   listCertificatesQuerySchema,
   listTemplatesQuerySchema,
+  lookupRecipientQuerySchema,
   organizationIdQuerySchema,
+  previewTemplateBodySchema,
+  publishCertificateBodySchema,
   revokeCertificateBodySchema,
   templateIdParamsSchema,
   updateTemplateBodySchema,
@@ -25,6 +28,7 @@ import {
 } from "./certificates.schemas.js";
 import * as service from "./certificates.service.js";
 import * as bulk from "./certificates.bulk.js";
+import * as publish from "./certificates.publish.js";
 
 export const certificatesRouter = Router();
 
@@ -51,6 +55,19 @@ certificatesRouter.get(
       query.status,
     );
     res.status(200).json(data);
+  }),
+);
+
+certificatesRouter.post(
+  "/templates/preview",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const body = parseBody(previewTemplateBodySchema, req.body);
+    const file = await service.previewCertificateTemplate(req.user.id, body);
+    res.setHeader("Content-Type", file.contentType);
+    res.setHeader("Content-Disposition", `inline; filename="${file.fileName}"`);
+    if (file.warnings.length) res.setHeader("X-Certificate-Warnings", file.warnings.join("; "));
+    res.status(200).send(file.body);
   }),
 );
 
@@ -201,6 +218,17 @@ certificatesRouter.get(
   }),
 );
 
+certificatesRouter.get(
+  "/reports/trust",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const query = parseQuery(analyticsQuerySchema, req.query);
+    const { getCertificateTrustReport } = await import("./certificates.trustReport.js");
+    const data = await getCertificateTrustReport(req.user.id, query.organizationId);
+    res.status(200).json(data);
+  }),
+);
+
 certificatesRouter.post(
   "/admin/reprocess",
   asyncHandler(async (req, res) => {
@@ -226,6 +254,20 @@ certificatesRouter.post(
       bulkJobDays: body.bulkJobDays,
       temporaryAssetEventDays: body.temporaryAssetEventDays,
     });
+    res.status(200).json(data);
+  }),
+);
+
+certificatesRouter.get(
+  "/recipients",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const query = parseQuery(lookupRecipientQuerySchema, req.query);
+    const data = await service.lookupCertificateRecipients(
+      req.user.id,
+      query.organizationId,
+      query.q,
+    );
     res.status(200).json(data);
   }),
 );
@@ -353,6 +395,39 @@ certificatesRouter.post(
       body.organizationId,
       params.certificateId,
       body.reason,
+    );
+    res.status(200).json(data);
+  }),
+);
+
+certificatesRouter.post(
+  "/:certificateId/publish",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(certificateIdParamsSchema, req.params);
+    const body = parseBody(publishCertificateBodySchema, req.body ?? {});
+    await service.getCertificate(req.user.id, body.organizationId, params.certificateId);
+    const data = await publish.publishCertificate(
+      req.user.id,
+      body.organizationId,
+      params.certificateId,
+      { publishToChain: body.publishToChain },
+    );
+    res.status(200).json(data);
+  }),
+);
+
+certificatesRouter.get(
+  "/:certificateId/chain",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(certificateIdParamsSchema, req.params);
+    const query = parseQuery(organizationIdQuerySchema, req.query);
+    await service.getCertificate(req.user.id, query.organizationId, params.certificateId);
+    const data = await publish.getCertificatePublishStatus(
+      req.user.id,
+      query.organizationId,
+      params.certificateId,
     );
     res.status(200).json(data);
   }),

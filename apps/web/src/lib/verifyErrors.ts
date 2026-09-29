@@ -138,3 +138,28 @@ export function extractPublicLinkToken(input: string): string {
   if (tokenFromMatch) return tokenFromMatch;
   return trimmed;
 }
+
+const CERT_PUBLIC_ID_RE = /CERT-[A-Z0-9]+-[0-9A-F]+/i;
+
+export function resolvePublicVerifyTarget(
+  input: string,
+): { kind: "certificate"; publicId: string } | { kind: "link"; token: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const cert = trimmed.match(CERT_PUBLIC_ID_RE);
+  if (cert?.[0]) return { kind: "certificate", publicId: cert[0].toUpperCase() };
+  try {
+    const url = new URL(trimmed);
+    const token = extractPublicLinkToken(url.toString());
+    if (token && token !== trimmed && !token.includes("/")) {
+      return { kind: "link", token };
+    }
+  } catch {
+    const nested = extractPublicLinkToken(trimmed);
+    if (nested !== trimmed && nested.length >= 8) return { kind: "link", token: nested };
+    return null;
+  }
+  const token = extractPublicLinkToken(trimmed);
+  if (token && token !== trimmed) return { kind: "link", token };
+  return null;
+}

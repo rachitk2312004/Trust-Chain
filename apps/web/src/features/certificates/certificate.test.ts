@@ -5,6 +5,7 @@ import {
   certificateStatusTone,
   defaultCertificateLayoutPreview,
   getCertificateErrorMessage,
+  slugifyCertificateTemplateCode,
   isCertificateExpired,
   isCertificateForbidden,
   isCertificateNotFound,
@@ -43,7 +44,8 @@ describe("certificate creation", () => {
       recipientName: "Ada Lovelace",
       recipientEmail: "ada@example.com",
       templateId: null,
-      createQr: false,
+      createQr: true,
+      publishToChain: true,
     };
     expect(body.title).toMatch(/Certificate/);
     expect(body.recipientName).toBe("Ada Lovelace");
@@ -63,6 +65,10 @@ describe("certificate creation", () => {
     ]);
   });
 
+  it("slugifies template codes with spaces", () => {
+    expect(slugifyCertificateTemplateCode("completion v-1")).toBe("completion-v-1");
+  });
+
   it("maps template not found on create", () => {
     const error = axiosError(404, "TEMPLATE_NOT_FOUND", "Certificate template not found");
     expect(isInvalidCertificateTemplate(error)).toBe(true);
@@ -75,6 +81,8 @@ describe("certificate verification", () => {
     expect(verificationReasonLabel("CERTIFICATE_REVOKED")).toMatch(/revoked/i);
     expect(verificationReasonLabel("CERTIFICATE_EXPIRED")).toMatch(/expired/i);
     expect(verificationReasonLabel("INTEGRITY_MISMATCH")).toMatch(/integrity/i);
+    expect(verificationReasonLabel("CHAIN_NOT_ANCHORED")).toMatch(/blockchain/i);
+    expect(verificationReasonLabel("ARTIFACT_HASH_MISMATCH")).toMatch(/pdf/i);
   });
 
   it("evaluates verification contract shape", () => {

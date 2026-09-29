@@ -11,6 +11,10 @@ import {
   CertificateProcessMetrics,
 } from "../certificates.observability.js";
 import { retentionCutoff } from "../certificates.retention.js";
+import {
+  outcomeFromCertificateVerifyPayload,
+  summarizeVerificationOutcomes,
+} from "../certificates.trustReport.js";
 
 export function testStatisticsGeneration(): void {
   const issuance = buildIssuanceStatistics({
@@ -128,4 +132,33 @@ export function testAdministrativeOperationsShape(): void {
     temporaryAssetEventsEligible: 7,
   };
   assert.ok(cleanupPreview.eventsEligible >= cleanupPreview.temporaryAssetEventsEligible);
+}
+
+export function testTrustReportOutcomes(): void {
+  const summary = summarizeVerificationOutcomes([
+    { outcome: "valid" },
+    { outcome: "tampered" },
+    { outcome: "tampered" },
+    { outcome: "invalid" },
+    { outcome: "revoked" },
+  ]);
+  assert.equal(summary.total, 5);
+  assert.equal(summary.flagged, 4);
+  assert.equal(summary.byOutcome.tampered, 2);
+}
+
+export function testCertificateLookupOutcomeMapping(): void {
+  assert.equal(outcomeFromCertificateVerifyPayload({ valid: true, reasons: [] }).outcome, "valid");
+  assert.equal(
+    outcomeFromCertificateVerifyPayload({ valid: false, reasons: ["INTEGRITY_MISMATCH"] }).outcome,
+    "tampered",
+  );
+  assert.equal(
+    outcomeFromCertificateVerifyPayload({ valid: false, reasons: ["CERTIFICATE_REVOKED"] }).outcome,
+    "revoked",
+  );
+  assert.equal(
+    outcomeFromCertificateVerifyPayload({ valid: false, reasons: ["ARTIFACT_MISSING"] }).outcome,
+    "missing",
+  );
 }

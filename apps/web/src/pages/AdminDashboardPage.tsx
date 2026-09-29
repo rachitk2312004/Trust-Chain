@@ -15,6 +15,8 @@ import { getApiErrorMessage } from "../lib/apiErrors";
 import { usePermissions } from "../hooks/usePermissions";
 
 const adminLinks = [
+  { to: "/admin/inbox", label: "Queries" },
+  { to: "/admin/bugs", label: "Bug reports" },
   { to: "/admin/users", label: "Users" },
   { to: "/admin/organizations", label: "Organizations" },
   { to: "/admin/tenants", label: "Tenants" },

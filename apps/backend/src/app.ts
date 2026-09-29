@@ -9,6 +9,8 @@ import { publicVerificationRouter } from "./modules/public-verification/routes/p
 import { publicQrRouter } from "./modules/qr/routes/qr.router.js";
 import { publicCertificateRouter } from "./modules/certificates/certificates.public.router.js";
 import { publicDeveloperApiRouter } from "./modules/developer/developer.api.js";
+import { asyncHandler } from "./lib/asyncHandler.js";
+import { handleRazorpayWebhook } from "./modules/billing/billing.webhook.js";
 
 function corsMiddleware(
   req: express.Request,
@@ -33,7 +35,10 @@ function corsMiddleware(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With",
   );
-  res.setHeader("Access-Control-Max-Age", "86400");
+  res.setHeader(
+    "Access-Control-Expose-Headers",
+    "Content-Disposition, X-Certificate-Warnings",
+  );
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
@@ -45,7 +50,12 @@ export function createApp() {
   const app = express();
 
   app.use(corsMiddleware);
-  app.use(express.json({ limit: "1mb" }));
+  app.post(
+    `${ApiConstants.prefix}/billing/webhooks/razorpay`,
+    express.raw({ type: "application/json" }),
+    asyncHandler(handleRazorpayWebhook),
+  );
+  app.use(express.json({ limit: "8mb" }));
   app.use(requestPerfMiddleware);
   app.use(requestLogger);
   app.use(healthRouter);

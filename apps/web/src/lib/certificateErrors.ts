@@ -1,4 +1,14 @@
-import { parseApiError } from "./apiErrors";
+import { getApiErrorMessage, parseApiError } from "./apiErrors";
+
+export function slugifyCertificateTemplateCode(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
 
 export function isCertificateNotFound(error: unknown): boolean {
   const parsed = parseApiError(error);
@@ -61,6 +71,10 @@ export function isMissingCertificateAsset(error: unknown): boolean {
 }
 
 export function getCertificateErrorMessage(error: unknown): string {
+  const parsed = parseApiError(error);
+  if (parsed.code === "PLAN_REQUIRED" || parsed.code === "PLAN_QUOTA_EXCEEDED") {
+    return parsed.message;
+  }
   if (isCertificateForbidden(error)) {
     return "You do not have permission for this certificate action.";
   }
@@ -89,7 +103,10 @@ export function getCertificateErrorMessage(error: unknown): string {
     if (code === "TEMPLATE_NOT_FOUND") return "Certificate template not found.";
     return "Certificate not found.";
   }
-  return parseApiError(error).message;
+  if (parsed.code === "DATABASE_UNAVAILABLE" || parsed.code === "DATABASE_TIMEOUT") {
+    return parsed.message || "The database timed out. Try issuing again.";
+  }
+  return getApiErrorMessage(error);
 }
 
 export function certificateStatusTone(
@@ -118,6 +135,20 @@ export function verificationReasonLabel(reason: string): string {
       return "Certificate expired";
     case "DOCUMENT_INVALID":
       return "Linked document invalid";
+    case "LINKED_DOCUMENT_UNAVAILABLE":
+      return "Linked document unavailable";
+    case "ARTIFACT_MISSING":
+      return "Certificate PDF is missing from storage";
+    case "ARTIFACT_HASH_MISMATCH":
+      return "Stored PDF hash does not match the issued file";
+    case "CHAIN_NOT_ANCHORED":
+      return "Certificate hash is not on the blockchain";
+    case "CHAIN_HASH_MISMATCH":
+      return "On-chain hash does not match the certificate PDF";
+    case "CHAIN_REVOKED":
+      return "Certificate was revoked on-chain";
+    case "CHAIN_UNREACHABLE":
+      return "Could not read the blockchain";
     default:
       return reason.replace(/_/g, " ").toLowerCase();
   }

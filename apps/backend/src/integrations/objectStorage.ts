@@ -6,16 +6,43 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { Readable, Transform, PassThrough } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ObjectStorageProvider } from "@trustchain/config";
 
 /**
- * Cloudflare R2 object storage.
- * Stores uploaded files only (PDFs, images, certificates, QR assets, import CSVs).
+ * Object storage for uploaded files (PDFs, images, certificates, QR assets).
+ * Uses Cloudflare R2 when credentials are set; otherwise a local filesystem
+ * so issue/verify works in development without a bucket.
  * PostgreSQL remains the metadata source of truth.
  */
+export function isRemoteObjectStorageConfigured(): boolean {
+  return Boolean(
+    process.env.R2_ENDPOINT?.trim() &&
+      process.env.R2_ACCESS_KEY_ID?.trim() &&
+      process.env.R2_SECRET_ACCESS_KEY?.trim() &&
+      process.env.R2_BUCKET?.trim(),
+  );
+}
+
+function localStorageRoot(): string {
+  return (
+    process.env.OBJECT_STORAGE_DIR?.trim() ||
+    join(process.cwd(), ".data", "object-storage")
+  );
+}
+
+function localObjectPath(objectKey: string): string {
+  const safe = objectKey.replace(/^\/+/, "").replace(/\.\./g, "_");
+  return join(localStorageRoot(), safe);
+}
+
 export function getBucket(): string {
+  if (!isRemoteObjectStorageConfigured()) {
+    return process.env.R2_BUCKET?.trim() || "local";
+  }
   const bucket = process.env.R2_BUCKET;
   if (!bucket) {
     throw new Error("R2_BUCKET is required");
@@ -113,6 +140,14 @@ export async function headObject(objectKey: string): Promise<{
   contentLength?: number;
   etag?: string;
 }> {
+  if (!isRemoteObjectStorageConfigured()) {
+    try {
+      const stat = statSync(localObjectPath(objectKey));
+      return { exists: true, contentLength: stat.size };
+    } catch {
+      return { exists: false };
+    }
+  }
   try {
     const result = await getClient().send(
       new HeadObjectCommand({
@@ -142,6 +177,14 @@ export async function getObjectBuffer(objectKey: string): Promise<{
   contentType?: string;
   contentLength?: number;
 }> {
+  if (!isRemoteObjectStorageConfigured()) {
+    try {
+      const body = readFileSync(localObjectPath(objectKey));
+      return { exists: true, body, contentLength: body.length };
+    } catch {
+      return { exists: false };
+    }
+  }
   try {
     const result = await getClient().send(
       new GetObjectCommand({
@@ -178,6 +221,16 @@ export async function putObjectBuffer(input: {
   provider: typeof ObjectStorageProvider;
   bucket: string;
 }> {
+  if (!isRemoteObjectStorageConfigured()) {
+    const filePath = localObjectPath(input.objectKey);
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, input.body);
+    return {
+      objectKey: input.objectKey,
+      provider: ObjectStorageProvider,
+      bucket: getBucket(),
+    };
+  }
   await getClient().send(
     new PutObjectCommand({
       Bucket: getBucket(),
@@ -193,11 +246,18 @@ export async function putObjectBuffer(input: {
   };
 }
 
-/** Stream R2 object through SHA-256 with constant memory footprint. */
+/** Stream stored object through SHA-256 with constant memory footprint. */
 export async function streamSha256Object(objectKey: string): Promise<{
   hash: string;
   bytesRead: number;
 }> {
+  if (!isRemoteObjectStorageConfigured()) {
+    const body = readFileSync(localObjectPath(objectKey));
+    return {
+      hash: createHash("sha256").update(body).digest("hex"),
+      bytesRead: body.length,
+    };
+  }
   const result = await getClient().send(
     new GetObjectCommand({
       Bucket: getBucket(),

@@ -4,12 +4,16 @@ export {
   useCertificate,
   useCertificateTemplates,
   useCreateCertificate,
+  useLookupCertificateRecipients,
   useCreateTemplate,
   useUpdateTemplate,
   useVerifyCertificate,
   useRevokeCertificate,
+  useCertificateChain,
+  usePublishCertificate,
   useCertificateHistory,
   useCertificatePreview,
+  useTemplateLayoutPreview,
   useCertificateDownload,
   usePreviewCertificateBulk,
   useStartCertificateBulk,
@@ -18,10 +22,12 @@ export {
   useCertificateAnalytics,
   useCertificateTemplateAnalytics,
   useCertificateDownloadAnalytics,
+  useCertificateTrustReport,
   useAdminReprocessCertificates,
   useAdminCleanupCertificates,
 } from "./hooks";
 
+export { CertificatePublishPanel } from "./CertificatePublishPanel";
 export { CreateCertificateDialog } from "./CreateCertificateDialog";
 export { RevokeCertificateDialog } from "./RevokeCertificateDialog";
 export { CertificatePreview } from "./CertificatePreview";

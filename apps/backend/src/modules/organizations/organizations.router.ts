@@ -350,6 +350,8 @@ organizationsRouter.post(
       z.object({
         roleKey: z.enum(["org_admin", "employee", "public_user"]).optional(),
         reviewNote: z.string().max(500).optional(),
+        branchId: z.string().uuid().nullable().optional(),
+        departmentId: z.string().uuid().nullable().optional(),
       }),
       req.body,
     );

@@ -99,7 +99,12 @@ export const organizationApi = {
   approveJoinRequest(
     organizationId: string,
     requestId: string,
-    body?: { roleKey?: MemberRoleKey; reviewNote?: string },
+    body?: {
+      roleKey?: MemberRoleKey;
+      reviewNote?: string;
+      branchId?: string | null;
+      departmentId?: string | null;
+    },
   ) {
     return apiClient.post<{ request: MembershipJoinRequest }>(
       `/organizations/${organizationId}/join-requests/${requestId}/approve`,

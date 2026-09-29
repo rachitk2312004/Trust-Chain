@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  Bug,
   Building2,
   ChevronDown,
   ChevronLeft,
@@ -10,6 +11,7 @@ import {
   Flag,
   HeartPulse,
   LayoutDashboard,
+  MessageSquare,
   Package,
   ScrollText,
   Search,
@@ -22,12 +24,14 @@ import {
   ServerCog,
 } from "lucide-react";
 import { cn } from "../lib/cn";
+import { useSupportSummary } from "../features/support/hooks";
 
 type NavItem = {
   to: string;
   label: string;
   icon: typeof LayoutDashboard;
   end?: boolean;
+  badge?: number;
 };
 
 type NavGroup = {
@@ -42,6 +46,8 @@ const ADMIN_GROUPS: NavGroup[] = [
     label: "Overview",
     items: [
       { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
+      { to: "/admin/inbox", label: "Queries", icon: MessageSquare },
+      { to: "/admin/bugs", label: "Bug reports", icon: Bug },
       { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { to: "/admin/audit", label: "Audit", icon: ScrollText },
     ],
@@ -82,8 +88,20 @@ export function AdminSidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(ADMIN_GROUPS.map((g) => [g.id, true])),
   );
+  const summary = useSupportSummary();
 
-  const groups = useMemo(() => ADMIN_GROUPS, []);
+  const groups = useMemo<NavGroup[]>(
+    () =>
+      ADMIN_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.map((item) => {
+          if (item.to === "/admin/inbox") return { ...item, badge: summary.data?.inquiries ?? 0 };
+          if (item.to === "/admin/bugs") return { ...item, badge: summary.data?.bugs ?? 0 };
+          return item;
+        }),
+      })),
+    [summary.data],
+  );
 
   return (
     <aside
@@ -129,12 +147,14 @@ export function AdminSidebar() {
                   >
                     {group.items.map((item) => {
                       const Icon = item.icon;
+                      const count = item.badge ?? 0;
+                      const badgeLabel = count > 99 ? "99+" : String(count);
                       return (
                         <li key={item.to}>
                           <NavLink
                             to={item.to}
                             end={item.end}
-                            title={item.label}
+                            title={count > 0 ? `${item.label}, ${count}` : item.label}
                             className={({ isActive }) =>
                               cn(
                                 "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
@@ -147,9 +167,20 @@ export function AdminSidebar() {
                           >
                             {({ isActive }) => (
                               <>
-                                <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-amber-300")} />
+                                <span className="relative shrink-0">
+                                  <Icon className={cn("h-4 w-4", isActive && "text-amber-300")} />
+                                  {collapsed && count > 0 ? (
+                                    <span className="absolute -right-2 -top-2 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-4 text-white">
+                                      {badgeLabel}
+                                    </span>
+                                  ) : null}
+                                </span>
                                 {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                                {!collapsed && isActive ? (
+                                {!collapsed && count > 0 ? (
+                                  <span className="ml-auto inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold leading-4 text-white">
+                                    {badgeLabel}
+                                  </span>
+                                ) : !collapsed && isActive ? (
                                   <span className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-300" />
                                 ) : null}
                               </>

@@ -58,13 +58,45 @@ export async function findOrganizationBySlug(slug: string): Promise<Organization
 export async function listOrganizationsForUser(userId: string): Promise<OrganizationRow[]> {
   const rows = await prisma.organization.findMany({
     where: {
-      memberships: {
-        some: { userId, status: "active" },
-      },
+      OR: [
+        { memberships: { some: { userId, status: { in: ["active", "pending"] } } } },
+        {
+          roleBindings: {
+            some: {
+              userId,
+              role: { key: { in: ["employee", "org_admin"] } },
+            },
+          },
+        },
+      ],
     },
     orderBy: { name: "asc" },
   });
   return rows.map(toOrgRow);
+}
+
+/** Promote pending memberships once a staff role is already bound to the organization. */
+export async function activatePendingStaffMemberships(userId: string): Promise<void> {
+  const bindings = await prisma.roleBinding.findMany({
+    where: {
+      userId,
+      organizationId: { not: null },
+      role: { key: { in: ["employee", "org_admin"] } },
+    },
+    select: { organizationId: true },
+  });
+  const orgIds = [
+    ...new Set(
+      bindings
+        .map((binding) => binding.organizationId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (!orgIds.length) return;
+  await prisma.membership.updateMany({
+    where: { userId, organizationId: { in: orgIds }, status: "pending" },
+    data: { status: "active" },
+  });
 }
 
 export async function searchDiscoverableOrganizations(

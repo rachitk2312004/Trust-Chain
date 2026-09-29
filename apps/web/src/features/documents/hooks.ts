@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentApi } from "../../services/documentApi";
+import { blockchainApi } from "../../services/blockchainApi";
 import type {
   ConfirmVersionInput,
   CreateDocumentInput,
@@ -24,6 +25,8 @@ export function docKeys(organizationId?: string, documentId?: string) {
     categories: ["documents", organizationId, "categories"] as const,
     tags: ["documents", organizationId, "tags"] as const,
     policies: ["documents", organizationId, documentId, "policies"] as const,
+    chain: ["documents", organizationId, documentId, "chain"] as const,
+    orgChain: ["documents", organizationId, "org-chain"] as const,
   };
 }
 
@@ -435,6 +438,77 @@ export function useDownloadDocument(organizationId: string) {
         input.fileName,
         input.versionId,
       );
+    },
+  });
+}
+
+export function useOrganizationChainStatus(organizationId: string | null | undefined) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: docKeys(organizationId ?? undefined).orgChain,
+    queryFn: async () => {
+      const { data } = await blockchainApi.orgStatus(organizationId!);
+      return data;
+    },
+    enabled: Boolean(accessToken && organizationId),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useDocumentChainStatus(
+  organizationId: string | null | undefined,
+  documentId: string | undefined,
+) {
+  const accessToken = useSessionStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: docKeys(organizationId ?? undefined, documentId).chain,
+    queryFn: async () => {
+      const { data } = await blockchainApi.documentStatus(organizationId!, documentId!);
+      return data;
+    },
+    enabled: Boolean(accessToken && organizationId && documentId),
+    staleTime: 15_000,
+    retry: false,
+  });
+}
+
+export function useRegisterOrganizationOnChain(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await blockchainApi.registerOrg(organizationId);
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: docKeys(organizationId).orgChain });
+    },
+  });
+}
+
+export function useAnchorDocument(organizationId: string, documentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await blockchainApi.anchorDocument(organizationId, documentId);
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: docKeys(organizationId, documentId).chain });
+      void queryClient.invalidateQueries({ queryKey: docKeys(organizationId, documentId).detail });
+    },
+  });
+}
+
+export function useRevokeDocumentOnChain(organizationId: string, documentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await blockchainApi.revokeDocument(organizationId, documentId);
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: docKeys(organizationId, documentId).chain });
     },
   });
 }

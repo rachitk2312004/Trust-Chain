@@ -28,6 +28,7 @@ import { AppShellLayout } from "../layouts/AppShellLayout";
 import {
   defaultCertificateLayoutPreview,
   getCertificateErrorMessage,
+  slugifyCertificateTemplateCode,
 } from "../lib/certificateErrors";
 import { useSessionStore } from "../lib/sessionStore";
 
@@ -56,7 +57,7 @@ export function CertificateTemplatesPage() {
     if (!organizationId) return;
     create.mutate(
       {
-        code: code.trim(),
+        code: slugifyCertificateTemplateCode(code),
         name: name.trim(),
         description: description.trim() || null,
         layout: {
@@ -202,11 +203,13 @@ export function CertificateTemplatesPage() {
             <Input
               id="cert-tpl-code"
               required
+              minLength={2}
+              maxLength={64}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
               placeholder="completion-v1"
-              pattern="[A-Za-z0-9_-]+"
             />
+            <FormHint>Letters, numbers, and hyphens. Spaces become hyphens.</FormHint>
           </Field>
           <Field>
             <Label htmlFor="cert-tpl-name">Name</Label>

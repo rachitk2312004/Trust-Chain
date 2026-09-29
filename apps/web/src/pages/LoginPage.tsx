@@ -10,12 +10,13 @@ import {
 } from "../features/auth/AuthStatusBanner";
 import { useLogin } from "../features/auth/hooks";
 import { useFeedback } from "../hooks/useFeedback";
-import { getApiErrorMessage, isInvalidCredentials, isRateLimited } from "../lib/apiErrors";
+import { getApiErrorMessage, isEmailNotVerified, isInvalidCredentials, isRateLimited } from "../lib/apiErrors";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { cn } from "../lib/cn";
 
 type LoginLocationState = {
   registered?: boolean;
+  emailVerified?: boolean;
   passwordReset?: boolean;
   sessionExpired?: boolean;
   authEvent?: string;
@@ -44,11 +45,15 @@ export function LoginPage() {
       return {
         isNew: true,
         title: name ? `Welcome, ${name}` : "Welcome to TrustChain",
-        subtitle: "Your account is ready. Sign in to enter your workspace.",
+        subtitle: state.emailVerified
+          ? "Your email is verified. Sign in to enter your workspace."
+          : "Your account is ready. Sign in to enter your workspace.",
         banner: {
           variant: "success" as const,
-          title: "Account created successfully",
-          message: "Use the email and password you just registered with.",
+          title: state.emailVerified ? "Email verified" : "Account created successfully",
+          message: state.emailVerified
+            ? "Use the email and password you just registered with."
+            : "Use the email and password you just registered with.",
           icon: "sparkle" as const,
         },
       };
@@ -215,7 +220,20 @@ export function LoginPage() {
                 </Field>
               </AuthFieldMotion>
               <AuthFieldMotion index={2}>
-                <FormError>{errorMessage}</FormError>
+                <FormError>
+                  {errorMessage}
+                  {isEmailNotVerified(login.error) ? (
+                    <>
+                      {" "}
+                      <Link
+                        to={`/register?verify=1&email=${encodeURIComponent(email.trim())}`}
+                        className="font-medium text-tc-fg underline-offset-2 hover:underline"
+                      >
+                        Enter verification code
+                      </Link>
+                    </>
+                  ) : null}
+                </FormError>
                 <Button type="submit" disabled={login.isPending} className="group w-full">
                   {login.isPending ? (
                     "Signing in…"
