@@ -124,7 +124,14 @@ export function BillingPage() {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {(billing.data?.plans ?? [])
           .filter((plan) => plan.key !== "free")
-          .map((plan) => (
+          .map((plan) => {
+            const planKey = plan.key as Exclude<CommercialPlanKey, "free">;
+            const rank = { free: 0, premium_pro: 1, max_pro: 2 } as const;
+            const userPlan = billing.data?.user?.effectivePlanKey ?? "free";
+            const orgPlan = billing.data?.organization?.effectivePlanKey ?? "free";
+            const userBlocked = rank[planKey] <= rank[userPlan as keyof typeof rank];
+            const orgBlocked = rank[planKey] <= rank[orgPlan as keyof typeof rank];
+            return (
             <Card key={plan.key}>
               <CardHeader>
                 <CardTitle>{plan.name}</CardTitle>
@@ -139,23 +146,32 @@ export function BillingPage() {
               <div className="flex flex-wrap gap-2 p-6">
                 {showHolderFeatures ? (
                   <CheckoutButton
-                    planKey={plan.key as Exclude<CommercialPlanKey, "free">}
+                    planKey={planKey}
                     ownerType="user"
                     label={`Buy ${plan.name} for me`}
+                    disabled={userBlocked}
+                    disabledReason={
+                      userPlan === planKey ? "Current plan" : "Lower than your active plan"
+                    }
                   />
                 ) : null}
                 {isOrgAdmin && checkoutOrgId ? (
                   <CheckoutButton
-                    planKey={plan.key as Exclude<CommercialPlanKey, "free">}
+                    planKey={planKey}
                     ownerType="organization"
                     organizationId={checkoutOrgId}
                     featured
                     label={`Buy ${plan.name} for org`}
+                    disabled={orgBlocked}
+                    disabledReason={
+                      orgPlan === planKey ? "Current org plan" : "Lower than your active org plan"
+                    }
                   />
                 ) : null}
               </div>
             </Card>
-          ))}
+            );
+          })}
       </div>
 
       <Card className="mt-6">

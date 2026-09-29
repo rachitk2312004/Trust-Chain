@@ -49,7 +49,9 @@ export function testBillingEntitlementRules(): void {
   }
   if (!canPurchasePlan("free", "premium_pro")) throw new Error("holder should be able to buy Pro");
   if (canPurchasePlan("max_pro", "premium_pro")) throw new Error("should not allow downgrade");
-  if (!canPurchasePlan("premium_pro", "premium_pro")) throw new Error("renewal of the same plan is allowed");
+  if (canPurchasePlan("premium_pro", "premium_pro")) throw new Error("same-plan repurchase should be disabled");
+  if (!canPurchasePlan("premium_pro", "max_pro")) throw new Error("should allow upgrade to Max Pro");
+  if (canPurchasePlan("max_pro", "max_pro")) throw new Error("Max Pro should not be purchasable again");
 
   const required = planRequiredError(BillingFeatureKeys.trustReports, CommercialPlanKeys.maxPro);
   if (!(required instanceof AppError) || required.code !== "PLAN_REQUIRED" || required.statusCode !== 402) {

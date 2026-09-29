@@ -66,12 +66,16 @@ export function CheckoutButton({
   organizationId,
   label,
   featured,
+  disabled = false,
+  disabledReason,
 }: {
   planKey: Exclude<CommercialPlanKey, "free">;
   ownerType: "user" | "organization";
   organizationId?: string;
   label: string;
   featured?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const checkout = useBillingCheckout();
   const feedback = useFeedback();
@@ -168,12 +172,15 @@ export function CheckoutButton({
   }, [accessToken, checkout, feedback, organizationId, ownerType, planKey, queryClient, user]);
 
   return (
-    <Button
-      variant={featured ? "primary" : "secondary"}
-      disabled={checkout.isPending}
-      onClick={() => void pay()}
-    >
-      {checkout.isPending ? "Starting checkout…" : label}
-    </Button>
+    <div className="flex flex-col items-start gap-1">
+      <Button
+        variant={featured ? "primary" : "secondary"}
+        disabled={disabled || checkout.isPending}
+        onClick={() => void pay()}
+        title={disabled ? disabledReason : undefined}
+      >
+        {checkout.isPending ? "Starting checkout…" : disabled ? disabledReason || "Already active" : label}
+      </Button>
+    </div>
   );
 }

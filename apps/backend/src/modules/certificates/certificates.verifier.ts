@@ -2,6 +2,7 @@ import { CertificateStatuses } from "@trustchain/config";
 import { contentHashesEqual } from "../../lib/contentHash.js";
 import {
   hashCertificatePayload,
+  hashCertificatePayloadLegacy,
   type CertificateIntegrityPayload,
 } from "./certificates.generator.js";
 
@@ -83,7 +84,7 @@ function evaluateArtifact(
 }
 
 function evaluateChain(
-  cert: CertificateVerifyInput,
+  _cert: CertificateVerifyInput,
   evidence?: CertificateVerifyEvidence,
 ): { ok: boolean; reasons: string[] } {
   if (!evidence || evidence.chainEnabled === false) {
@@ -93,7 +94,8 @@ function evaluateChain(
     return { ok: false, reasons: ["CHAIN_REVOKED"] };
   }
   if (!evidence.chainLive) {
-    return { ok: false, reasons: [cert.documentId ? "CHAIN_NOT_ANCHORED" : "CHAIN_NOT_ANCHORED"] };
+    // Optional until anchored — does not invalidate an otherwise good certificate.
+    return { ok: true, reasons: ["CHAIN_NOT_ANCHORED"] };
   }
   const expected = evidence.expectedArtifactHash ?? evidence.artifactHash;
   if (expected && !contentHashesEqual(evidence.chainHash, expected)) {
@@ -113,7 +115,13 @@ export function verifyCertificate(
 ): CertificateVerifyResult {
   const payload = buildIntegrityPayloadFromCertificate(cert);
   const expectedHash = hashCertificatePayload(payload);
-  const integrity = expectedHash === cert.integrityHash;
+  const legacyHash = hashCertificatePayloadLegacy({
+    ...payload,
+    issuedAt: cert.issuedAt?.toISOString() ?? null,
+    expiresAt: cert.expiresAt?.toISOString() ?? null,
+  });
+  const integrity =
+    expectedHash === cert.integrityHash || legacyHash === cert.integrityHash;
   const notRevoked = cert.status !== CertificateStatuses.revoked;
   const notExpired =
     cert.status !== CertificateStatuses.expired &&

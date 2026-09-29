@@ -57,7 +57,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Certificate of Achievement",
       subtitleTemplate: "{{organization_name}}",
       bodyTemplate:
-        "This is to certify that the bearer named below has fulfilled all requirements and is recognized for distinguished accomplishment.",
+        "This is to certify that {{recipient_name}} has fulfilled all requirements and is recognized for distinguished accomplishment.",
       footerTemplate: "Certificate {{certificate_id}} · Verify at {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -83,7 +83,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Certificate of Honor",
       subtitleTemplate: "Conferred by {{organization_name}}",
       bodyTemplate:
-        "In recognition of outstanding contribution and integrity, this credential is awarded on {{issue_date}} with validity through {{expiration_date}}.",
+        "In recognition of outstanding contribution and integrity, {{recipient_name}} is awarded this credential on {{issue_date}} with validity through {{expiration_date}}.",
       footerTemplate: "ID {{certificate_id}} · {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -109,7 +109,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Certificate of Excellence",
       subtitleTemplate: "{{organization_name}} · Official record",
       bodyTemplate:
-        "This document attests that the individual named below has demonstrated professional excellence and is duly recorded as a credential holder.",
+        "This document attests that {{recipient_name}} has demonstrated professional excellence and is duly recorded as a credential holder.",
       footerTemplate: "{{certificate_id}} · Authenticate at {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -135,7 +135,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Certificate of Completion",
       subtitleTemplate: "{{organization_name}}",
       bodyTemplate:
-        "Has successfully completed the designated program and met all required standards of competence and conduct.",
+        "{{recipient_name}} has successfully completed the designated program and met all required standards of competence and conduct.",
       footerTemplate: "Issued {{issue_date}} · {{certificate_id}}",
       showQr: true,
       showLogo: true,
@@ -161,7 +161,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Academic Distinction",
       subtitleTemplate: "Awarded by {{organization_name}}",
       bodyTemplate:
-        "In witness of scholarly merit, dedicated study, and fulfillment of institutional requirements, this distinction is hereby conferred.",
+        "In witness of scholarly merit, dedicated study, and fulfillment of institutional requirements, this distinction is hereby conferred upon {{recipient_name}}.",
       footerTemplate: "{{certificate_id}} · Verify {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -187,7 +187,7 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       titleTemplate: "Professional Credential",
       subtitleTemplate: "{{organization_name}}",
       bodyTemplate:
-        "Is hereby granted this professional credential in recognition of verified competence, standing, and completion of stated requirements.",
+        "{{recipient_name}} is hereby granted this professional credential in recognition of verified competence, standing, and completion of stated requirements.",
       footerTemplate: "{{certificate_id}} · {{verification_url}}",
       showQr: true,
       showLogo: true,

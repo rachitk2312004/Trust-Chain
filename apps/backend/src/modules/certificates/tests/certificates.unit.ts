@@ -58,6 +58,25 @@ export function testCertificateIssuanceIdentity(): void {
     },
   });
   assert.equal(afterPublish, identity.integrityHash);
+
+  // Layout snapshots must not change the identity hash (presentation-only).
+  const withLayout = hashCertificatePayload({
+    publicId: identity.publicId,
+    organizationId: "11111111-1111-1111-1111-111111111111",
+    title: "Completion Certificate",
+    recipientName: "Ada Lovelace",
+    recipientEmail: "ada@example.com",
+    issuedAt: "2026-08-03T12:00:00.000Z",
+    expiresAt: "2027-08-03T12:00:00.000Z",
+    templateId: null,
+    documentId: "22222222-2222-2222-2222-222222222222",
+    metadata: {
+      course: "TrustChain 101",
+      layoutPreset: "classic-gold",
+      layout: { accentColor: "#9A6B1F", orientation: "landscape" },
+    },
+  });
+  assert.equal(withLayout, identity.integrityHash);
 }
 
 export function testCertificateVerification(): void {

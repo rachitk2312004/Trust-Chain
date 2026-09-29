@@ -138,18 +138,34 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
     font: fontBold,
     color: rgb(accent.r, accent.g, accent.b),
   });
-  cursorY -= 36;
+  cursorY -= 32;
 
-  const subSize = 14;
-  const subWidth = font.widthOfTextAtSize(model.subtitle, subSize);
-  page.drawText(model.subtitle, {
-    x: (size.width - subWidth) / 2,
-    y: cursorY,
-    size: subSize,
-    font,
-    color: rgb(text.r, text.g, text.b),
-  });
-  cursorY -= 40;
+  if (model.subtitle.trim()) {
+    const subSize = 14;
+    const subWidth = font.widthOfTextAtSize(model.subtitle, subSize);
+    page.drawText(model.subtitle, {
+      x: (size.width - subWidth) / 2,
+      y: cursorY,
+      size: subSize,
+      font,
+      color: rgb(text.r, text.g, text.b),
+    });
+    cursorY -= 36;
+  }
+
+  const recipientName = model.context.recipient_name?.trim() || "";
+  if (recipientName) {
+    const recipientSize = model.layout.orientation === "landscape" ? 26 : 30;
+    const recipientWidth = fontBold.widthOfTextAtSize(recipientName, recipientSize);
+    page.drawText(recipientName, {
+      x: (size.width - recipientWidth) / 2,
+      y: cursorY,
+      size: recipientSize,
+      font: fontBold,
+      color: rgb(text.r, text.g, text.b),
+    });
+    cursorY -= 34;
+  }
 
   const maxTextWidth = size.width - margin * 2;
   const bodyLines = wrapPdfText(model.body, font, 12, maxTextWidth);
@@ -176,8 +192,10 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
     color: rgb(text.r, text.g, text.b),
   });
 
+  // Keep footer / QR / signature inside the double frame.
+  const footerBand = margin + 18;
   if (model.layout.showSignature) {
-    const sigY = margin + 50;
+    const sigY = footerBand + 36;
     if (model.assets.signaturePng) {
       try {
         const sig = await pdf.embedPng(model.assets.signaturePng);
@@ -216,16 +234,16 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
   if (model.layout.showQr && model.assets.qrPng) {
     try {
       const qr = await pdf.embedPng(model.assets.qrPng);
-      const qrSize = 90;
+      const qrSize = 84;
       page.drawImage(qr, {
         x: size.width - margin - qrSize,
-        y: margin + 20,
+        y: footerBand + 14,
         width: qrSize,
         height: qrSize,
       });
       page.drawText("Scan to verify", {
-        x: size.width - margin - qrSize + 8,
-        y: margin + 8,
+        x: size.width - margin - qrSize + 6,
+        y: footerBand,
         size: 8,
         font: fontSans,
         color: rgb(text.r, text.g, text.b),
@@ -235,15 +253,21 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
     }
   }
 
-  const footerWidth = fontSans.widthOfTextAtSize(model.footer, 8);
-  page.drawText(model.footer, {
-    x: Math.max(margin, (size.width - footerWidth) / 2),
-    y: margin / 2 + 4,
-    size: 8,
-    font: fontSans,
-    color: rgb(text.r, text.g, text.b),
-    maxWidth: size.width - margin * 2,
-  });
+  const footerSize = 8;
+  const footerMaxWidth = size.width - margin * 2;
+  const footerLines = wrapPdfText(model.footer, fontSans, footerSize, footerMaxWidth);
+  let footerY = margin + 8;
+  for (const line of footerLines.slice().reverse()) {
+    const lineWidth = fontSans.widthOfTextAtSize(line, footerSize);
+    page.drawText(line, {
+      x: Math.max(margin, (size.width - lineWidth) / 2),
+      y: footerY,
+      size: footerSize,
+      font: fontSans,
+      color: rgb(text.r, text.g, text.b),
+    });
+    footerY += 10;
+  }
 
   return Buffer.from(await pdf.save());
 }

@@ -80,7 +80,7 @@ export function testPlaceholderReplacement(): void {
   assert.equal(formatDisplayDate(null), "—");
 }
 
-export function testLayoutRendering(): void {
+export async function testLayoutRendering(): Promise<void> {
   const portrait = resolveCertificateLayout({ orientation: "portrait", pageSize: "A4" });
   const landscape = resolveCertificateLayout({ orientation: "landscape", pageSize: "A4" });
   const pPx = pageSizePixels(portrait.pageSize, portrait.orientation);
@@ -94,11 +94,16 @@ export function testLayoutRendering(): void {
   assert.equal(pPt.height, lPt.width);
 
   const model = sampleModel({ orientation: "landscape" });
+  assert.equal(model.context.recipient_name, "Ada Lovelace");
   const svg = renderCertificateSvg(model);
   assert.match(svg, /<svg /);
   assert.match(svg, /Ada Lovelace/);
   assert.match(svg, /CERT-TEST-001/);
   assert.ok(model.unresolvedPlaceholders.includes("unknown_field"));
+
+  const pdf = await exportCertificatePdf(model);
+  assert.equal(pdf.subarray(0, 4).toString("utf8"), "%PDF");
+  assert.ok(pdf.length > 500);
 }
 
 export async function testSvgGeneration(): Promise<void> {

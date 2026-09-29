@@ -72,7 +72,8 @@ export function effectivePlanKey(account: {
 
 export function canPurchasePlan(current: CommercialPlanKey, next: CommercialPlanKey): boolean {
   if (!isPaidPlan(next)) return false;
-  return planRank(next) >= planRank(current);
+  // Strict upgrade only: Premium Pro active → Max Pro only; Max Pro → no further purchase.
+  return planRank(next) > planRank(current);
 }
 
 export function planRequiredError(feature: BillingFeatureKey, requiredPlan: CommercialPlanKey): AppError {

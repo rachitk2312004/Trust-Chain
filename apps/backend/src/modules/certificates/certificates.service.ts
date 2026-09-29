@@ -757,6 +757,31 @@ export async function verifyCertificateById(
     status = CertificateStatuses.expired;
   }
 
+  // Self-heal missing PDF artifact so verification can pass after storage glitches.
+  try {
+    const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
+    const hasVersion = row.documentId
+      ? Boolean(
+          await prisma.document.findFirst({
+            where: { id: row.documentId, currentVersionId: { not: null } },
+            select: { id: true },
+          }),
+        )
+      : false;
+    if (row.documentId && !hasVersion) {
+      await finalizeIssuedCertificate(userId, row.id, row.organizationId, {
+        createQr: !row.qrPublicCode,
+        publishToChain: false,
+      });
+      const refreshed = await repo.findCertificateById(row.organizationId, row.id);
+      if (refreshed) {
+        Object.assign(row, refreshed);
+      }
+    }
+  } catch (error) {
+    console.error("[certificates] PDF self-heal during verify failed", error);
+  }
+
   const verifyStarted = Date.now();
   const { verification: result, chain } = await evaluateCertificateTrust({
     publicId: row.publicId,

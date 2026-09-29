@@ -395,7 +395,7 @@ testValidation();
     testQrEmbedding,
   } = await import("../dist/modules/certificates/tests/certificates.render.unit.js");
   testPlaceholderReplacement();
-  testLayoutRendering();
+  await testLayoutRendering();
   testLayoutFromPresetMetadata();
   testPresetDecorations();
   await testSvgGeneration();

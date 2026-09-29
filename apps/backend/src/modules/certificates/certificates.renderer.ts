@@ -162,10 +162,10 @@ function computeGeometry(
   const bodyLines = wrapSvgText(model.body, maxBodyChars);
   const metaY = bodyStart + bodyLines.length * bodyLineHeight + (landscape ? 36 : 40);
 
-  const qrSize = Math.round(Math.min(width, height) * (landscape ? 0.14 : 0.16));
+  const qrSize = Math.round(Math.min(width, height) * (landscape ? 0.13 : 0.15));
   const qrX = width - margin - qrSize;
-  const qrY = height - margin - qrSize - 28;
-  const sigY = height - margin - 64;
+  const qrY = height - margin - qrSize - 36;
+  const sigY = height - margin - 72;
 
   return {
     margin,
@@ -285,7 +285,11 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
       ? `<image href="${logoUri}" x="${(width - 120) / 2}" y="${geo.margin}" width="120" height="72" preserveAspectRatio="xMidYMid meet"/>`
       : "";
 
-  const recipient = escapeXml(model.context.recipient_name);
+  const recipient = escapeXml(model.context.recipient_name?.trim() || "Recipient");
+  // Generic families so SVG→PNG (sharp/librsvg on Linux) still renders text without Georgia installed.
+  const serif = "serif";
+  const sans = "sans-serif";
+  const footerY = height - geo.margin - 10;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -293,16 +297,17 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
   ${bgUri ? `<image href="${bgUri}" x="0" y="0" width="${width}" height="${height}" opacity="0.1" preserveAspectRatio="xMidYMid slice"/>` : ""}
   ${presetDecorations(layout, width, height, geo.margin)}
   ${logoBlock}
-  <text x="${width / 2}" y="${geo.titleY}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="${geo.titleSize}" font-weight="600" letter-spacing="0.5" fill="${escapeXml(layout.accentColor)}">${escapeXml(model.title)}</text>
-  <text x="${width / 2}" y="${geo.subtitleY}" text-anchor="middle" font-family="Georgia, serif" font-size="${geo.subtitleSize}" fill="${escapeXml(layout.textColor)}">${escapeXml(model.subtitle)}</text>
-  <text x="${width / 2}" y="${geo.recipientY}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="${geo.recipientSize}" font-weight="600" fill="${escapeXml(layout.textColor)}">${recipient}</text>
-  <text x="${width / 2}" y="${geo.bodyStart}" text-anchor="middle" font-family="Georgia, serif" font-size="${geo.bodySize}" fill="${escapeXml(layout.textColor)}">${bodyTspans}</text>
-  <text x="${width / 2}" y="${geo.metaY}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="${escapeXml(layout.textColor)}">Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}</text>
+  <text x="${width / 2}" y="${geo.titleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.titleSize}" font-weight="700" letter-spacing="0.5" fill="${escapeXml(layout.accentColor)}">${escapeXml(model.title)}</text>
+  <text x="${width / 2}" y="${geo.subtitleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.subtitleSize}" fill="${escapeXml(layout.textColor)}">${escapeXml(model.subtitle)}</text>
+  <text x="${width / 2}" y="${geo.recipientY}" text-anchor="middle" font-family="${serif}" font-size="${geo.recipientSize}" font-weight="700" fill="${escapeXml(layout.textColor)}">${recipient}</text>
+  <line x1="${width * 0.28}" y1="${geo.recipientY + 10}" x2="${width * 0.72}" y2="${geo.recipientY + 10}" stroke="${escapeXml(layout.accentColor)}" stroke-width="1" opacity="0.45"/>
+  <text x="${width / 2}" y="${geo.bodyStart}" text-anchor="middle" font-family="${serif}" font-size="${geo.bodySize}" fill="${escapeXml(layout.textColor)}">${bodyTspans}</text>
+  <text x="${width / 2}" y="${geo.metaY}" text-anchor="middle" font-family="${sans}" font-size="13" fill="${escapeXml(layout.textColor)}">Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}</text>
   ${
     layout.showSignature
       ? `<g>
     ${sigUri ? `<image href="${sigUri}" x="${geo.margin}" y="${geo.sigY - 48}" width="168" height="48" preserveAspectRatio="xMinYMid meet"/>` : `<line x1="${geo.margin}" y1="${geo.sigY}" x2="${geo.margin + 200}" y2="${geo.sigY}" stroke="${escapeXml(layout.textColor)}" stroke-width="1"/>`}
-    <text x="${geo.margin}" y="${geo.sigY + 20}" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="${escapeXml(layout.textColor)}">${escapeXml(layout.signatureLabel)}</text>
+    <text x="${geo.margin}" y="${geo.sigY + 20}" font-family="${sans}" font-size="11" fill="${escapeXml(layout.textColor)}">${escapeXml(layout.signatureLabel)}</text>
   </g>`
       : ""
   }
@@ -310,10 +315,10 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
     layout.showQr && qrUri
       ? `<g>
     <image href="${qrUri}" x="${geo.qrX}" y="${geo.qrY}" width="${geo.qrSize}" height="${geo.qrSize}"/>
-    <text x="${geo.qrX + geo.qrSize / 2}" y="${geo.qrY + geo.qrSize + 16}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="${escapeXml(layout.textColor)}">Scan to verify</text>
+    <text x="${geo.qrX + geo.qrSize / 2}" y="${geo.qrY + geo.qrSize + 16}" text-anchor="middle" font-family="${sans}" font-size="10" fill="${escapeXml(layout.textColor)}">Scan to verify</text>
   </g>`
       : ""
   }
-  <text x="${width / 2}" y="${height - geo.margin / 2 - 6}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="${escapeXml(layout.textColor)}">${escapeXml(model.footer)}</text>
+  <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="${sans}" font-size="10" fill="${escapeXml(layout.textColor)}">${escapeXml(model.footer)}</text>
 </svg>`;
 }

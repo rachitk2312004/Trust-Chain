@@ -14,25 +14,49 @@ export type CertificateIntegrityPayload = {
   metadata: Record<string, unknown>;
 };
 
-/** Publish-time fields that must not change the issued identity hash. */
-const DERIVED_METADATA_KEYS = new Set(["documentContentHash"]);
+/** Fields that must not affect the issued identity hash (derived / presentation-only). */
+const EXCLUDED_METADATA_KEYS = new Set([
+  "documentContentHash",
+  "layout",
+  "layoutPreset",
+  "preview",
+]);
 
-function integrityMetadata(value: Record<string, unknown>): Record<string, unknown> {
+/** Normalize timestamps to second precision for Postgres round-trips. */
+export function normalizeIntegrityTimestamp(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return typeof value === "string" ? value : null;
+  return new Date(Math.floor(date.getTime() / 1000) * 1000).toISOString();
+}
+
+function stableJsonValue(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  const record = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  for (const key of Object.keys(value).sort()) {
-    if (DERIVED_METADATA_KEYS.has(key)) continue;
-    out[key] = value[key];
+  for (const key of Object.keys(record).sort()) {
+    out[key] = stableJsonValue(record[key]);
   }
   return out;
 }
 
-/** Canonical JSON for hashing (sorted keys, stable). */
+function integrityMetadata(value: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort()) {
+    if (EXCLUDED_METADATA_KEYS.has(key)) continue;
+    out[key] = stableJsonValue(value[key]);
+  }
+  return out;
+}
+
+/** Canonical JSON for hashing (sorted keys, stable nested values). */
 export function canonicalizeCertificatePayload(payload: CertificateIntegrityPayload): string {
   const ordered = {
     documentId: payload.documentId,
-    expiresAt: payload.expiresAt,
-    issuedAt: payload.issuedAt,
-    metadata: integrityMetadata(payload.metadata),
+    expiresAt: normalizeIntegrityTimestamp(payload.expiresAt),
+    issuedAt: normalizeIntegrityTimestamp(payload.issuedAt),
+    metadata: integrityMetadata(payload.metadata ?? {}),
     organizationId: payload.organizationId,
     publicId: payload.publicId,
     recipientEmail: payload.recipientEmail,
@@ -46,6 +70,31 @@ export function canonicalizeCertificatePayload(payload: CertificateIntegrityPayl
 export function hashCertificatePayload(payload: CertificateIntegrityPayload): string {
   const canonical = canonicalizeCertificatePayload(payload);
   return createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+/**
+ * Pre-layout-exclusion / pre-timestamp-normalization hash (for certificates already issued).
+ * Verify accepts either current or legacy digest so older rows stay valid.
+ */
+export function hashCertificatePayloadLegacy(payload: CertificateIntegrityPayload): string {
+  const metadata: Record<string, unknown> = {};
+  for (const key of Object.keys(payload.metadata ?? {}).sort()) {
+    if (key === "documentContentHash") continue;
+    metadata[key] = payload.metadata[key];
+  }
+  const ordered = {
+    documentId: payload.documentId,
+    expiresAt: payload.expiresAt,
+    issuedAt: payload.issuedAt,
+    metadata,
+    organizationId: payload.organizationId,
+    publicId: payload.publicId,
+    recipientEmail: payload.recipientEmail,
+    recipientName: payload.recipientName,
+    templateId: payload.templateId,
+    title: payload.title,
+  };
+  return createHash("sha256").update(JSON.stringify(ordered), "utf8").digest("hex");
 }
 
 export function generateCertificatePublicId(): string {
