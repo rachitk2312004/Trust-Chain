@@ -14,7 +14,17 @@ Serve `dist` behind any static host / CDN (Nginx, Cloudflare Pages, S3+CloudFron
 
 ### Vercel
 
-Set the project **Root Directory** to `apps/web`. `apps/web/vercel.json` rewrites unknown paths to `index.html` so hard refresh on deep links (e.g. `/organizations/.../members`) works.
+Hard refresh 404s happen when Vercel looks for a real file at deep routes (e.g. `/organizations/.../members`). This repo includes SPA fallbacks in both places:
+
+1. **Repo root** `vercel.json` — use when Vercel Root Directory is `.` (monorepo). Sets `outputDirectory` to `apps/web/dist` and rewrites all paths to `index.html`.
+2. **`apps/web/vercel.json`** — use when Vercel Root Directory is `apps/web`.
+
+In the Vercel project settings:
+
+- Prefer **Root Directory** = repository root (`.`), so the root `vercel.json` applies, **or**
+- Set Root Directory to `apps/web` and keep Framework Preset as **Vite**
+- Do **not** set Framework Preset to **Other** (that can ignore SPA rewrites)
+- After changing `vercel.json`, redeploy (a new production deployment)
 
 ### Other static hosts
 
