@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { CERTIFICATE_LAYOUT_PRESETS } from "@trustchain/config";
 import {
@@ -13,10 +13,11 @@ import {
   Textarea,
 } from "@trustchain/ui";
 import { DocumentPicker } from "../../components/DocumentPicker";
-import { getCertificateErrorMessage } from "../../lib/certificateErrors";
+import { defaultCertificateLayoutPreview, getCertificateErrorMessage } from "../../lib/certificateErrors";
 import { useFeedback } from "../../hooks/useFeedback";
 import type { CertificateRecipientMatch } from "../../types/api";
 import { useCertificateTemplates, useCreateCertificate, useLookupCertificateRecipients } from "./hooks";
+import { TemplateLayoutPreview } from "./TemplateLayoutPreview";
 
 type LayoutChoice =
   | { kind: "default" }
@@ -130,6 +131,20 @@ export function CreateCertificateDialog({
   }
 
   const activeTemplates = (templates.data ?? []).filter((t) => t.status === "active");
+  const previewLayout = useMemo(() => {
+    const choice = parseLayoutChoice(layoutChoice);
+    if (choice.kind === "preset") {
+      const preset = CERTIFICATE_LAYOUT_PRESETS.find((p) => p.id === choice.id);
+      return preset ? ({ ...preset.layout } as Record<string, unknown>) : defaultCertificateLayoutPreview();
+    }
+    if (choice.kind === "template") {
+      const tpl = (templates.data ?? []).find((t) => t.id === choice.id);
+      if (tpl?.layout && typeof tpl.layout === "object") {
+        return { ...(tpl.layout as Record<string, unknown>) };
+      }
+    }
+    return defaultCertificateLayoutPreview();
+  }, [layoutChoice, templates.data]);
   const exact = recipientLookup.data?.exact ?? null;
   const matches = recipientLookup.data?.matches ?? [];
 
@@ -145,7 +160,7 @@ export function CreateCertificateDialog({
       open={open}
       title="Issue certificate"
       onClose={handleClose}
-      className="max-w-2xl"
+      className="max-w-4xl"
       footer={
         <>
           <Button variant="ghost" onClick={handleClose}>
@@ -161,6 +176,7 @@ export function CreateCertificateDialog({
         </>
       }
     >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
       <form id="create-certificate-form" className="grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
         <Field>
           <Label htmlFor="cert-title">Title</Label>
@@ -329,6 +345,13 @@ export function CreateCertificateDialog({
           </div>
         ) : null}
       </form>
+      <TemplateLayoutPreview
+        organizationId={organizationId}
+        layout={previewLayout}
+        enabled={open}
+        title="Template preview"
+      />
+      </div>
     </Modal>
   );
 }

@@ -46,11 +46,14 @@ Content-Security-Policy:
   object-src 'none';
   img-src 'self' data: blob: https:;
   style-src 'self' 'unsafe-inline';
-  script-src 'self';
-  connect-src 'self' https://api.example.com https://*.backblazeb2.com;
+  script-src 'self' https://checkout.razorpay.com https://cdn.razorpay.com;
+  frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com;
+  connect-src 'self' https://api.example.com https://*.backblazeb2.com https://api.razorpay.com https://lumberjack.razorpay.com;
 ```
 
-Tighten `connect-src` to your API and storage hosts only.
+Razorpay Checkout **requires** `script-src` / `frame-src` for `checkout.razorpay.com` and `api.razorpay.com`. A CSP with only `script-src 'self'` creates billing orders but never opens the payment modal.
+
+Tighten `connect-src` to your API, storage, and Razorpay hosts only.
 
 ## Runtime config
 

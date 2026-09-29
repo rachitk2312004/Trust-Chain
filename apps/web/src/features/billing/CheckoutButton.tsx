@@ -34,19 +34,28 @@ declare global {
 
 async function loadRazorpay(): Promise<void> {
   if (window.Razorpay) return;
+
+  // Remove a previously blocked/failed script tag so retries can succeed after CSP fixes.
+  const existing = document.querySelector<HTMLScriptElement>("script[data-razorpay]");
+  if (existing && !window.Razorpay) {
+    existing.remove();
+  }
+
   await new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector("script[data-razorpay]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Could not load Razorpay")));
-      return;
-    }
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.dataset.razorpay = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load Razorpay Checkout"));
+    script.onload = () => {
+      if (window.Razorpay) resolve();
+      else reject(new Error("Razorpay Checkout loaded without window.Razorpay"));
+    };
+    script.onerror = () =>
+      reject(
+        new Error(
+          "Could not load Razorpay Checkout. Check that checkout.razorpay.com is allowed by CSP, and disable ad blockers for this site.",
+        ),
+      );
     document.body.appendChild(script);
   });
 }
@@ -72,7 +81,7 @@ export function CheckoutButton({
 
   const pay = useCallback(async () => {
     if (!accessToken) {
-      window.location.assign("/login?next=/pricing");
+      window.location.assign("/login?next=/billing");
       return;
     }
     try {
@@ -83,7 +92,7 @@ export function CheckoutButton({
       });
       if (session.mock) {
         const ok = window.confirm(
-          `Simulate Razorpay payment for ${session.planName} (${Math.round(session.amountPaise / 100)} INR)?`,
+          `Simulate Razorpay payment for ${session.planName} (${Math.round(session.amountPaise / 100)} INR)?\n\nMock mode is on because RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are missing on the API.`,
         );
         if (!ok) return;
         await billingApi.confirm({
@@ -96,7 +105,12 @@ export function CheckoutButton({
         return;
       }
       if (!session.keyId) {
-        feedback.error(new Error("Razorpay is not configured"), "Missing Razorpay key");
+        feedback.error(
+          new Error(
+            "API created an order but did not return RAZORPAY_KEY_ID. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on Railway, then redeploy.",
+          ),
+          "Missing Razorpay key",
+        );
         return;
       }
       await loadRazorpay();

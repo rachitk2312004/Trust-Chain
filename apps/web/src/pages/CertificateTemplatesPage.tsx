@@ -146,6 +146,7 @@ export function CertificateTemplatesPage() {
             </div>
             <Can capability="certificates.manage" organizationId={organizationId}>
               <CertificatePresetGallery
+                organizationId={organizationId}
                 disabled={create.isPending}
                 existingCodes={existingCodes}
                 onUse={onUsePreset}

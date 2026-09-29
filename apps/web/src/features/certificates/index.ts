@@ -31,6 +31,7 @@ export { CertificatePublishPanel } from "./CertificatePublishPanel";
 export { CreateCertificateDialog } from "./CreateCertificateDialog";
 export { RevokeCertificateDialog } from "./RevokeCertificateDialog";
 export { CertificatePreview } from "./CertificatePreview";
+export { TemplateLayoutPreview } from "./TemplateLayoutPreview";
 export { CertificateTemplateEditor } from "./CertificateTemplateEditor";
 export { CertificateFilters } from "./CertificateFilters";
 export { BulkCertificateDialog } from "./BulkCertificateDialog";

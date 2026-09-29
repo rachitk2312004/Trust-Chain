@@ -90,11 +90,20 @@ export function BillingPage() {
       />
       {billing.isError ? <FormError>{getApiErrorMessage(billing.error)}</FormError> : null}
       {billing.data?.mockPayments ? (
+        <FormError>
+          Razorpay is in mock mode on the API. Orders stay “created” until you confirm the browser
+          dialog. Set both RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on Railway (and keep
+          RAZORPAY_MOCK=false), then redeploy the backend.
+        </FormError>
+      ) : (
         <FormHint>
-          Razorpay is in mock mode because live/test keys are not set. Add RAZORPAY_KEY_ID and
-          RAZORPAY_KEY_SECRET to charge real Razorpay test or live payments.
+          Razorpay Checkout is live
+          {billing.data?.razorpayKeyId
+            ? ` (key ${billing.data.razorpayKeyId.slice(0, 12)}…)`
+            : ""}. After a successful payment, Premium Pro / Max Pro unlocks for this organization
+          automatically.
         </FormHint>
-      ) : null}
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <PlanSummary title="Your holder plan" snapshot={billing.data?.user ?? null} />
