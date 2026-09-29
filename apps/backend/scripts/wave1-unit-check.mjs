@@ -387,6 +387,7 @@ testValidation();
   const {
     testPlaceholderReplacement,
     testLayoutRendering,
+    testLayoutFromPresetMetadata,
     testPresetDecorations,
     testSvgGeneration,
     testPdfGeneration,
@@ -395,6 +396,7 @@ testValidation();
   } = await import("../dist/modules/certificates/tests/certificates.render.unit.js");
   testPlaceholderReplacement();
   testLayoutRendering();
+  testLayoutFromPresetMetadata();
   testPresetDecorations();
   await testSvgGeneration();
   await testPdfGeneration();

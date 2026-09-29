@@ -14,7 +14,11 @@ export {
 } from "./certificates.publish.js";
 export { generateCertificateIdentity, hashCertificatePayload } from "./certificates.generator.js";
 export { verifyCertificate } from "./certificates.verifier.js";
-export { defaultCertificateLayout, resolveCertificateLayout } from "./certificates.layout.js";
+export {
+  defaultCertificateLayout,
+  resolveCertificateLayout,
+  resolveCertificateLayoutFromSources,
+} from "./certificates.layout.js";
 export { applyPlaceholders, buildPlaceholderContext } from "./certificates.placeholders.js";
 export { renderCertificateSvg, buildCertificateRenderModel } from "./certificates.renderer.js";
 export { exportCertificate } from "./certificates.export.js";

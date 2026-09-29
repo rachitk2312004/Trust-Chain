@@ -21,9 +21,9 @@ import { explorerTxUrl, isChainEnabled, resolveConfiguredNetwork } from "../bloc
 import { createDocumentQr } from "../qr/services/qr.service.js";
 import { loadCertificateAssets } from "./certificates.assets.js";
 import { exportCertificate } from "./certificates.export.js";
-import { resolveCertificateLayout } from "./certificates.layout.js";
+import { resolveCertificateLayoutFromSources } from "./certificates.layout.js";
 import * as repo from "./certificates.repository.js";
-import { defaultCertificateLayout, findTemplateById } from "./certificates.templates.js";
+import { findTemplateById } from "./certificates.templates.js";
 
 export type CertificatePublishResult = {
   certificate: ReturnType<typeof repo.toPublicCertificate>;
@@ -110,12 +110,15 @@ async function renderCertificatePdf(row: {
   });
   if (!organization) throw new AppError(404, "ORG_NOT_FOUND", "Organization not found");
 
-  let layoutJson: unknown = defaultCertificateLayout();
+  let templateLayoutJson: unknown;
   if (row.templateId) {
     const template = await findTemplateById(row.organizationId, row.templateId);
-    if (template) layoutJson = template.layoutJson;
+    if (template) templateLayoutJson = template.layoutJson;
   }
-  const layout = resolveCertificateLayout(layoutJson);
+  const layout = resolveCertificateLayoutFromSources({
+    templateLayoutJson,
+    metadata: asMetadata(row.metadataJson),
+  });
   const branding = await prisma.organizationBranding.findUnique({
     where: { organizationId: row.organizationId },
   });

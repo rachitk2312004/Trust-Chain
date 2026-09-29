@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { CERTIFICATE_LAYOUT_PRESETS } from "@trustchain/config";
 import {
   Button,
   Field,
@@ -15,6 +17,19 @@ import { getCertificateErrorMessage } from "../../lib/certificateErrors";
 import { useFeedback } from "../../hooks/useFeedback";
 import type { CertificateRecipientMatch } from "../../types/api";
 import { useCertificateTemplates, useCreateCertificate, useLookupCertificateRecipients } from "./hooks";
+
+type LayoutChoice =
+  | { kind: "default" }
+  | { kind: "preset"; id: string }
+  | { kind: "template"; id: string };
+
+function parseLayoutChoice(value: string): LayoutChoice {
+  if (!value) return { kind: "default" };
+  if (value.startsWith("preset:")) return { kind: "preset", id: value.slice("preset:".length) };
+  if (value.startsWith("template:")) return { kind: "template", id: value.slice("template:".length) };
+  // Backward-compatible: raw template uuid
+  return { kind: "template", id: value };
+}
 
 export function CreateCertificateDialog({
   organizationId,
@@ -36,7 +51,7 @@ export function CreateCertificateDialog({
   const [emailQuery, setEmailQuery] = useState("");
   const [showMatches, setShowMatches] = useState(false);
   const [description, setDescription] = useState("");
-  const [templateId, setTemplateId] = useState("");
+  const [layoutChoice, setLayoutChoice] = useState("preset:classic-gold");
   const [documentId, setDocumentId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [createQr, setCreateQr] = useState(true);
@@ -61,7 +76,7 @@ export function CreateCertificateDialog({
     setEmailQuery("");
     setShowMatches(false);
     setDescription("");
-    setTemplateId("");
+    setLayoutChoice("preset:classic-gold");
     setDocumentId("");
     setExpiresAt("");
     setCreateQr(true);
@@ -76,13 +91,15 @@ export function CreateCertificateDialog({
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const choice = parseLayoutChoice(layoutChoice);
     create.mutate(
       {
         title: title.trim(),
         recipientName: recipientName.trim(),
         recipientEmail: recipientEmail.trim() || null,
         description: description.trim() || null,
-        templateId: templateId || null,
+        templateId: choice.kind === "template" ? choice.id : null,
+        preset: choice.kind === "preset" ? choice.id : null,
         documentId: documentId || null,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         createQr,
@@ -159,16 +176,42 @@ export function CreateCertificateDialog({
           <Label htmlFor="cert-template">Template</Label>
           <Select
             id="cert-template"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
+            value={layoutChoice}
+            onChange={(e) => setLayoutChoice(e.target.value)}
           >
-            <option value="">Default layout</option>
-            {activeTemplates.map((tpl) => (
-              <option key={tpl.id} value={tpl.id}>
-                {tpl.name} ({tpl.code})
-              </option>
-            ))}
+            <option value="">Plain default layout</option>
+            <optgroup label="Built-in designs">
+              {CERTIFICATE_LAYOUT_PRESETS.map((preset) => (
+                <option key={preset.id} value={`preset:${preset.id}`}>
+                  {preset.name} · {preset.layout.orientation}
+                </option>
+              ))}
+            </optgroup>
+            {activeTemplates.length > 0 ? (
+              <optgroup label="Organization templates">
+                {activeTemplates.map((tpl) => (
+                  <option key={tpl.id} value={`template:${tpl.id}`}>
+                    {tpl.name} ({tpl.code})
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </Select>
+          {templates.isLoading ? <FormHint>Loading organization templates…</FormHint> : null}
+          {templates.isError ? (
+            <FormHint>
+              Could not load organization templates. Built-in designs are still available.
+            </FormHint>
+          ) : null}
+          {!templates.isLoading && !templates.isError && activeTemplates.length === 0 ? (
+            <FormHint>
+              No saved org templates yet. Built-in designs work immediately, or{" "}
+              <Link to="/certificates/templates" className="text-[var(--tc-accent)] hover:underline">
+                add templates
+              </Link>
+              .
+            </FormHint>
+          ) : null}
         </Field>
         <Field>
           <Label htmlFor="cert-recipient">Recipient name</Label>

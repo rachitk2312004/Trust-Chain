@@ -6,6 +6,7 @@ import {
   DocumentPermissions,
   NotificationEventTypes,
   RoleKeys,
+  certificateLayoutPresetById,
 } from "@trustchain/config";
 import { prisma, Prisma, type Prisma as PrismaTypes } from "@trustchain/database";
 import { AppError } from "../../lib/errors.js";
@@ -29,7 +30,10 @@ import {
   toPublicTemplate,
   updateTemplate,
 } from "./certificates.templates.js";
-import { resolveCertificateLayout } from "./certificates.layout.js";
+import {
+  resolveCertificateLayout,
+  resolveCertificateLayoutFromSources,
+} from "./certificates.layout.js";
 import { loadCertificateAssets } from "./certificates.assets.js";
 import {
   exportCertificate,
@@ -348,6 +352,8 @@ export async function issueCertificate(
     recipientEmail?: string | null;
     recipientUserId?: string | null;
     templateId?: string | null;
+    /** Built-in design preset id (used when templateId is omitted). */
+    preset?: string | null;
     documentId?: string | null;
     expiresAt?: string | null;
     issuedAt?: string | null;
@@ -367,11 +373,20 @@ export async function issueCertificate(
   );
 
   let templateId: string | null = input.templateId ?? null;
+  let layoutPreset: string | null = null;
+  let layoutSnapshot: Record<string, unknown> | null = null;
   if (templateId) {
     const template = await findTemplateById(input.organizationId, templateId);
     if (!template || template.status !== CertificateTemplateStatuses.active) {
       throw new AppError(404, "TEMPLATE_NOT_FOUND", "Active certificate template not found");
     }
+  } else if (input.preset) {
+    const preset = certificateLayoutPresetById(input.preset);
+    if (!preset) {
+      throw new AppError(400, "VALIDATION_ERROR", "Unknown certificate layout preset");
+    }
+    layoutPreset = preset.id;
+    layoutSnapshot = { ...preset.layout };
   }
 
   if (input.publicId) {
@@ -440,6 +455,9 @@ export async function issueCertificate(
   const metadata = {
     ...(input.metadata ?? {}),
     ...(documentContentHash ? { documentContentHash } : {}),
+    ...(layoutPreset && layoutSnapshot
+      ? { layoutPreset, layout: layoutSnapshot }
+      : {}),
   };
 
   const identity = generateCertificateIdentity({
@@ -823,16 +841,19 @@ async function renderCertificateDownload(
   });
   if (!organization) throw new AppError(404, "ORG_NOT_FOUND", "Organization not found");
 
-  let layoutJson: unknown = defaultCertificateLayout();
+  let templateLayoutJson: unknown;
   if (row.templateId) {
     const template = await findTemplateById(organizationId, row.templateId);
     if (!template) {
       throw new AppError(404, "TEMPLATE_NOT_FOUND", "Certificate template not found");
     }
-    layoutJson = template.layoutJson;
+    templateLayoutJson = template.layoutJson;
   }
 
-  const layout = resolveCertificateLayout(layoutJson);
+  const layout = resolveCertificateLayoutFromSources({
+    templateLayoutJson,
+    metadata: asMetadata(row.metadataJson),
+  });
   const branding = await prisma.organizationBranding.findUnique({
     where: { organizationId },
   });

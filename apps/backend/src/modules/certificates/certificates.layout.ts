@@ -1,3 +1,5 @@
+import { certificateLayoutPresetById } from "@trustchain/config";
+
 export type CertificateOrientation = "portrait" | "landscape";
 export type CertificatePageSize = "A4" | "Letter";
 
@@ -104,6 +106,27 @@ function asBool(value: unknown, fallback: boolean): boolean {
 /**
  * Merges template layoutJson with defaults. Invalid orientation/pageSize fall back safely.
  */
+/**
+ * Resolves printable layout from an issued certificate's template and/or metadata.
+ * Priority: linked template → metadata.layout snapshot → metadata.layoutPreset → default.
+ */
+export function resolveCertificateLayoutFromSources(input: {
+  templateLayoutJson?: unknown;
+  metadata?: Record<string, unknown> | null;
+}): CertificateLayoutConfig {
+  if (input.templateLayoutJson != null) {
+    return resolveCertificateLayout(input.templateLayoutJson);
+  }
+  const metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
+  if (metadata.layout != null && typeof metadata.layout === "object") {
+    return resolveCertificateLayout(metadata.layout);
+  }
+  const presetId = typeof metadata.layoutPreset === "string" ? metadata.layoutPreset : undefined;
+  const preset = presetId ? certificateLayoutPresetById(presetId) : undefined;
+  if (preset) return resolveCertificateLayout(preset.layout);
+  return defaultCertificateLayout();
+}
+
 export function resolveCertificateLayout(layoutJson: unknown): CertificateLayoutConfig {
   const defaults = defaultCertificateLayout();
   const raw = asRecord(layoutJson);

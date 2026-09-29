@@ -868,6 +868,8 @@ export type IssueCertificateInput = {
   recipientEmail?: string | null;
   recipientUserId?: string | null;
   templateId?: string | null;
+  /** Built-in layout preset id when no org template is selected. */
+  preset?: string | null;
   documentId?: string | null;
   expiresAt?: string | null;
   metadata?: Record<string, unknown>;

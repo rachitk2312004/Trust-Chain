@@ -80,6 +80,18 @@ export const issueCertificateBodySchema = z.object({
   recipientEmail: z.string().email().nullable().optional(),
   recipientUserId: z.string().uuid().nullable().optional(),
   templateId: z.string().uuid().nullable().optional(),
+  /** Built-in layout preset id when no org template is selected. */
+  preset: z
+    .enum([
+      "classic-gold",
+      "portrait-honor",
+      "imperial-navy",
+      "emerald-merit",
+      "academic-crimson",
+      "modern-slate",
+    ])
+    .nullable()
+    .optional(),
   documentId: z.string().uuid().nullable().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
   metadata: z.record(z.unknown()).optional(),

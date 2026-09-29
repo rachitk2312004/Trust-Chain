@@ -9,6 +9,7 @@ import {
   pageSizePixels,
   pageSizePoints,
   resolveCertificateLayout,
+  resolveCertificateLayoutFromSources,
 } from "../certificates.layout.js";
 import {
   buildCertificateRenderModel,
@@ -124,6 +125,28 @@ export async function testPngGeneration(): Promise<void> {
   assert.equal(png[1], 0x50);
   assert.equal(png[2], 0x4e);
   assert.equal(png[3], 0x47);
+}
+
+export function testLayoutFromPresetMetadata(): void {
+  const fromPreset = resolveCertificateLayoutFromSources({
+    metadata: { layoutPreset: "classic-gold" },
+  });
+  assert.equal(fromPreset.preset, "classic-gold");
+  assert.equal(fromPreset.orientation, "landscape");
+
+  const fromSnapshot = resolveCertificateLayoutFromSources({
+    metadata: {
+      layoutPreset: "ignored-when-layout-present",
+      layout: {
+        orientation: "portrait",
+        pageSize: "Letter",
+        accentColor: "#112233",
+      },
+    },
+  });
+  assert.equal(fromSnapshot.orientation, "portrait");
+  assert.equal(fromSnapshot.pageSize, "Letter");
+  assert.equal(fromSnapshot.accentColor, "#112233");
 }
 
 export function testPresetDecorations(): void {

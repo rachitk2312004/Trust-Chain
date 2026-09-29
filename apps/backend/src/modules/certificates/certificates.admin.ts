@@ -10,7 +10,7 @@ import {
 } from "./certificates.analytics.js";
 import { loadCertificateAssets } from "./certificates.assets.js";
 import { exportCertificate, type CertificateExportFormat } from "./certificates.export.js";
-import { defaultCertificateLayout, resolveCertificateLayout } from "./certificates.layout.js";
+import { resolveCertificateLayoutFromSources } from "./certificates.layout.js";
 import { certificateProcessMetrics } from "./certificates.observability.js";
 import * as repo from "./certificates.repository.js";
 import {
@@ -193,12 +193,15 @@ export async function reprocessCertificates(
 
       if (!input.skipRender) {
         const renderStarted = Date.now();
-        let layoutJson: unknown = defaultCertificateLayout();
+        let templateLayoutJson: unknown;
         if (row.templateId) {
           const template = await findTemplateById(organizationId, row.templateId);
-          if (template) layoutJson = template.layoutJson;
+          if (template) templateLayoutJson = template.layoutJson;
         }
-        const layout = resolveCertificateLayout(layoutJson);
+        const layout = resolveCertificateLayoutFromSources({
+          templateLayoutJson,
+          metadata: asMetadata(row.metadataJson),
+        });
         if (branding?.primaryColor) layout.accentColor = branding.primaryColor;
         if (branding?.secondaryColor) layout.borderColor = branding.secondaryColor;
 
