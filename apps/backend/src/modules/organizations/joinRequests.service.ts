@@ -350,6 +350,7 @@ export async function updateOrgMemberRole(
   );
 
   await setOrgMemberRole(membership.userId, organizationId, roleKey);
+  clearAuthCacheForUser(membership.userId);
   if (membership.status !== "active") {
     await prisma.membership.update({
       where: { id: membershipId },

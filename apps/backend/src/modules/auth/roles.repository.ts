@@ -1,5 +1,6 @@
 import { RoleKeys } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
+import { clearAuthCacheForUser } from "../../middleware/requireAuth.js";
 
 export async function bindRoleToUser(input: {
   userId: string;
@@ -22,6 +23,7 @@ export async function bindRoleToUser(input: {
   });
 
   if (existing) {
+    clearAuthCacheForUser(input.userId);
     return;
   }
 
@@ -32,6 +34,7 @@ export async function bindRoleToUser(input: {
       organizationId,
     },
   });
+  clearAuthCacheForUser(input.userId);
 }
 
 export async function bindPublicUserRole(userId: string): Promise<void> {
@@ -44,6 +47,7 @@ export async function unbindPublicUserRole(userId: string): Promise<void> {
   await prisma.roleBinding.deleteMany({
     where: { userId, roleId: role.id, organizationId: null },
   });
+  clearAuthCacheForUser(userId);
 }
 
 /** Staff roles replace the default holder role assigned at registration. */
@@ -75,6 +79,7 @@ export async function revokeOrgScopedRoles(
       roleId: { in: roles.map((role) => role.id) },
     },
   });
+  clearAuthCacheForUser(userId);
 }
 
 export async function setOrgMemberRole(

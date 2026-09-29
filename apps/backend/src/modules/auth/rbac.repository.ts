@@ -21,6 +21,10 @@ export function setCachedRoleBindings(userId: string, bindings: RoleBindingView[
   roleCache.set(userId, { bindings, expiresAt: Date.now() + ROLE_CACHE_TTL_MS });
 }
 
+export function clearRoleCacheForUser(userId: string): void {
+  roleCache.delete(userId);
+}
+
 export function userHasRoleFromBindings(
   bindings: RoleBindingView[],
   roleKeys: string[],

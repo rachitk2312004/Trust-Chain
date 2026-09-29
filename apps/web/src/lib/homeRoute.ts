@@ -92,3 +92,20 @@ export function shouldRedirectSuperAdminFromWorkspace(pathname: string): boolean
   if (pathname === "/sessions" || pathname === "/settings") return false;
   return true;
 }
+
+/** After join approval, leave holder pages for the employee/org-admin home. */
+export function shouldLeaveCurrentPageForHome(pathname: string, home: string): boolean {
+  if (pathname === home) return false;
+  if (pathname === "/settings" || pathname === "/sessions") return false;
+  if (pathname === "/dashboard" && home !== "/dashboard") return true;
+  if (home === "/dashboard" && (pathname === "/my-certificates" || pathname === "/organizations")) {
+    return true;
+  }
+  if (
+    home.startsWith("/organizations/") &&
+    (pathname === "/my-certificates" || pathname === "/dashboard" || pathname === "/organizations")
+  ) {
+    return true;
+  }
+  return false;
+}

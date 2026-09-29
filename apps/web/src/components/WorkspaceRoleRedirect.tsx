@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import {
   getHomeRoute,
+  shouldLeaveCurrentPageForHome,
   shouldRedirectSuperAdminFromWorkspace,
 } from "../lib/homeRoute";
 import { isSuperAdmin } from "../lib/permissions";
@@ -26,7 +27,7 @@ export function WorkspaceRoleRedirect() {
   const home = getHomeRoute(roles, {
     activeOrganizationId,
   });
-  if (location.pathname === "/dashboard" && home !== "/dashboard") {
+  if (shouldLeaveCurrentPageForHome(location.pathname, home)) {
     return <Navigate to={home} replace />;
   }
 

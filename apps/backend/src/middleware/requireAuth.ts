@@ -6,6 +6,7 @@ import { findValidSessionById } from "../modules/auth/sessions.repository.js";
 import {
   listRoleBindingsForUser,
   setCachedRoleBindings,
+  clearRoleCacheForUser,
   type RoleBindingView,
 } from "../modules/auth/rbac.repository.js";
 import { recordAuthCacheHit } from "@trustchain/database";
@@ -94,6 +95,7 @@ async function resolveAuth(
 
 /** Bust cached auth after role/membership changes so the next request sees fresh bindings. */
 export function clearAuthCacheForUser(userId: string): void {
+  clearRoleCacheForUser(userId);
   const suffix = `:${userId}`;
   for (const key of authCache.keys()) {
     if (key.endsWith(suffix)) {

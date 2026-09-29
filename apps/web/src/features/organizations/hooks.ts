@@ -46,11 +46,11 @@ export function useOrganizationWorkspace(enabled = true) {
     enabled: enabled && Boolean(accessToken),
     staleTime: 5 * 60_000,
     gcTime: 15 * 60_000,
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchInterval: (query) => {
       if (typeof document !== "undefined" && document.hidden) return false;
       const pending = (query.state.data?.joinRequests ?? []).some((r) => r.status === "pending");
-      return pending ? 60_000 : false;
+      return pending ? 12_000 : false;
     },
   });
 }

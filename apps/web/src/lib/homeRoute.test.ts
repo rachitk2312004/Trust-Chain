@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, expect, it } from "vitest";
-import { getHomeRoute, isOrgAdminOnly, shouldRedirectSuperAdminFromWorkspace } from "./homeRoute";
+import { getHomeRoute, isOrgAdminOnly, shouldLeaveCurrentPageForHome, shouldRedirectSuperAdminFromWorkspace } from "./homeRoute";
 
 describe("homeRoute", () => {
   it("sends super admins to the platform console", () => {
@@ -30,6 +30,13 @@ describe("homeRoute", () => {
         { roleKey: "public_user", roleName: "Public User", organizationId: "org-1" },
       ]),
     ).toBe("/my-certificates");
+  });
+
+  it("moves employees off the holder wallet onto the staff dashboard", () => {
+    expect(shouldLeaveCurrentPageForHome("/my-certificates", "/dashboard")).toBe(true);
+    expect(shouldLeaveCurrentPageForHome("/organizations", "/dashboard")).toBe(true);
+    expect(shouldLeaveCurrentPageForHome("/dashboard", "/dashboard")).toBe(false);
+    expect(shouldLeaveCurrentPageForHome("/settings", "/dashboard")).toBe(false);
   });
 
   it("treats super admin as not org-admin-only", () => {

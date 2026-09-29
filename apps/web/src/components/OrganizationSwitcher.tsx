@@ -5,9 +5,9 @@ import { Building2, Clock } from "lucide-react";
 import { Badge, Select } from "@trustchain/ui";
 import { JoinOrganizationDialog } from "../features/organizations/JoinOrganizationDialog";
 import { useOrganizationWorkspace } from "../features/organizations/hooks";
-import { meQueryKey } from "../features/auth/meQuery";
+import { meQueryOptions } from "../features/auth/meQuery";
 import { usePermissions } from "../hooks/usePermissions";
-import { isOrgAdminOnly } from "../lib/homeRoute";
+import { getHomeRoute, isOrgAdminOnly } from "../lib/homeRoute";
 import { canSelfJoinOrganization } from "../lib/workspacePersona";
 import { useSessionStore } from "../lib/sessionStore";
 
@@ -40,7 +40,7 @@ export function OrganizationSwitcher() {
   const activeId = useSessionStore((s) => s.activeOrganizationId);
   const setActive = useSessionStore((s) => s.setActiveOrganizationId);
   const [joinOpen, setJoinOpen] = useState(false);
-  const approvedRefreshDone = useRef(false);
+  const pendingCountRef = useRef<number | null>(null);
 
   const activeOrgs = useMemo(
     () => (workspace.data?.organizations ?? []).filter((o) => o.status === "active"),
@@ -55,15 +55,31 @@ export function OrganizationSwitcher() {
 
   const singleOrg = dedicatedOrgAdmin && activeOrgs.length === 1 ? activeOrgs[0] : null;
 
-  // Refresh workspace once when a join is first approved — avoid refetch storm on every render.
+  // When a pending join is approved, reload /me so the employee console replaces the holder wallet.
   useEffect(() => {
-    if (!allowJoin || !joinRequests || approvedRefreshDone.current) return;
-    const hasApproved = joinRequests.some((r) => r.status === "approved");
-    if (!hasApproved) return;
-    approvedRefreshDone.current = true;
+    if (!allowJoin || !joinRequests) return;
+    const pendingCount = joinRequests.filter((r) => r.status === "pending").length;
+    const prevPending = pendingCountRef.current;
+    pendingCountRef.current = pendingCount;
+    if (prevPending === null) return;
+    if (!(prevPending > 0 && pendingCount < prevPending)) return;
     void refetchWorkspace();
-    void queryClient.invalidateQueries({ queryKey: meQueryKey });
-  }, [allowJoin, joinRequests, queryClient, refetchWorkspace]);
+    void queryClient
+      .fetchQuery({
+        ...meQueryOptions(),
+        staleTime: 0,
+      })
+      .then(() => {
+        const store = useSessionStore.getState();
+        const home = getHomeRoute(store.roles, {
+          activeOrganizationId: store.activeOrganizationId,
+          memberships: undefined,
+        });
+        if (home === "/dashboard" || home.startsWith("/organizations/")) {
+          navigate(home, { replace: true });
+        }
+      });
+  }, [allowJoin, joinRequests, navigate, queryClient, refetchWorkspace]);
 
   useEffect(() => {
     const orgList = workspace.data?.organizations;
