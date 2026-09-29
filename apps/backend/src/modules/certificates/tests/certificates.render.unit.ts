@@ -20,6 +20,7 @@ import {
   exportCertificateSvg,
 } from "../certificates.export.js";
 import type { CertificateRenderAssets } from "../certificates.assets.js";
+import { CERTIFICATE_LAYOUT_PRESETS } from "@trustchain/config";
 
 const emptyAssets: CertificateRenderAssets = {
   logoPng: null,
@@ -123,6 +124,32 @@ export async function testPngGeneration(): Promise<void> {
   assert.equal(png[1], 0x50);
   assert.equal(png[2], 0x4e);
   assert.equal(png[3], 0x47);
+}
+
+export function testPresetDecorations(): void {
+  for (const preset of CERTIFICATE_LAYOUT_PRESETS) {
+    const layout = resolveCertificateLayout(preset.layout);
+    const model = buildCertificateRenderModel({
+      publicId: "CERT-PRESET",
+      title: preset.layout.titleTemplate,
+      recipientName: "Jane Doe",
+      organizationName: "TrustChain Academy",
+      issuedAt: new Date("2026-03-01T00:00:00.000Z"),
+      expiresAt: new Date("2027-03-01T00:00:00.000Z"),
+      verificationUrl: "https://verify.example/CERT-PRESET",
+      layout,
+      assets: emptyAssets,
+    });
+    const svg = renderCertificateSvg(model);
+    assert.match(svg, /<svg /);
+    assert.match(svg, /Jane Doe/);
+    assert.ok(model.width > 0 && model.height > 0);
+    if (layout.orientation === "landscape") {
+      assert.ok(model.width > model.height);
+    } else {
+      assert.ok(model.height > model.width);
+    }
+  }
 }
 
 export async function testQrEmbedding(): Promise<void> {

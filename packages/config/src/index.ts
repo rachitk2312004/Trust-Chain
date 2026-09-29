@@ -748,6 +748,16 @@ export const CertificateTemplateStatuses = {
   archived: "archived",
 } as const;
 
+export {
+  CERTIFICATE_LAYOUT_PRESETS,
+  CertificateLayoutPresetIds,
+  certificateLayoutPresetById,
+  defaultCertificateLayoutPreset,
+  type CertificateLayoutPreset,
+  type CertificateLayoutPresetId,
+  type CertificateLayoutPresetLayout,
+} from "./certificatePresets.js";
+
 export const CertificateEventTypes = {
   created: "created",
   issued: "issued",

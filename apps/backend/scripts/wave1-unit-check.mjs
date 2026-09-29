@@ -387,6 +387,7 @@ testValidation();
   const {
     testPlaceholderReplacement,
     testLayoutRendering,
+    testPresetDecorations,
     testSvgGeneration,
     testPdfGeneration,
     testPngGeneration,
@@ -394,6 +395,7 @@ testValidation();
   } = await import("../dist/modules/certificates/tests/certificates.render.unit.js");
   testPlaceholderReplacement();
   testLayoutRendering();
+  testPresetDecorations();
   await testSvgGeneration();
   await testPdfGeneration();
   await testPngGeneration();

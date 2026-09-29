@@ -735,6 +735,8 @@ export type CertificateListResponse = {
 
 export type CertificateLayout = {
   version?: number;
+  /** Built-in visual preset id (see CERTIFICATE_LAYOUT_PRESETS in @trustchain/config). */
+  preset?: string;
   orientation?: "portrait" | "landscape";
   pageSize?: "A4" | "Letter";
   backgroundColor?: string;

@@ -18,11 +18,13 @@ import {
 } from "@trustchain/ui";
 import { Can } from "../components/Can";
 import { PageHeader } from "../components/PageHeader";
+import { CertificatePresetGallery } from "../features/certificates/CertificatePresetGallery";
 import {
   CertificateTemplateEditor,
   useCertificateTemplates,
   useCreateTemplate,
 } from "../features/certificates";
+import type { CertificateLayoutPreset } from "@trustchain/config";
 import { useFeedback } from "../hooks/useFeedback";
 import { AppShellLayout } from "../layouts/AppShellLayout";
 import {
@@ -50,6 +52,24 @@ export function CertificateTemplatesPage() {
     setDescription("");
     setOrientation("portrait");
     create.reset();
+  }
+
+  function onUsePreset(preset: CertificateLayoutPreset) {
+    if (!organizationId || create.isPending) return;
+    create.mutate(
+      {
+        code: preset.code,
+        name: preset.name,
+        description: preset.description,
+        layout: { ...preset.layout },
+      },
+      {
+        onSuccess: (tpl) => {
+          setSelectedId(tpl.id);
+          feedback.success(`Added template “${preset.name}”`);
+        },
+      },
+    );
   }
 
   function onCreate(event: FormEvent) {
@@ -86,6 +106,7 @@ export function CertificateTemplatesPage() {
   }
 
   const selected = (templates.data ?? []).find((t) => t.id === selectedId) ?? templates.data?.[0];
+  const existingCodes = new Set((templates.data ?? []).map((t) => t.code));
 
   return (
     <AppShellLayout>
@@ -114,7 +135,25 @@ export function CertificateTemplatesPage() {
       {templates.isLoading ? (
         <p className="text-sm text-[var(--tc-muted)]">Loading templates…</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+        <>
+          <section className="mb-6 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--tc-fg)]">Built-in design gallery</h2>
+              <p className="text-xs text-[var(--tc-muted)]">
+                Six print-ready layouts (landscape and portrait) with balanced margins, typography,
+                and preset-specific borders. Click “Use preset” to add one to your organization.
+              </p>
+            </div>
+            <Can capability="certificates.manage" organizationId={organizationId}>
+              <CertificatePresetGallery
+                disabled={create.isPending}
+                existingCodes={existingCodes}
+                onUse={onUsePreset}
+              />
+            </Can>
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
           <Card>
             <CardHeader>
               <CardTitle>Templates</CardTitle>
@@ -170,7 +209,8 @@ export function CertificateTemplatesPage() {
               <FormHint>Select or create a template.</FormHint>
             )}
           </Card>
-        </div>
+          </div>
+        </>
       )}
 
       <Modal

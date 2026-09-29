@@ -3,6 +3,8 @@ export type CertificatePageSize = "A4" | "Letter";
 
 export type CertificateLayoutConfig = {
   version: number;
+  /** Built-in visual preset id (see @trustchain/config CERTIFICATE_LAYOUT_PRESETS). */
+  preset?: string;
   orientation: CertificateOrientation;
   pageSize: CertificatePageSize;
   backgroundColor: string;
@@ -117,8 +119,13 @@ export function resolveCertificateLayout(layoutJson: unknown): CertificateLayout
     ? raw.fields.filter((f): f is string => typeof f === "string")
     : defaults.fields;
 
+  const presetRaw = raw.preset;
+  const preset =
+    typeof presetRaw === "string" && presetRaw.trim().length > 0 ? presetRaw.trim() : undefined;
+
   return {
     version: typeof raw.version === "number" ? raw.version : defaults.version,
+    ...(preset ? { preset } : {}),
     orientation,
     pageSize,
     backgroundColor: asString(raw.backgroundColor, defaults.backgroundColor),
