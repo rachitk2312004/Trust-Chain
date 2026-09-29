@@ -17,6 +17,6 @@ Requires `DATABASE_URL`.
 ## Policy
 
 - Preserve existing PostgreSQL table/column names (`@map` / `@@map`).
-- Cloudflare R2 stores files; DB stores metadata and object keys.
+- Backblaze B2 stores files; DB stores metadata and object keys.
 - Redis must not store permanent data.
 - Never store complete files on the blockchain.

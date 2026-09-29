@@ -12,18 +12,43 @@ import { Readable, Transform, PassThrough } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ObjectStorageProvider } from "@trustchain/config";
 
+function envFirst(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function storageEndpoint(): string | undefined {
+  return envFirst("B2_ENDPOINT", "R2_ENDPOINT");
+}
+
+function storageAccessKeyId(): string | undefined {
+  return envFirst("B2_KEY_ID", "B2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID");
+}
+
+function storageSecretAccessKey(): string | undefined {
+  return envFirst("B2_APPLICATION_KEY", "B2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY");
+}
+
+function storageBucketName(): string | undefined {
+  return envFirst("B2_BUCKET", "R2_BUCKET");
+}
+
+function storageRegion(): string {
+  return envFirst("B2_REGION", "R2_REGION") ?? "us-west-004";
+}
+
 /**
  * Object storage for uploaded files (PDFs, images, certificates, QR assets).
- * Uses Cloudflare R2 when credentials are set; otherwise a local filesystem
+ * Uses Backblaze B2 (S3 API) when credentials are set; otherwise a local filesystem
  * so issue/verify works in development without a bucket.
  * PostgreSQL remains the metadata source of truth.
  */
 export function isRemoteObjectStorageConfigured(): boolean {
   return Boolean(
-    process.env.R2_ENDPOINT?.trim() &&
-      process.env.R2_ACCESS_KEY_ID?.trim() &&
-      process.env.R2_SECRET_ACCESS_KEY?.trim() &&
-      process.env.R2_BUCKET?.trim(),
+    storageEndpoint() && storageAccessKeyId() && storageSecretAccessKey() && storageBucketName(),
   );
 }
 
@@ -41,27 +66,30 @@ function localObjectPath(objectKey: string): string {
 
 export function getBucket(): string {
   if (!isRemoteObjectStorageConfigured()) {
-    return process.env.R2_BUCKET?.trim() || "local";
+    return storageBucketName() || "local";
   }
-  const bucket = process.env.R2_BUCKET;
+  const bucket = storageBucketName();
   if (!bucket) {
-    throw new Error("R2_BUCKET is required");
+    throw new Error("B2_BUCKET is required");
   }
   return bucket;
 }
 
 function createClient(): S3Client {
-  const endpoint = process.env.R2_ENDPOINT;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const endpoint = storageEndpoint();
+  const accessKeyId = storageAccessKeyId();
+  const secretAccessKey = storageSecretAccessKey();
   if (!endpoint || !accessKeyId || !secretAccessKey) {
-    throw new Error("R2_ENDPOINT, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY are required");
+    throw new Error("B2_ENDPOINT, B2_KEY_ID, and B2_APPLICATION_KEY are required");
   }
 
   return new S3Client({
-    region: process.env.R2_REGION ?? "auto",
+    region: storageRegion(),
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 

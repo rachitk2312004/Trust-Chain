@@ -31,7 +31,7 @@ Content-Security-Policy:
   img-src 'self' data: blob: https:;
   style-src 'self' 'unsafe-inline';
   script-src 'self';
-  connect-src 'self' https://api.example.com https://*.r2.cloudflarestorage.com;
+  connect-src 'self' https://api.example.com https://*.backblazeb2.com;
 ```
 
 Tighten `connect-src` to your API and storage hosts only.

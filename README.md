@@ -17,7 +17,7 @@ infrastructure/
 | Area | Choice |
 |------|--------|
 | Database | PostgreSQL + Prisma |
-| Object storage | Cloudflare R2 |
+| Object storage | Backblaze B2 |
 | Email | Mailtrap or Gmail SMTP |
 | Cache | Redis (optional) |
 | Blockchain | Hardhat |

@@ -122,22 +122,18 @@ async function probeRedis(): Promise<PlatformHealthCheck> {
 
 async function probeObjectStorage(): Promise<PlatformHealthCheck> {
   const started = Date.now();
-  const configured = Boolean(
-    process.env.R2_BUCKET &&
-      process.env.R2_ENDPOINT &&
-      process.env.R2_ACCESS_KEY_ID &&
-      process.env.R2_SECRET_ACCESS_KEY,
+  const { isRemoteObjectStorageConfigured, getClient, getBucket } = await import(
+    "../../integrations/objectStorage.js"
   );
-  if (!configured) {
+  if (!isRemoteObjectStorageConfigured()) {
     return {
       name: PlatformHealthTargets.objectStorage,
       status: PlatformHealthStatuses.unknown,
       latencyMs: Date.now() - started,
-      detail: "R2 credentials unset",
+      detail: "B2 credentials unset",
     };
   }
   try {
-    const { getClient, getBucket } = await import("../../integrations/objectStorage.js");
     getClient();
     const bucket = getBucket();
     return {

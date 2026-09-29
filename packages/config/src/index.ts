@@ -7,6 +7,12 @@ export const EnvKeys = {
   REDIS_URL: "REDIS_URL",
   VITE_API_URL: "VITE_API_URL",
   EXPO_PUBLIC_API_URL: "EXPO_PUBLIC_API_URL",
+  B2_KEY_ID: "B2_KEY_ID",
+  B2_APPLICATION_KEY: "B2_APPLICATION_KEY",
+  B2_BUCKET: "B2_BUCKET",
+  B2_ENDPOINT: "B2_ENDPOINT",
+  B2_REGION: "B2_REGION",
+  B2_ACCOUNT_ID: "B2_ACCOUNT_ID",
   R2_ACCOUNT_ID: "R2_ACCOUNT_ID",
   R2_ACCESS_KEY_ID: "R2_ACCESS_KEY_ID",
   R2_SECRET_ACCESS_KEY: "R2_SECRET_ACCESS_KEY",
@@ -68,8 +74,8 @@ export const ApiConstants = {
   healthPath: "/health",
 } as const;
 
-/** Object storage provider: Cloudflare R2. */
-export const ObjectStorageProvider = "cloudflare_r2" as const;
+/** Object storage provider: Backblaze B2 (S3-compatible). */
+export const ObjectStorageProvider = "backblaze_b2" as const;
 
 export const AppName = "TrustChain" as const;
 

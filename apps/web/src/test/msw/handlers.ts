@@ -137,7 +137,7 @@ export const handlers = [
       },
       uploadUrl: "https://storage.example/upload",
       objectKey: "uploads/test.pdf",
-      provider: "r2",
+      provider: "backblaze_b2",
       bucket: "trustchain",
       expiresInSeconds: 3600,
     }),

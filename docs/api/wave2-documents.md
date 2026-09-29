@@ -14,7 +14,7 @@ Document lifecycle statuses:
 | `archived` | Archived (no new uploads) |
 | `expired` | Past `expiresAt` (evaluated on read / expiration updates) |
 
-Object storage: **Cloudflare R2 only**. PostgreSQL (Prisma) is the source of truth for metadata.
+Object storage: **Backblaze B2** (S3-compatible). PostgreSQL (Prisma) is the source of truth for metadata.
 
 ## Categories & tags
 
