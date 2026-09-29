@@ -182,10 +182,13 @@ export async function runVerificationEngine(input: {
 
     const proofOfIntegrity = version?.contentHash.toLowerCase() ?? null;
     const proofTimestamp = new Date();
-    const txHash =
-      anchorCtx?.status === BlockchainAnchorStatuses.revoked
-        ? anchorCtx.revokeTxHash
-        : (anchorCtx?.anchorTxHash ?? null);
+    let txHash: string | null = null;
+    if (anchorCtx) {
+      txHash =
+        anchorCtx.status === BlockchainAnchorStatuses.revoked
+          ? anchorCtx.revokeTxHash
+          : anchorCtx.anchorTxHash;
+    }
 
     const internalStatus =
       outcome === VerificationOutcomes.valid
