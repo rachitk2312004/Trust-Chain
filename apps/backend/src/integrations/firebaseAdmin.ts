@@ -160,6 +160,19 @@ export async function upsertFirebaseUserWithPassword(input: {
   }
 }
 
+export async function lookupFirebaseUidByEmail(email: string): Promise<string | null> {
+  const auth = getFirebaseAuth();
+  if (!auth) return null;
+  try {
+    const record = await auth.getUserByEmail(email);
+    return record.uid;
+  } catch (error) {
+    if (firebaseErrorCode(error) === "auth/user-not-found") return null;
+    console.error("[firebase] failed to lookup user by email");
+    return null;
+  }
+}
+
 export async function markFirebaseEmailVerified(uid: string): Promise<void> {
   if (!uid || !firebaseConfigured()) return;
   const auth = getFirebaseAuth();
@@ -194,18 +207,74 @@ export function firebaseWebApiKey(): string {
   return key;
 }
 
-export function firebaseVerificationContinueUrl(email: string, otp: string): string | null {
-  const raw = (process.env.PUBLIC_APP_URL ?? process.env.CORS_ORIGIN ?? "").split(",")[0]?.trim();
-  if (!raw) return null;
-  try {
-    const url = new URL("/register", raw.endsWith("/") ? raw : `${raw}/`);
-    url.searchParams.set("verify", "1");
-    url.searchParams.set("email", email);
-    url.searchParams.set("otp", otp);
-    return url.toString();
-  } catch {
-    return null;
+/** OTP-only verify-email body. %DISPLAY_NAME% is temporarily set to the 6-digit code. Do not include %LINK%. */
+export const FIREBASE_OTP_VERIFY_EMAIL_BODY = [
+  "Hello,",
+  "",
+  "%DISPLAY_NAME%",
+  "",
+  "Enter this 6-digit code in TrustChain. It expires in 10 minutes.",
+  "",
+  "If you did not request this, you can ignore this email.",
+].join("\n");
+
+export const FIREBASE_OTP_VERIFY_EMAIL_SUBJECT = "Your TrustChain verification code";
+
+let verifyEmailTemplateEnsured = false;
+
+async function googleAccessToken(): Promise<string | null> {
+  const app = getApps()[0];
+  const credential = app?.options.credential;
+  if (!credential || typeof credential.getAccessToken !== "function") return null;
+  const result = await credential.getAccessToken();
+  return result?.access_token?.trim() || null;
+}
+
+/**
+ * Firebase Console default template inserts %LINK% (the long verify URL).
+ * Identity Toolkit admin config can replace it with an OTP-only body.
+ * If this API is unavailable, set the same body in Authentication → Templates.
+ */
+async function ensureOtpOnlyVerifyEmailTemplate(): Promise<void> {
+  if (verifyEmailTemplateEnsured) return;
+  const creds = parseServiceAccount();
+  const token = await googleAccessToken();
+  if (!creds || !token) return;
+
+  const url = new URL(`https://identitytoolkit.googleapis.com/admin/v2/projects/${encodeURIComponent(creds.projectId)}/config`);
+  url.searchParams.set("updateMask", "notification.sendEmail.verifyEmailTemplate");
+
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      notification: {
+        sendEmail: {
+          verifyEmailTemplate: {
+            senderDisplayName: "TrustChain",
+            subject: FIREBASE_OTP_VERIFY_EMAIL_SUBJECT,
+            body: FIREBASE_OTP_VERIFY_EMAIL_BODY,
+            bodyFormat: "PLAIN_TEXT",
+            customized: true,
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    const snippet = message.replace(/\s+/g, " ").slice(0, 180);
+    console.error("[firebase] could not set OTP-only verify-email template", {
+      httpStatus: response.status,
+      hint: snippet || "Edit Firebase Console → Authentication → Templates → Email address verification. Body must be OTP via %DISPLAY_NAME% with no %LINK%.",
+    });
+    return;
   }
+  verifyEmailTemplateEnsured = true;
 }
 
 type IdentityToolkitError = {
@@ -213,6 +282,29 @@ type IdentityToolkitError = {
   idToken?: string;
   email?: string;
 };
+
+const FIREBASE_EMAIL_QUOTA_CODES = [
+  "TOO_MANY_ATTEMPTS_TRY_LATER",
+  "RESET_PASSWORD_EXCEED_LIMIT",
+  "QUOTA_EXCEEDED",
+] as const;
+
+/** Map Identity Toolkit error.message (e.g. TOO_MANY_ATTEMPTS_TRY_LATER) to an AppError. Never pass tokens or keys. */
+export function identityToolkitErrorToAppError(message: string): AppError {
+  const raw = message.trim() || "Firebase Auth request failed";
+  const normalized = raw.toUpperCase().replace(/[\s-]+/g, "_");
+  if (FIREBASE_EMAIL_QUOTA_CODES.some((code) => normalized.includes(code))) {
+    return new AppError(
+      429,
+      "FIREBASE_EMAIL_RATE_LIMITED",
+      "Firebase already sent a verification email. Wait a few minutes, use the 6-digit code from that message, then try resend again.",
+      { firebaseCode: FIREBASE_EMAIL_QUOTA_CODES.find((code) => normalized.includes(code)) },
+    );
+  }
+  return new AppError(502, "FIREBASE_ERROR", raw.replace(/_/g, " ").toLowerCase(), {
+    firebaseCode: normalized.slice(0, 80),
+  });
+}
 
 async function identityToolkitPost(path: string, payload: Record<string, unknown>): Promise<IdentityToolkitError> {
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/${path}?key=${encodeURIComponent(firebaseWebApiKey())}`, {
@@ -222,8 +314,13 @@ async function identityToolkitPost(path: string, payload: Record<string, unknown
   });
   const body = (await response.json().catch(() => ({}))) as IdentityToolkitError;
   if (!response.ok) {
-    const message = body.error?.message ?? "Firebase Auth request failed";
-    throw new AppError(502, "FIREBASE_ERROR", message.replace(/_/g, " ").toLowerCase());
+    const message = body.error?.message ?? body.error?.status ?? "Firebase Auth request failed";
+    console.error("[firebase] Identity Toolkit request failed", {
+      path,
+      httpStatus: response.status,
+      firebaseCode: message,
+    });
+    throw identityToolkitErrorToAppError(message);
   }
   return body;
 }
@@ -243,11 +340,11 @@ async function idTokenForUid(uid: string): Promise<string> {
 
 /**
  * Sends a 6-digit OTP using Firebase Authentication's own mailer (Google delivers the
- * email — no Railway SMTP). Firebase templates do not have an OTP field, so the code is
- * placed in %DISPLAY_NAME% for the duration of sendOobCode, then restored.
+ * email — no Railway SMTP). Firebase templates have no OTP field, so the code is placed
+ * in %DISPLAY_NAME% for the duration of sendOobCode, then restored.
  *
- * Customize Authentication → Templates → Email address verification to:
- *   Your TrustChain verification code is %DISPLAY_NAME%
+ * Do not pass continueUrl: that appended the TrustChain register URL (and OTP) onto the
+ * default %LINK%. Verification is the 6-digit code in the app, not the email link.
  */
 export async function sendFirebaseEmailOtp(input: {
   uid: string;
@@ -257,32 +354,15 @@ export async function sendFirebaseEmailOtp(input: {
 }): Promise<void> {
   const auth = assertFirebaseReady();
   firebaseWebApiKey();
-  const continueUrl = firebaseVerificationContinueUrl(input.email, input.otp);
+  await ensureOtpOnlyVerifyEmailTemplate();
 
   await auth.updateUser(input.uid, { displayName: input.otp, emailVerified: false, disabled: false });
   try {
     const idToken = await idTokenForUid(input.uid);
-    const payload: Record<string, unknown> = {
+    await identityToolkitPost("accounts:sendOobCode", {
       requestType: "VERIFY_EMAIL",
       idToken,
-    };
-    if (continueUrl) payload.continueUrl = continueUrl;
-    try {
-      await identityToolkitPost("accounts:sendOobCode", payload);
-    } catch (error) {
-      if (
-        continueUrl &&
-        isAppError(error) &&
-        /continue/i.test(error.message)
-      ) {
-        await identityToolkitPost("accounts:sendOobCode", {
-          requestType: "VERIFY_EMAIL",
-          idToken,
-        });
-      } else {
-        throw error;
-      }
-    }
+    });
   } finally {
     await auth.updateUser(input.uid, { displayName: input.restoreDisplayName }).catch((error) => {
       console.error("[firebase] failed to restore display name after OTP email", error);

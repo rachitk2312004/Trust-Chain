@@ -463,9 +463,13 @@ testValidation();
   const {
     testEmailOtpValidation,
     testNumericOtpFormat,
+    testFirebaseOtpEmailTemplateHasNoLink,
+    testIdentityToolkitQuotaMapping,
   } = await import("../dist/modules/auth/tests/auth.unit.js");
   testEmailOtpValidation();
   testNumericOtpFormat();
+  testFirebaseOtpEmailTemplateHasNoLink();
+  testIdentityToolkitQuotaMapping();
 
   const {
     testPlacementAssignsBranchAndDepartment,

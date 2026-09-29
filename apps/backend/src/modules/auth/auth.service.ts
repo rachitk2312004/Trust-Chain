@@ -4,6 +4,7 @@ import { generateNumericOtp, generateOpaqueToken, hashToken } from "../../lib/cr
 import { sendEmail } from "../../integrations/mailer.js";
 import {
   firebaseEmailIsVerified,
+  lookupFirebaseUidByEmail,
   markFirebaseEmailVerified,
   sendFirebaseEmailOtp,
   updateFirebasePassword,
@@ -22,6 +23,7 @@ import {
   findUserByEmail,
   findUserById,
   markEmailVerified,
+  setFirebaseUid,
   toPublicUser,
   updatePasswordHash,
   updatePendingRegistration,
@@ -99,32 +101,51 @@ export async function registerUser(input: {
 }
 
 export async function issueEmailOtp(userId: string, email: string): Promise<void> {
-  const user = await findUserById(userId);
-  if (!user?.firebase_uid) {
+  let user = await findUserById(userId);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  if (!user.firebase_uid) {
+    const linked = await lookupFirebaseUidByEmail(user.email);
+    if (linked) {
+      try {
+        user = await setFirebaseUid(user.id, linked);
+      } catch {
+        console.error("[auth] failed to persist firebase_uid on user", { userId: user.id });
+        user = { ...user, firebase_uid: linked };
+      }
+    }
+  }
+
+  if (!user.firebase_uid) {
+    console.error("[auth] cannot send email OTP: user has no firebase_uid", { userId: user.id });
     throw new AppError(
       503,
-      "FIREBASE_NOT_CONFIGURED",
-      "Firebase Auth is required to email the verification code",
+      "FIREBASE_UID_MISSING",
+      "This account is not linked to Firebase Auth, so a verification email cannot be sent. Register again with this email.",
     );
   }
 
-  await invalidateEmailTokens(userId, "email_verify");
   const otp = generateNumericOtp(6);
-  await createEmailToken({
-    userId,
-    purpose: "email_verify",
-    tokenHash: hashToken(otp),
-    expiresAt: minutesFromNow(EMAIL_OTP_TTL_MINUTES),
-  });
-
   const restoreDisplayName =
     [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || email.split("@")[0] || "TrustChain user";
 
+  // Send first. Invalidating the previous OTP before Firebase accepts the mailer
+  // request burns the code already in the inbox when sendOobCode is rate-limited.
   await sendFirebaseEmailOtp({
     uid: user.firebase_uid,
     email,
     otp,
     restoreDisplayName,
+  });
+
+  await invalidateEmailTokens(userId, "email_verify");
+  await createEmailToken({
+    userId,
+    purpose: "email_verify",
+    tokenHash: hashToken(otp),
+    expiresAt: minutesFromNow(EMAIL_OTP_TTL_MINUTES),
   });
 }
 

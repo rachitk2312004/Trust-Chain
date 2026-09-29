@@ -5,7 +5,7 @@ import { Button, Field, FormError, Input, Label } from "@trustchain/ui";
 import { AuthFieldMotion, AuthFormMotion } from "../features/auth/AuthStatusBanner";
 import { useRegister, useResendEmailVerification, useVerifyEmailOtp } from "../features/auth/hooks";
 import { useFeedback } from "../hooks/useFeedback";
-import { getApiErrorMessage, isRateLimited } from "../lib/apiErrors";
+import { getApiErrorMessage, isRateLimited, parseApiError } from "../lib/apiErrors";
 import { AuthLayout } from "../layouts/AuthLayout";
 
 export function RegisterPage() {
@@ -80,10 +80,11 @@ export function RegisterPage() {
       ? "Too many attempts. Try again later."
       : getApiErrorMessage(register.error)
     : null;
-  const otpError = verifyOtp.error
-    ? isRateLimited(verifyOtp.error)
+  const otpStepError = resend.error ?? verifyOtp.error;
+  const otpError = otpStepError
+    ? isRateLimited(otpStepError) && parseApiError(otpStepError).code === "AUTH_RATE_LIMITED"
       ? "Too many attempts. Try again later."
-      : getApiErrorMessage(verifyOtp.error)
+      : getApiErrorMessage(otpStepError)
     : null;
 
   return (

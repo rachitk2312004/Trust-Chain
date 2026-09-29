@@ -1,5 +1,9 @@
 import { parseBody } from "../../../lib/validate.js";
 import { generateNumericOtp } from "../../../lib/crypto.js";
+import {
+  FIREBASE_OTP_VERIFY_EMAIL_BODY,
+  identityToolkitErrorToAppError,
+} from "../../../integrations/firebaseAdmin.js";
 import { verifyEmailOtpBodySchema } from "../auth.schemas.js";
 
 export function testEmailOtpValidation(): void {
@@ -24,4 +28,22 @@ export function testEmailOtpValidation(): void {
 export function testNumericOtpFormat(): void {
   const otp = generateNumericOtp(6);
   if (!/^\d{6}$/.test(otp)) throw new Error(`expected 6-digit OTP, got ${otp}`);
+}
+
+export function testFirebaseOtpEmailTemplateHasNoLink(): void {
+  if (!FIREBASE_OTP_VERIFY_EMAIL_BODY.includes("%DISPLAY_NAME%")) {
+    throw new Error("OTP template must use %DISPLAY_NAME%");
+  }
+  if (/%LINK%/i.test(FIREBASE_OTP_VERIFY_EMAIL_BODY)) {
+    throw new Error("OTP template must not include %LINK%");
+  }
+}
+
+export function testIdentityToolkitQuotaMapping(): void {
+  const quota = identityToolkitErrorToAppError("TOO_MANY_ATTEMPTS_TRY_LATER");
+  if (quota.statusCode !== 429) throw new Error("quota should be 429");
+  if (quota.code !== "FIREBASE_EMAIL_RATE_LIMITED") throw new Error("quota code");
+  const other = identityToolkitErrorToAppError("INVALID_ID_TOKEN");
+  if (other.statusCode !== 502) throw new Error("other Identity Toolkit errors stay 502");
+  if (other.code !== "FIREBASE_ERROR") throw new Error("other code");
 }

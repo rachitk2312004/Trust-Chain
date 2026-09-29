@@ -53,11 +53,14 @@ function isAuthExempt(url: string): boolean {
     url.includes("/auth/login") ||
     url.includes("/auth/mfa/verify") ||
     url.includes("/auth/register") ||
+    url.includes("/auth/email/") ||
     url.includes("/auth/password/")
   );
 }
 
 function shouldRetryNetwork(error: AxiosError, config: RetryConfig): boolean {
+  const url = config.url ?? "";
+  if (url.includes("/auth/email/")) return false;
   if (error.response) {
     const status = error.response.status;
     if (status !== 502 && status !== 503 && status !== 504) return false;

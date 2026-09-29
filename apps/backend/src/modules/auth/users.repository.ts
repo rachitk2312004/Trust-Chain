@@ -9,6 +9,7 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
       email: { equals: email, mode: "insensitive" },
       deletedAt: null,
     },
+    orderBy: { createdAt: "desc" },
   });
   return user ? toUserRow(user) : null;
 }
@@ -58,6 +59,14 @@ export async function updatePendingRegistration(
       firebaseUid: input.firebaseUid || undefined,
       status: "pending",
     },
+  });
+  return toUserRow(user);
+}
+
+export async function setFirebaseUid(userId: string, firebaseUid: string): Promise<UserRow> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { firebaseUid },
   });
   return toUserRow(user);
 }
