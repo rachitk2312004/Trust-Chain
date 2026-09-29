@@ -12,6 +12,12 @@ Output: `apps/web/dist` (static assets).
 
 Serve `dist` behind any static host / CDN (Nginx, Cloudflare Pages, S3+CloudFront, etc.).
 
+### Vercel
+
+Set the project **Root Directory** to `apps/web`. `apps/web/vercel.json` rewrites unknown paths to `index.html` so hard refresh on deep links (e.g. `/organizations/.../members`) works.
+
+### Other static hosts
+
 Recommended Nginx snippets:
 
 1. SPA fallback to `index.html`
