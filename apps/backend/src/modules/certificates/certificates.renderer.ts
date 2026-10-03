@@ -312,9 +312,10 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
       : "";
 
   const recipient = escapeXml(model.context.recipient_name?.trim() || "Recipient");
-  // Prefer Times/Georgia stacks; fall back to generic serif/sans for sharp/librsvg.
-  const serif = "'Times New Roman', Times, Georgia, serif";
-  const sans = "Helvetica, Arial, 'Helvetica Neue', sans-serif";
+  // Generic CSS families only — named fonts (Times/Helvetica) are missing on Linux
+  // sharp/librsvg hosts and render as tofu boxes (□) in the PNG preview.
+  const serif = "serif";
+  const sans = "sans-serif";
   const footerY = height - geo.margin - 10;
   const issuedLine = `Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}`;
 
