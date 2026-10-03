@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../../services/authApi";
-import { applyAuthSession, handleLoginSuccess } from "../../lib/authSession";
+import { applyAuthSession, handleLoginSuccess, rotateAuthTokens } from "../../lib/authSession";
 import { completeAuthNavigation } from "../../lib/postAuthNavigation";
 import { meQueryOptions } from "./meQuery";
 import { useSessionStore } from "../../lib/sessionStore";
+import { tokenVault } from "../../lib/tokenVault";
 import type { LoginResponse } from "../../types/api";
 
 export function useLogin() {
@@ -122,10 +123,11 @@ export function useVerifyMfa() {
 export function useRefreshToken() {
   return useMutation({
     mutationFn: async () => {
-      const refreshToken = useSessionStore.getState().refreshToken;
+      const refreshToken =
+        useSessionStore.getState().refreshToken ?? tokenVault.getRefreshToken();
       if (!refreshToken) throw new Error("No refresh token");
       const { data } = await authApi.refresh(refreshToken);
-      applyAuthSession(data);
+      rotateAuthTokens(data);
       return data;
     },
   });

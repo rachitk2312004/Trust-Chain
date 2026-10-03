@@ -104,6 +104,8 @@ export function showHolderFeatures(
   roles: RoleBinding[],
   organizationId?: string | null,
 ): boolean {
+  // Empty roles = still loading / mid-refresh — never treat as certificate holder.
+  if (!roles.length) return false;
   if (isSuperAdmin(roles)) return false;
   if (isOrgAdmin(roles, organizationId)) return false;
   if (hasStaffOrganizationRole(roles)) return false;

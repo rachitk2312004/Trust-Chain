@@ -82,8 +82,16 @@ export function SessionBootstrap({ children }: { children: ReactNode }) {
         ...meQueryOptions(),
         staleTime: 0,
       })
-      .catch(() => {
-        // Non-fatal; permissions stay empty until next successful fetch
+      .catch(async () => {
+        // One retry — empty roles + valid token otherwise leaves admins on a blank console.
+        try {
+          await queryClient.fetchQuery({
+            ...meQueryOptions(),
+            staleTime: 0,
+          });
+        } catch {
+          // Keep persisted/cached roles; next navigation or API call will retry.
+        }
       });
   }, [accessToken, queryClient]);
 

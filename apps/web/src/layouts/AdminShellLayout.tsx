@@ -3,9 +3,20 @@ import { Navigate } from "react-router-dom";
 import { AdminSidebar } from "../components/AdminSidebar";
 import { AdminTopBar } from "../components/AdminTopBar";
 import { usePermissions } from "../hooks/usePermissions";
+import { useSessionStore } from "../lib/sessionStore";
 
 export function AdminShellLayout({ children }: { children: ReactNode }) {
+  const roles = useSessionStore((s) => s.roles);
   const { isSuperAdmin } = usePermissions();
+
+  // Roles briefly empty during token refresh / bootstrap — don't bounce to workspace.
+  if (!roles.length) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-[var(--tc-muted)]">
+        Loading admin console…
+      </div>
+    );
+  }
 
   if (!isSuperAdmin) {
     return <Navigate to="/dashboard" replace />;

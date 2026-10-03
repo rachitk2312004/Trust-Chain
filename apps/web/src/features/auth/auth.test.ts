@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import { describe, expect, it, beforeEach } from "vitest";
 import { AxiosError } from "axios";
-import { applyAuthSession, clearAuthSession, handleLoginSuccess } from "../../lib/authSession";
+import { applyAuthSession, clearAuthSession, handleLoginSuccess, rotateAuthTokens } from "../../lib/authSession";
 import { isAuthFailure, isInvalidCredentials, isRateLimited, parseApiError } from "../../lib/apiErrors";
 import { useSessionStore } from "../../lib/sessionStore";
 import { isMfaChallenge } from "../../types/api";
@@ -47,6 +47,34 @@ describe("auth session helpers", () => {
     expect(state.refreshToken).toBe("refresh");
     expect(state.user?.email).toBe("user@example.com");
     expect(state.isAuthenticated()).toBe(true);
+  });
+
+  it("token refresh preserves roles instead of wiping them", () => {
+    applyAuthSession({
+      mfaRequired: false,
+      accessToken: "access-1",
+      refreshToken: "refresh-1",
+      sessionId: "22222222-2222-2222-2222-222222222222",
+      deviceId: null,
+      user,
+    });
+    useSessionStore.getState().setRoles([
+      { roleKey: "super_admin", roleName: "Super Admin", organizationId: null },
+    ]);
+    rotateAuthTokens({
+      mfaRequired: false,
+      accessToken: "access-2",
+      refreshToken: "refresh-2",
+      sessionId: "22222222-2222-2222-2222-222222222222",
+      deviceId: null,
+      user,
+    });
+    const state = useSessionStore.getState();
+    expect(state.accessToken).toBe("access-2");
+    expect(state.refreshToken).toBe("refresh-2");
+    expect(state.roles).toEqual([
+      { roleKey: "super_admin", roleName: "Super Admin", organizationId: null },
+    ]);
   });
 
   it("stores MFA challenge without access token", () => {

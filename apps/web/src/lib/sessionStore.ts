@@ -66,6 +66,7 @@ export const useSessionStore = create<SessionState>()(
       activeOrganizationId: null,
       bootStatus: "idle",
       setSession: ({ accessToken, refreshToken, user }) =>
+        // Login/MFA only — clears roles so /me reloads them. Token refresh must use setTokens.
         set({
           ...mirrorTokens(accessToken, refreshToken),
           user,

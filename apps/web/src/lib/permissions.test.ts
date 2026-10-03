@@ -110,6 +110,7 @@ describe("permissions", () => {
         { roleKey: "employee", roleName: "Employee", organizationId: "org-1" },
       ]),
     ).toBe(false);
+    expect(showHolderFeatures([])).toBe(false);
     expect(
       isOrgMember(
         [{ roleKey: "employee", roleName: "Employee", organizationId: "org-1" }],

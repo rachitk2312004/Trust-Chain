@@ -2,6 +2,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { ApiConstants } from "@trustchain/config";
 import { getApiBaseUrl } from "../lib/apiBase";
 import { getApiErrorMessage } from "../lib/apiErrors";
+import { rotateAuthTokens } from "../lib/authSession";
 import { emitAuthEvent } from "../lib/authEvents";
 import { useSessionStore } from "../lib/sessionStore";
 import { tokenVault } from "../lib/tokenVault";
@@ -39,11 +40,8 @@ async function refreshAccessToken(): Promise<string | null> {
     { headers: { "content-type": "application/json" } },
   );
   const data = response.data;
-  useSessionStore.getState().setSession({
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
-    user: data.user,
-  });
+  // Preserve roles — setSession clears them and kicks super admins off /admin.
+  rotateAuthTokens(data);
   return data.accessToken;
 }
 
