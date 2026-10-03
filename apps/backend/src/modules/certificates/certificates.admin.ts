@@ -212,6 +212,7 @@ export async function reprocessCertificates(
           logoObjectKey: layout.logoObjectKey,
           signatureImageKey: layout.signatureImageKey,
           backgroundImageKey: layout.backgroundImageKey,
+          backgroundColor: layout.backgroundColor,
           showQr: layout.showQr,
           showLogo: layout.showLogo,
           showSignature: layout.showSignature,

@@ -173,9 +173,12 @@ export function OrganizationSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Branding</CardTitle>
-            <CardDescription>Display name, colors, and logo. Custom branding is included with Max Pro.</CardDescription>
+            <CardDescription>
+              Display name, colors, and logo. Logo uploads store to Backblaze B2 and appear on
+              issued certificates.
+            </CardDescription>
           </CardHeader>
-          <PlanGate feature="custom_branding" organizationId={organizationId}>
+          <PlanGate feature="issue_certificates" organizationId={organizationId}>
           <form className="flex flex-col gap-3" onSubmit={onSaveBranding}>
             <Field>
               <Label htmlFor="brand-display">Display name</Label>
@@ -222,7 +225,8 @@ export function OrganizationSettingsPage() {
                 }}
               />
               <FormHint>
-                PNG, JPEG, WebP, or SVG. Uploads via presigned URL, then stores the object key.
+                PNG, JPEG, WebP, or SVG. Saved to object storage (B2) as PNG and blended to your
+                certificate background.
               </FormHint>
               {(logoPreview || branding.data?.logoObjectKey) && (
                 <div className="mt-2 flex items-center gap-3 rounded-md border border-[var(--tc-border)] p-3">

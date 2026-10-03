@@ -1,3 +1,4 @@
+import { useDeferredValue } from "react";
 import { FormError, FormHint } from "@trustchain/ui";
 import { getCertificateErrorMessage } from "../../lib/certificateErrors";
 import { useTemplateLayoutPreview } from "./hooks";
@@ -5,7 +6,11 @@ import { useTemplateLayoutPreview } from "./hooks";
 function friendlyWarning(code: string): string {
   switch (code) {
     case "missing_logo":
-      return "Organization logo not set yet";
+      return "Organization logo not set yet — upload it in Settings → Branding";
+    case "missing_logo_asset":
+      return "Stored logo could not be loaded from storage";
+    case "logo_convert_failed":
+      return "Logo file could not be converted for the certificate";
     case "missing_signature":
       return "Signature image not set yet";
     case "missing_background":
@@ -25,6 +30,8 @@ export function TemplateLayoutPreview({
   subtitle,
   className,
   compact = false,
+  certificateTitle,
+  recipientName,
 }: {
   organizationId: string;
   layout: Record<string, unknown> | null;
@@ -33,8 +40,20 @@ export function TemplateLayoutPreview({
   subtitle?: string;
   className?: string;
   compact?: boolean;
+  /** Live form title — updates preview as the user types. */
+  certificateTitle?: string;
+  /** Live form recipient — updates preview as the user types. */
+  recipientName?: string;
 }) {
-  const preview = useTemplateLayoutPreview(organizationId, layout, enabled);
+  const deferredTitle = useDeferredValue(certificateTitle);
+  const deferredRecipient = useDeferredValue(recipientName);
+  const preview = useTemplateLayoutPreview(
+    organizationId,
+    layout,
+    enabled,
+    deferredTitle,
+    deferredRecipient,
+  );
   const warnings = preview.data?.warnings ?? [];
 
   return (
@@ -80,7 +99,9 @@ export function TemplateLayoutPreview({
       {preview.isError ? (
         <FormError>{getCertificateErrorMessage(preview.error)}</FormError>
       ) : (
-        <FormHint>Sample recipient data — final PDF uses the name and title you enter.</FormHint>
+        <FormHint>
+          Live preview updates as you type title and recipient. Final PDF/PNG uses the same layout.
+        </FormHint>
       )}
     </div>
   );

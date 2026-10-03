@@ -480,23 +480,21 @@ export function useUploadLogo(organizationId: string) {
       if (!allowed.includes(contentType)) {
         throw new Error("Logo must be PNG, JPEG, WebP, or SVG.");
       }
-      const { data: upload } = await organizationApi.createLogoUploadUrl(
-        organizationId,
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!);
+      const fileBase64 = btoa(binary);
+      // Direct API upload → B2/R2 via putObjectBuffer (also works without presigned URLs).
+      const { data } = await organizationApi.uploadLogo(organizationId, {
         contentType,
-      );
-      const put = await fetch(upload.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": contentType },
-        body: file,
-      });
-      if (!put.ok) throw new Error("Logo upload to storage failed.");
-      const { data } = await organizationApi.updateBranding(organizationId, {
-        logoObjectKey: upload.objectKey,
+        fileBase64,
       });
       return { branding: data.branding, previewUrl: URL.createObjectURL(file) };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: orgKeys(organizationId).branding });
+      void queryClient.invalidateQueries({ queryKey: ["certificates", organizationId, "template-preview"] });
     },
   });
 }

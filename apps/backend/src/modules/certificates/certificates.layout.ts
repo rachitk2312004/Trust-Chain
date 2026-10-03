@@ -74,10 +74,10 @@ export function defaultCertificateLayout(): CertificateLayoutConfig {
     textColor: "#1C1917",
     accentColor: "#B45309",
     borderColor: "#D6D3D1",
-    titleTemplate: "Certificate of Achievement",
+    titleTemplate: "{{title}}",
     subtitleTemplate: "{{organization_name}}",
     bodyTemplate:
-      "This certifies that {{recipient_name}} has been awarded this certificate ({{certificate_id}}).",
+      "This is to certify that the bearer named below has fulfilled all requirements and is recognized for distinguished accomplishment.",
     footerTemplate: "Verify at {{verification_url}}",
     showQr: true,
     showLogo: true,

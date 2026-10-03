@@ -239,22 +239,31 @@ export function useTemplateLayoutPreview(
   organizationId: string | null | undefined,
   layout: Record<string, unknown> | null,
   enabled = true,
+  certificateTitle?: string,
+  recipientName?: string,
 ) {
   const accessToken = useSessionStore((s) => s.accessToken);
-  const fingerprint = layout ? JSON.stringify(layout) : "";
+  const title = certificateTitle?.trim() || "";
+  const recipient = recipientName?.trim() || "";
+  const fingerprint = layout
+    ? `${JSON.stringify(layout)}::${title}::${recipient}`
+    : "";
   return useQuery({
     queryKey: certificateKeys(organizationId ?? undefined).templatePreview(fingerprint),
     queryFn: async () => {
       const result = await certificateApi.previewTemplate({
         organizationId: organizationId!,
         layout: layout ?? undefined,
+        title: title || undefined,
+        recipientName: recipient || undefined,
       });
       const url = URL.createObjectURL(result.blob);
       return { url, warnings: result.warnings };
     },
     enabled: Boolean(accessToken && organizationId && layout && enabled),
-    staleTime: 15_000,
+    staleTime: 2_000,
     gcTime: 60_000,
+    placeholderData: (previous) => previous,
   });
 }
 

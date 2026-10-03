@@ -33,7 +33,7 @@ import {
   removeOrgBranch,
   removeOrgDepartment,
 } from "./orgStructure.service.js";
-import { createLogoUploadUrl, getOrgBranding, updateOrgBranding } from "./branding.service.js";
+import { createLogoUploadUrl, getOrgBranding, updateOrgBranding, uploadOrgLogo } from "./branding.service.js";
 import { getBulkImportJob, runBulkImport } from "./bulkImport.service.js";
 import {
   approveJoinRequest,
@@ -450,6 +450,23 @@ organizationsRouter.post(
     );
     const upload = await createLogoUploadUrl(req.user.id, params.id, body.contentType);
     res.status(200).json(upload);
+  }),
+);
+
+organizationsRouter.post(
+  "/:id/branding/logo",
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Unauthorized");
+    const params = parseParams(organizationIdParamsSchema, req.params);
+    const body = parseBody(
+      z.object({
+        contentType: z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]),
+        fileBase64: z.string().min(32).max(12_000_000),
+      }),
+      req.body,
+    );
+    const branding = await uploadOrgLogo(req.user.id, params.id, body);
+    res.status(200).json({ branding });
   }),
 );
 

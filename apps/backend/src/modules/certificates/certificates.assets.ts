@@ -1,6 +1,7 @@
 import { prisma } from "@trustchain/database";
 import { getObjectBuffer } from "../../integrations/objectStorage.js";
 import { generatePngBuffer, generateSvgString } from "../qr/generators/qrGenerator.js";
+import { prepareLogoForCertificate } from "./certificates.logo.js";
 
 export type CertificateRenderAssets = {
   logoPng: Buffer | null;
@@ -27,7 +28,7 @@ async function safeGetObject(objectKey: string | null | undefined): Promise<Buff
 }
 
 /**
- * Loads branding/logo/signature/background from R2 and prepares QR artwork.
+ * Loads branding/logo/signature/background from B2/R2 and prepares QR artwork.
  * Missing assets are non-fatal — warnings are collected.
  */
 export async function loadCertificateAssets(input: {
@@ -37,6 +38,7 @@ export async function loadCertificateAssets(input: {
   logoObjectKey?: string | null;
   signatureImageKey?: string | null;
   backgroundImageKey?: string | null;
+  backgroundColor?: string | null;
   showQr: boolean;
   showLogo: boolean;
   showSignature: boolean;
@@ -55,10 +57,20 @@ export async function loadCertificateAssets(input: {
       logoMissing = true;
       warnings.push("missing_logo");
     } else {
-      logoPng = await safeGetObject(logoKey);
-      if (!logoPng) {
+      const raw = await safeGetObject(logoKey);
+      if (!raw) {
         logoMissing = true;
         warnings.push("missing_logo_asset");
+      } else {
+        try {
+          logoPng = await prepareLogoForCertificate(
+            raw,
+            input.backgroundColor ?? "#FFFDF8",
+          );
+        } catch {
+          logoMissing = true;
+          warnings.push("logo_convert_failed");
+        }
       }
     }
   }
@@ -72,7 +84,6 @@ export async function loadCertificateAssets(input: {
       warnings.push("missing_signature_asset");
     }
   } else if (input.showSignature && !input.signatureImageKey) {
-    // Signature line without image is OK.
     signatureMissing = false;
   }
 

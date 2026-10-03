@@ -231,4 +231,16 @@ export const organizationApi = {
       { contentType },
     );
   },
+  uploadLogo(
+    organizationId: string,
+    body: {
+      contentType: "image/png" | "image/jpeg" | "image/webp" | "image/svg+xml";
+      fileBase64: string;
+    },
+  ) {
+    return apiClient.post<{ branding: OrganizationBranding }>(
+      `/organizations/${organizationId}/branding/logo`,
+      body,
+    );
+  },
 };

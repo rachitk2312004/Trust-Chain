@@ -21,6 +21,7 @@ import { useFeedback } from "../../hooks/useFeedback";
 import type { CertificateRecipientMatch } from "../../types/api";
 import { hasBillingFeature } from "../billing/PlanGate";
 import { useBillingEntitlements } from "../billing/hooks";
+import { useOrganizationBranding, useUploadLogo } from "../organizations/hooks";
 import {
   useCertificateTemplates,
   useCreateCertificate,
@@ -62,8 +63,11 @@ export function CreateCertificateDialog({
   const create = useCreateCertificate(organizationId);
   const feedback = useFeedback();
   const billing = useBillingEntitlements(organizationId);
+  const branding = useOrganizationBranding(organizationId, open);
+  const uploadLogo = useUploadLogo(organizationId);
   const templates = useCertificateTemplates(organizationId);
   const chainInPlan = hasBillingFeature(billing.data?.organization, "chain_publish");
+  const [logoLocalPreview, setLogoLocalPreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -373,6 +377,42 @@ export function CreateCertificateDialog({
                 No saved org templates yet — built-in designs work immediately.
               </FormHint>
             )}
+
+            <Field>
+              <Label htmlFor="cert-logo">Organization logo</Label>
+              <Input
+                id="cert-logo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setLogoLocalPreview(URL.createObjectURL(file));
+                  uploadLogo.mutate(file, {
+                    onSuccess: (result) => {
+                      setLogoLocalPreview(result.previewUrl);
+                      feedback.success("Logo saved to storage");
+                    },
+                    onError: (err) => feedback.error(err, "Logo upload failed"),
+                  });
+                }}
+              />
+              <FormHint>
+                Stored on Backblaze B2 and blended onto the certificate background.{" "}
+                {branding.data?.logoObjectKey
+                  ? "A logo is already on file for this organization."
+                  : "No logo yet — upload one to show it on the preview and PDF."}
+              </FormHint>
+              {(logoLocalPreview || branding.data?.logoObjectKey) && (
+                <div className="mt-2 flex h-14 w-14 items-center justify-center overflow-hidden rounded-md border border-[var(--tc-border)] bg-[var(--tc-surface-2)]">
+                  {logoLocalPreview ? (
+                    <img src={logoLocalPreview} alt="Logo" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-[10px] text-[var(--tc-muted)]">Stored</span>
+                  )}
+                </div>
+              )}
+            </Field>
           </section>
 
           <section className="space-y-4 border-t border-[var(--tc-border)] pt-6">
@@ -458,6 +498,8 @@ export function CreateCertificateDialog({
               enabled={open}
               title="Live preview"
               subtitle={selectedDesignLabel(choice)}
+              certificateTitle={title}
+              recipientName={recipientName}
             />
           </div>
         </aside>

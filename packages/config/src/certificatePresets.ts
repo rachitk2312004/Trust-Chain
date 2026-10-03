@@ -39,6 +39,10 @@ export type CertificateLayoutPreset = {
 
 const FIELDS = ["title", "recipientName", "issuedAt", "expiresAt", "publicId"];
 
+/** Shared body copy — recipient is rendered as the hero name above this line. */
+const BODY =
+  "This is to certify that the bearer named below has fulfilled all requirements and is recognized for distinguished accomplishment.";
+
 export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
   {
     id: "classic-gold",
@@ -54,10 +58,9 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#2A2118",
       accentColor: "#9A6B1F",
       borderColor: "#C4A35A",
-      titleTemplate: "Certificate of Achievement",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "{{organization_name}}",
-      bodyTemplate:
-        "This is to certify that {{recipient_name}} has fulfilled all requirements and is recognized for distinguished accomplishment.",
+      bodyTemplate: BODY,
       footerTemplate: "Certificate {{certificate_id}} · Verify at {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -80,10 +83,10 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#1C1917",
       accentColor: "#92400E",
       borderColor: "#D6C7A1",
-      titleTemplate: "Certificate of Honor",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "Conferred by {{organization_name}}",
       bodyTemplate:
-        "In recognition of outstanding contribution and integrity, {{recipient_name}} is awarded this credential on {{issue_date}} with validity through {{expiration_date}}.",
+        "In recognition of outstanding contribution and integrity, this credential is awarded on {{issue_date}} with validity through {{expiration_date}}.",
       footerTemplate: "ID {{certificate_id}} · {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -106,10 +109,10 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#0F172A",
       accentColor: "#1E3A5F",
       borderColor: "#94A3B8",
-      titleTemplate: "Certificate of Excellence",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "{{organization_name}} · Official record",
       bodyTemplate:
-        "This document attests that {{recipient_name}} has demonstrated professional excellence and is duly recorded as a credential holder.",
+        "This document attests that the named holder has demonstrated professional excellence and is duly recorded as a credential holder.",
       footerTemplate: "{{certificate_id}} · Authenticate at {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -132,10 +135,10 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#14532D",
       accentColor: "#047857",
       borderColor: "#86EFAC",
-      titleTemplate: "Certificate of Completion",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "{{organization_name}}",
       bodyTemplate:
-        "{{recipient_name}} has successfully completed the designated program and met all required standards of competence and conduct.",
+        "The named holder has successfully completed the designated program and met all required standards of competence and conduct.",
       footerTemplate: "Issued {{issue_date}} · {{certificate_id}}",
       showQr: true,
       showLogo: true,
@@ -158,10 +161,10 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#3F1D1D",
       accentColor: "#9F1239",
       borderColor: "#FDA4AF",
-      titleTemplate: "Academic Distinction",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "Awarded by {{organization_name}}",
       bodyTemplate:
-        "In witness of scholarly merit, dedicated study, and fulfillment of institutional requirements, this distinction is hereby conferred upon {{recipient_name}}.",
+        "In witness of scholarly merit, dedicated study, and fulfillment of institutional requirements, this distinction is hereby conferred.",
       footerTemplate: "{{certificate_id}} · Verify {{verification_url}}",
       showQr: true,
       showLogo: true,
@@ -184,10 +187,10 @@ export const CERTIFICATE_LAYOUT_PRESETS: CertificateLayoutPreset[] = [
       textColor: "#1E293B",
       accentColor: "#0F766E",
       borderColor: "#CBD5E1",
-      titleTemplate: "Professional Credential",
+      titleTemplate: "{{title}}",
       subtitleTemplate: "{{organization_name}}",
       bodyTemplate:
-        "{{recipient_name}} is hereby granted this professional credential in recognition of verified competence, standing, and completion of stated requirements.",
+        "The named holder is hereby granted this professional credential in recognition of verified competence, standing, and completion of stated requirements.",
       footerTemplate: "{{certificate_id}} · {{verification_url}}",
       showQr: true,
       showLogo: true,

@@ -90,112 +90,140 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
     }
   }
 
-  const margin = 36;
+  const margin = 40;
   page.drawRectangle({
     x: margin / 2,
     y: margin / 2,
     width: size.width - margin,
     height: size.height - margin,
     borderColor: rgb(border.r, border.g, border.b),
-    borderWidth: 2,
+    borderWidth: 2.5,
   });
   page.drawRectangle({
-    x: margin / 2 + 6,
-    y: margin / 2 + 6,
-    width: size.width - margin - 12,
-    height: size.height - margin - 12,
+    x: margin / 2 + 8,
+    y: margin / 2 + 8,
+    width: size.width - margin - 16,
+    height: size.height - margin - 16,
     borderColor: rgb(accent.r, accent.g, accent.b),
     borderWidth: 1,
   });
 
-  let cursorY = size.height - margin - 24;
+  const landscape = model.layout.orientation === "landscape";
+  const titleSize = landscape ? 26 : 30;
+  const subtitleSize = 13;
+  const recipientSize = landscape ? 28 : 32;
+  const bodySize = 12;
+  const maxTextWidth = size.width - margin * 2.4;
+  const bodyLines = wrapPdfText(model.body, font, bodySize, maxTextWidth);
+  const recipientName = model.context.recipient_name?.trim() || "Recipient";
 
+  let logoH = 0;
+  let logoW = 0;
+  let logoImg: Awaited<ReturnType<typeof pdf.embedPng>> | null = null;
   if (model.layout.showLogo && model.assets.logoPng) {
     try {
-      const logo = await pdf.embedPng(model.assets.logoPng);
-      const maxW = 120;
-      const scale = Math.min(maxW / logo.width, 60 / logo.height);
-      const w = logo.width * scale;
-      const h = logo.height * scale;
-      page.drawImage(logo, {
-        x: (size.width - w) / 2,
-        y: cursorY - h,
-        width: w,
-        height: h,
-      });
-      cursorY -= h + 24;
+      logoImg = await pdf.embedPng(model.assets.logoPng);
+      const maxW = 110;
+      const scale = Math.min(maxW / logoImg.width, 52 / logoImg.height);
+      logoW = logoImg.width * scale;
+      logoH = logoImg.height * scale;
     } catch {
-      // skip bad logo
+      logoImg = null;
     }
   }
 
-  const titleSize = 28;
+  const stackH =
+    (logoImg ? logoH + 18 : 0) +
+    titleSize +
+    14 +
+    subtitleSize +
+    22 +
+    recipientSize +
+    16 +
+    bodyLines.length * 16 +
+    20 +
+    12;
+  const footerReserve = landscape ? 110 : 120;
+  const topLimit = size.height - margin - 12;
+  const bottomLimit = margin + footerReserve;
+  let cursorY = Math.min(topLimit, (topLimit + bottomLimit + stackH) / 2);
+
+  if (logoImg) {
+    page.drawImage(logoImg, {
+      x: (size.width - logoW) / 2,
+      y: cursorY - logoH,
+      width: logoW,
+      height: logoH,
+    });
+    cursorY -= logoH + 18;
+  }
+
   const titleWidth = fontBold.widthOfTextAtSize(model.title, titleSize);
   page.drawText(model.title, {
     x: (size.width - titleWidth) / 2,
-    y: cursorY,
+    y: cursorY - titleSize,
     size: titleSize,
     font: fontBold,
     color: rgb(accent.r, accent.g, accent.b),
   });
-  cursorY -= 32;
+  cursorY -= titleSize + 14;
 
   if (model.subtitle.trim()) {
-    const subSize = 14;
-    const subWidth = font.widthOfTextAtSize(model.subtitle, subSize);
+    const subWidth = font.widthOfTextAtSize(model.subtitle, subtitleSize);
     page.drawText(model.subtitle, {
       x: (size.width - subWidth) / 2,
-      y: cursorY,
-      size: subSize,
+      y: cursorY - subtitleSize,
+      size: subtitleSize,
       font,
       color: rgb(text.r, text.g, text.b),
     });
-    cursorY -= 36;
+    cursorY -= subtitleSize + 22;
   }
 
-  const recipientName = model.context.recipient_name?.trim() || "";
-  if (recipientName) {
-    const recipientSize = model.layout.orientation === "landscape" ? 26 : 30;
-    const recipientWidth = fontBold.widthOfTextAtSize(recipientName, recipientSize);
-    page.drawText(recipientName, {
-      x: (size.width - recipientWidth) / 2,
-      y: cursorY,
-      size: recipientSize,
-      font: fontBold,
-      color: rgb(text.r, text.g, text.b),
-    });
-    cursorY -= 34;
-  }
+  const recipientWidth = fontBold.widthOfTextAtSize(recipientName, recipientSize);
+  page.drawText(recipientName, {
+    x: (size.width - recipientWidth) / 2,
+    y: cursorY - recipientSize,
+    size: recipientSize,
+    font: fontBold,
+    color: rgb(text.r, text.g, text.b),
+  });
+  cursorY -= recipientSize + 6;
+  page.drawLine({
+    start: { x: size.width * 0.3, y: cursorY },
+    end: { x: size.width * 0.7, y: cursorY },
+    thickness: 1,
+    color: rgb(accent.r, accent.g, accent.b),
+    opacity: 0.55,
+  });
+  cursorY -= 16;
 
-  const maxTextWidth = size.width - margin * 2;
-  const bodyLines = wrapPdfText(model.body, font, 12, maxTextWidth);
   for (const line of bodyLines) {
-    const lineWidth = font.widthOfTextAtSize(line, 12);
+    const lineWidth = font.widthOfTextAtSize(line, bodySize);
     page.drawText(line, {
       x: (size.width - lineWidth) / 2,
-      y: cursorY,
-      size: 12,
+      y: cursorY - bodySize,
+      size: bodySize,
       font,
       color: rgb(text.r, text.g, text.b),
     });
-    cursorY -= 18;
+    cursorY -= 16;
   }
 
-  cursorY -= 16;
-  const meta = `Issued ${model.context.issue_date} · Expires ${model.context.expiration_date}`;
+  cursorY -= 12;
+  const meta = `Issued ${model.context.issue_date} · Valid through ${model.context.expiration_date}`;
   const metaWidth = fontSans.widthOfTextAtSize(meta, 10);
   page.drawText(meta, {
     x: (size.width - metaWidth) / 2,
-    y: cursorY,
+    y: cursorY - 10,
     size: 10,
     font: fontSans,
     color: rgb(text.r, text.g, text.b),
   });
 
-  // Keep footer / QR / signature inside the double frame.
-  const footerBand = margin + 18;
+  const footerBand = margin + 16;
   if (model.layout.showSignature) {
-    const sigY = footerBand + 36;
+    const sigY = footerBand + 40;
     if (model.assets.signaturePng) {
       try {
         const sig = await pdf.embedPng(model.assets.signaturePng);
@@ -234,15 +262,15 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
   if (model.layout.showQr && model.assets.qrPng) {
     try {
       const qr = await pdf.embedPng(model.assets.qrPng);
-      const qrSize = 84;
+      const qrSize = 78;
       page.drawImage(qr, {
         x: size.width - margin - qrSize,
-        y: footerBand + 14,
+        y: footerBand + 16,
         width: qrSize,
         height: qrSize,
       });
       page.drawText("Scan to verify", {
-        x: size.width - margin - qrSize + 6,
+        x: size.width - margin - qrSize + 4,
         y: footerBand,
         size: 8,
         font: fontSans,
@@ -256,7 +284,7 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
   const footerSize = 8;
   const footerMaxWidth = size.width - margin * 2;
   const footerLines = wrapPdfText(model.footer, fontSans, footerSize, footerMaxWidth);
-  let footerY = margin + 8;
+  let footerY = margin + 6;
   for (const line of footerLines.slice().reverse()) {
     const lineWidth = fontSans.widthOfTextAtSize(line, footerSize);
     page.drawText(line, {

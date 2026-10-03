@@ -61,7 +61,9 @@ export function buildCertificateRenderModel(input: CertificateRenderInput): Cert
     metadata: input.metadata,
   });
 
-  const title = applyPlaceholders(input.layout.titleTemplate || input.title, context);
+  // Prefer the issued/preview title; fall back to template string with placeholders.
+  const titleSource = input.title.trim() || input.layout.titleTemplate || "Certificate";
+  const title = applyPlaceholders(titleSource, context);
   const subtitle = applyPlaceholders(input.layout.subtitleTemplate, context);
   const body = applyPlaceholders(input.layout.bodyTemplate, context);
   const footer = applyPlaceholders(input.layout.footerTemplate, context);
@@ -137,6 +139,7 @@ type Geometry = {
   recipientSize: number;
   bodySize: number;
   maxBodyChars: number;
+  logoY: number;
 };
 
 function computeGeometry(
@@ -145,27 +148,49 @@ function computeGeometry(
 ): Geometry {
   const { width, height, layout } = model;
   const landscape = layout.orientation === "landscape";
-  const margin = Math.round(Math.min(width, height) * (landscape ? 0.055 : 0.075));
+  const margin = Math.round(Math.min(width, height) * (landscape ? 0.06 : 0.08));
 
-  const titleSize = landscape ? 34 : 40;
-  const subtitleSize = landscape ? 17 : 20;
-  const recipientSize = landscape ? 36 : 44;
-  const bodySize = landscape ? 17 : 18;
-  const bodyLineHeight = landscape ? 24 : 26;
-  const maxBodyChars = landscape ? 72 : 54;
-
-  const titleY = margin + (hasLogo ? 132 : landscape ? 72 : 88);
-  const subtitleY = titleY + (landscape ? 40 : 46);
-  const recipientY = subtitleY + (landscape ? 52 : 58);
-  const bodyStart = recipientY + (landscape ? 48 : 52);
+  const titleSize = landscape ? 30 : 36;
+  const subtitleSize = landscape ? 16 : 18;
+  const recipientSize = landscape ? 42 : 48;
+  const bodySize = landscape ? 15 : 16;
+  const bodyLineHeight = landscape ? 22 : 24;
+  const maxBodyChars = landscape ? 68 : 50;
 
   const bodyLines = wrapSvgText(model.body, maxBodyChars);
-  const metaY = bodyStart + bodyLines.length * bodyLineHeight + (landscape ? 36 : 40);
+  const logoH = hasLogo ? 78 : 0;
+  const stackH =
+    logoH +
+    titleSize +
+    18 +
+    subtitleSize +
+    28 +
+    recipientSize +
+    18 +
+    bodyLines.length * bodyLineHeight +
+    28 +
+    14;
 
-  const qrSize = Math.round(Math.min(width, height) * (landscape ? 0.13 : 0.15));
+  const footerReserve = Math.round(height * (landscape ? 0.24 : 0.22));
+  const availableTop = margin + 8;
+  const availableBottom = height - footerReserve;
+  let cursor = Math.max(availableTop, (availableTop + availableBottom - stackH) / 2);
+
+  const logoY = cursor;
+  if (hasLogo) cursor += logoH + 10;
+  const titleY = cursor + titleSize * 0.85;
+  cursor = titleY + 18;
+  const subtitleY = cursor + subtitleSize;
+  cursor = subtitleY + 28;
+  const recipientY = cursor + recipientSize * 0.8;
+  cursor = recipientY + 20;
+  const bodyStart = cursor + bodySize;
+  const metaY = bodyStart + bodyLines.length * bodyLineHeight + 22;
+
+  const qrSize = Math.round(Math.min(width, height) * (landscape ? 0.12 : 0.14));
   const qrX = width - margin - qrSize;
-  const qrY = height - margin - qrSize - 36;
-  const sigY = height - margin - 72;
+  const qrY = height - margin - qrSize - 28;
+  const sigY = height - margin - 64;
 
   return {
     margin,
@@ -184,6 +209,7 @@ function computeGeometry(
     recipientSize,
     bodySize,
     maxBodyChars,
+    logoY,
   };
 }
 
@@ -282,14 +308,15 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
 
   const logoBlock =
     logoUri && layout.showLogo
-      ? `<image href="${logoUri}" x="${(width - 120) / 2}" y="${geo.margin}" width="120" height="72" preserveAspectRatio="xMidYMid meet"/>`
+      ? `<image href="${logoUri}" x="${(width - 140) / 2}" y="${geo.logoY}" width="140" height="70" preserveAspectRatio="xMidYMid meet"/>`
       : "";
 
   const recipient = escapeXml(model.context.recipient_name?.trim() || "Recipient");
-  // Generic families so SVG→PNG (sharp/librsvg on Linux) still renders text without Georgia installed.
-  const serif = "serif";
-  const sans = "sans-serif";
+  // Prefer Times/Georgia stacks; fall back to generic serif/sans for sharp/librsvg.
+  const serif = "'Times New Roman', Times, Georgia, serif";
+  const sans = "Helvetica, Arial, 'Helvetica Neue', sans-serif";
   const footerY = height - geo.margin - 10;
+  const issuedLine = `Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -297,17 +324,17 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
   ${bgUri ? `<image href="${bgUri}" x="0" y="0" width="${width}" height="${height}" opacity="0.1" preserveAspectRatio="xMidYMid slice"/>` : ""}
   ${presetDecorations(layout, width, height, geo.margin)}
   ${logoBlock}
-  <text x="${width / 2}" y="${geo.titleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.titleSize}" font-weight="700" letter-spacing="0.5" fill="${escapeXml(layout.accentColor)}">${escapeXml(model.title)}</text>
-  <text x="${width / 2}" y="${geo.subtitleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.subtitleSize}" fill="${escapeXml(layout.textColor)}">${escapeXml(model.subtitle)}</text>
+  <text x="${width / 2}" y="${geo.titleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.titleSize}" font-weight="700" letter-spacing="1.2" fill="${escapeXml(layout.accentColor)}">${escapeXml(model.title)}</text>
+  <text x="${width / 2}" y="${geo.subtitleY}" text-anchor="middle" font-family="${serif}" font-size="${geo.subtitleSize}" fill="${escapeXml(layout.textColor)}" opacity="0.9">${escapeXml(model.subtitle)}</text>
   <text x="${width / 2}" y="${geo.recipientY}" text-anchor="middle" font-family="${serif}" font-size="${geo.recipientSize}" font-weight="700" fill="${escapeXml(layout.textColor)}">${recipient}</text>
-  <line x1="${width * 0.28}" y1="${geo.recipientY + 10}" x2="${width * 0.72}" y2="${geo.recipientY + 10}" stroke="${escapeXml(layout.accentColor)}" stroke-width="1" opacity="0.45"/>
+  <line x1="${width * 0.3}" y1="${geo.recipientY + 12}" x2="${width * 0.7}" y2="${geo.recipientY + 12}" stroke="${escapeXml(layout.accentColor)}" stroke-width="1.25" opacity="0.55"/>
   <text x="${width / 2}" y="${geo.bodyStart}" text-anchor="middle" font-family="${serif}" font-size="${geo.bodySize}" fill="${escapeXml(layout.textColor)}">${bodyTspans}</text>
-  <text x="${width / 2}" y="${geo.metaY}" text-anchor="middle" font-family="${sans}" font-size="13" fill="${escapeXml(layout.textColor)}">Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}</text>
+  <text x="${width / 2}" y="${geo.metaY}" text-anchor="middle" font-family="${sans}" font-size="12" fill="${escapeXml(layout.textColor)}" opacity="0.85">${issuedLine}</text>
   ${
     layout.showSignature
       ? `<g>
     ${sigUri ? `<image href="${sigUri}" x="${geo.margin}" y="${geo.sigY - 48}" width="168" height="48" preserveAspectRatio="xMinYMid meet"/>` : `<line x1="${geo.margin}" y1="${geo.sigY}" x2="${geo.margin + 200}" y2="${geo.sigY}" stroke="${escapeXml(layout.textColor)}" stroke-width="1"/>`}
-    <text x="${geo.margin}" y="${geo.sigY + 20}" font-family="${sans}" font-size="11" fill="${escapeXml(layout.textColor)}">${escapeXml(layout.signatureLabel)}</text>
+    <text x="${geo.margin}" y="${geo.sigY + 18}" font-family="${sans}" font-size="11" fill="${escapeXml(layout.textColor)}">${escapeXml(layout.signatureLabel)}</text>
   </g>`
       : ""
   }
@@ -315,10 +342,10 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
     layout.showQr && qrUri
       ? `<g>
     <image href="${qrUri}" x="${geo.qrX}" y="${geo.qrY}" width="${geo.qrSize}" height="${geo.qrSize}"/>
-    <text x="${geo.qrX + geo.qrSize / 2}" y="${geo.qrY + geo.qrSize + 16}" text-anchor="middle" font-family="${sans}" font-size="10" fill="${escapeXml(layout.textColor)}">Scan to verify</text>
+    <text x="${geo.qrX + geo.qrSize / 2}" y="${geo.qrY + geo.qrSize + 14}" text-anchor="middle" font-family="${sans}" font-size="10" fill="${escapeXml(layout.textColor)}">Scan to verify</text>
   </g>`
       : ""
   }
-  <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="${sans}" font-size="10" fill="${escapeXml(layout.textColor)}">${escapeXml(model.footer)}</text>
+  <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="${sans}" font-size="9" fill="${escapeXml(layout.textColor)}" opacity="0.8">${escapeXml(model.footer)}</text>
 </svg>`;
 }
