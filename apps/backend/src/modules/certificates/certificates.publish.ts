@@ -417,16 +417,32 @@ async function tryPublishToChain(
 
 /**
  * After a certificate row exists: store PDF bytes, register a QR, optionally anchor on-chain.
- * Failures in QR/chain/storage are recorded and do not roll back issuance.
+ * QR/chain failures are recorded and do not roll back issuance.
+ * When `requirePdf` is true, PDF storage failures are thrown (used by verify self-heal).
  */
 export async function finalizeIssuedCertificate(
   userId: string,
   certificateId: string,
   organizationId: string,
-  options: { createQr: boolean; publishToChain: boolean },
+  options: { createQr: boolean; publishToChain: boolean; requirePdf?: boolean },
 ): Promise<CertificatePublishResult> {
   let row = await repo.findCertificateById(organizationId, certificateId);
   if (!row) throw new AppError(404, "CERTIFICATE_NOT_FOUND", "Certificate not found");
+
+  // Ensure a backing document exists so we always have a place to store the PDF.
+  if (!row.documentId) {
+    const documentId = await ensureCertificateBackingDocument({
+      userId,
+      organizationId,
+      title: row.title,
+      description: null,
+      expiresAt: row.expiresAt,
+    });
+    await repo.updateCertificate(certificateId, {
+      document: { connect: { id: documentId } },
+    });
+    row = (await repo.findCertificateById(organizationId, certificateId)) ?? row;
+  }
 
   try {
     const documentId = await attachCertificatePdfArtifact(userId, row);
@@ -437,6 +453,15 @@ export async function finalizeIssuedCertificate(
     }
   } catch (error) {
     console.error("[certificates] PDF artifact publish failed", error);
+    if (options.requirePdf) {
+      throw error instanceof AppError
+        ? error
+        : new AppError(
+            500,
+            "CERTIFICATE_PDF_MISSING",
+            `Could not store certificate PDF: ${error instanceof Error ? error.message : String(error)}`,
+          );
+    }
   }
 
   row = (await repo.findCertificateById(organizationId, certificateId)) ?? row;

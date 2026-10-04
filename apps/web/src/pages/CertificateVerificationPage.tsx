@@ -110,6 +110,15 @@ export function CertificateVerificationPage() {
           ) : (
             <FormHint>No failure reasons reported.</FormHint>
           )}
+          {result.reasons.includes("ARTIFACT_MISSING") ? (
+            <div className="mt-3">
+              <FormHint>
+                This does not mean the certificate is fake. The org record is issued, but the PDF file
+                is missing from object storage (Backblaze B2). Run verification again to regenerate it,
+                or confirm B2 credentials are configured for this environment.
+              </FormHint>
+            </div>
+          ) : null}
           {data?.status === "revoked" ? (
             <FormError>This certificate is revoked. Verification cannot pass.</FormError>
           ) : null}

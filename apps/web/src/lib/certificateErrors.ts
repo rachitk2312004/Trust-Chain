@@ -138,12 +138,14 @@ export function verificationReasonLabel(reason: string): string {
     case "LINKED_DOCUMENT_UNAVAILABLE":
       return "Linked document unavailable";
     case "ARTIFACT_MISSING":
-      return "Certificate PDF is missing from storage";
+      return "Certificate PDF is missing from storage — the record is issued, but the PDF file was not found in object storage (B2). Re-run Verify to regenerate, or check storage credentials.";
     case "ARTIFACT_HASH_MISMATCH":
       return "Stored PDF hash does not match the issued file";
     case "CHAIN_NOT_ANCHORED":
     case "PLAN_NOT_INCLUDED":
       return "Blockchain anchoring is not included in your plan";
+    case "CERTIFICATE_PDF_MISSING":
+      return "Certificate PDF could not be stored. Check Backblaze B2 / object storage configuration.";
     case "CHAIN_HASH_MISMATCH":
       return "On-chain hash does not match the certificate PDF";
     case "CHAIN_REVOKED":

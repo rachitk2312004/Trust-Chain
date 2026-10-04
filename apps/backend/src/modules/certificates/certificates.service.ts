@@ -510,13 +510,39 @@ export async function issueCertificate(
   const createQr = input.createQr !== false;
   const publishToChain = input.publishToChain !== false;
 
-  void finishIssuedCertificate(userId, certificate, {
-    createQr,
-    publishToChain,
-  });
+  // Await PDF storage so issued certificates are not left without an artifact.
+  // Chain publish / notifications continue in the background after the PDF is stored.
+  try {
+    await finishIssuedCertificate(userId, certificate, {
+      createQr,
+      publishToChain: false,
+      requirePdf: true,
+    });
+  } catch (error) {
+    console.error("[certificates] PDF publish during issue failed", error);
+    throw error instanceof AppError
+      ? error
+      : new AppError(
+          500,
+          "CERTIFICATE_PDF_MISSING",
+          "Certificate was created but the PDF could not be stored. Check object storage (B2) configuration.",
+        );
+  }
+
+  if (publishToChain) {
+    void finishIssuedCertificate(userId, certificate, {
+      createQr: false,
+      publishToChain: true,
+      requirePdf: false,
+    }).catch((error) => {
+      console.error("[certificates] background chain publish failed", error);
+    });
+  }
 
   return {
-    certificate: repo.toPublicCertificate(certificate),
+    certificate: repo.toPublicCertificate(
+      (await repo.findCertificateById(input.organizationId, certificate.id)) ?? certificate,
+    ),
     chain: {
       enabled: publishToChain,
       registered: false,
@@ -543,8 +569,9 @@ async function finishIssuedCertificate(
     status: string;
     createdAt: Date;
   },
-  options: { createQr: boolean; publishToChain: boolean },
+  options: { createQr: boolean; publishToChain: boolean; requirePdf?: boolean },
 ) {
+  const notify = options.requirePdf === true || options.publishToChain !== true;
   try {
     const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
     const published = await finalizeIssuedCertificate(
@@ -555,42 +582,47 @@ async function finishIssuedCertificate(
     );
     const issued = published.certificate;
 
-    await notifyCertificateIssuedToStaff({
-      organizationId: certificate.organizationId,
-      actorId: userId,
-      certificateId: issued.id,
-      publicId: issued.publicId,
-      recipientName: issued.recipient.name,
-    });
-    await notifyCertificateIssuedToHolder({
-      organizationId: certificate.organizationId,
-      actorId: userId,
-      certificateId: issued.id,
-      publicId: issued.publicId,
-      title: issued.title,
-      recipientName: issued.recipient.name,
-      recipientEmail: issued.recipient.email,
-      recipientUserId: issued.recipient.userId,
-      verificationUrl: issued.verificationUrl,
-    });
-    await auditCertificateIssued({ actorUserId: userId, certificate });
-    await indexCertificateSearch(certificate);
-    publishDeveloperEventSafe({
-      organizationId: certificate.organizationId,
-      eventType: DeveloperEventTypes.certificateCreated,
-      data: {
+    if (notify) {
+      await notifyCertificateIssuedToStaff({
+        organizationId: certificate.organizationId,
+        actorId: userId,
         certificateId: issued.id,
         publicId: issued.publicId,
-        documentId: issued.documentId,
-        status: issued.status,
-        chain: published.chain,
-      },
-    });
+        recipientName: issued.recipient.name,
+      });
+      await notifyCertificateIssuedToHolder({
+        organizationId: certificate.organizationId,
+        actorId: userId,
+        certificateId: issued.id,
+        publicId: issued.publicId,
+        title: issued.title,
+        recipientName: issued.recipient.name,
+        recipientEmail: issued.recipient.email,
+        recipientUserId: issued.recipient.userId,
+        verificationUrl: issued.verificationUrl,
+      });
+      await auditCertificateIssued({ actorUserId: userId, certificate });
+      await indexCertificateSearch(certificate);
+      publishDeveloperEventSafe({
+        organizationId: certificate.organizationId,
+        eventType: DeveloperEventTypes.certificateCreated,
+        data: {
+          certificateId: issued.id,
+          publicId: issued.publicId,
+          documentId: issued.documentId,
+          status: issued.status,
+          chain: published.chain,
+        },
+      });
+    }
+    return published;
   } catch (error) {
     console.error("[certificates] post-issue work failed", {
       certificateId: certificate.id,
       error,
     });
+    if (options.requirePdf) throw error;
+    return null;
   }
 }
 
@@ -760,17 +792,20 @@ export async function verifyCertificateById(
   }
 
   // Self-heal missing PDF bytes (DB version with empty/missing object storage).
+  let artifactHealed = false;
   try {
-    if (row.documentId && status === CertificateStatuses.issued) {
+    if (status === CertificateStatuses.issued) {
       const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
       await finalizeIssuedCertificate(userId, row.id, row.organizationId, {
         createQr: !row.qrPublicCode,
         publishToChain: false,
+        requirePdf: true,
       });
       const refreshed = await repo.findCertificateById(row.organizationId, row.id);
       if (refreshed) {
         Object.assign(row, refreshed);
       }
+      artifactHealed = true;
     }
   } catch (error) {
     console.error("[certificates] PDF self-heal during verify failed", error);
@@ -826,6 +861,7 @@ export async function verifyCertificateById(
       durationMs: verifyMs,
       chain,
       integrityRepaired: integrityRepaired || undefined,
+      artifactHealed: artifactHealed || undefined,
     },
   });
 
