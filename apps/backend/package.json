@@ -16,6 +16,7 @@
     "@aws-sdk/client-s3": "^3.721.0",
     "@aws-sdk/s3-request-presigner": "^3.721.0",
     "@resvg/resvg-js": "^2.6.2",
+    "@smithy/node-http-handler": "^4.12.1",
     "@trustchain/config": "*",
     "@trustchain/database": "*",
     "argon2": "^0.41.1",

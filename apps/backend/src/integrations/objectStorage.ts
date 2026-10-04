@@ -5,7 +5,9 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import https from "node:https";
 import { accessSync, constants, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -26,7 +28,11 @@ function envFirst(...names: string[]): string | undefined {
 }
 
 function storageEndpoint(): string | undefined {
-  return envFirst("B2_ENDPOINT", "R2_ENDPOINT");
+  const raw = envFirst("B2_ENDPOINT", "R2_ENDPOINT");
+  if (!raw) return undefined;
+  // AWS SDK requires a full URL; bare hosts (common in .env copies) throw Invalid URL.
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
 }
 
 function storageAccessKeyId(): string | undefined {
@@ -104,6 +110,10 @@ function createClient(): S3Client {
     throw new Error("B2_ENDPOINT, B2_KEY_ID, and B2_APPLICATION_KEY are required");
   }
 
+  // Force IPv4: several ISP/VPC paths advertise B2 AAAA records that never
+  // connect, so the default SDK handler hangs ~20s and PDF uploads never land.
+  const httpsAgent = new https.Agent({ family: 4, keepAlive: true });
+
   return new S3Client({
     region: storageRegion(),
     endpoint,
@@ -112,6 +122,11 @@ function createClient(): S3Client {
     // Required for Backblaze B2 compatibility with AWS SDK JS v3.
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
+    requestHandler: new NodeHttpHandler({
+      httpsAgent,
+      connectionTimeout: 10_000,
+      requestTimeout: 60_000,
+    }),
   });
 }
 
