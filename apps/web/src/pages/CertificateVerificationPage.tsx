@@ -111,12 +111,21 @@ export function CertificateVerificationPage() {
             <FormHint>No failure reasons reported.</FormHint>
           )}
           {result.reasons.includes("ARTIFACT_MISSING") ? (
-            <div className="mt-3">
+            <div className="mt-3 space-y-2">
               <FormHint>
                 This does not mean the certificate is fake. The org record is issued, but the PDF file
-                is missing from object storage (Backblaze B2). Run verification again to regenerate it,
-                or confirm B2 credentials are configured for this environment.
+                could not be read from object storage.
               </FormHint>
+              {verify.data?.storage?.mode === "local" ? (
+                <FormError>
+                  API is using local disk storage (B2 env vars not set). On serverless hosts that
+                  disk is ephemeral, so PDFs disappear between requests. Set B2_ENDPOINT, B2_KEY_ID,
+                  B2_APPLICATION_KEY, and B2_BUCKET on the API host.
+                </FormError>
+              ) : null}
+              {verify.data?.storage?.healError ? (
+                <FormError>Regenerate failed: {verify.data.storage.healError}</FormError>
+              ) : null}
             </div>
           ) : null}
           {data?.status === "revoked" ? (

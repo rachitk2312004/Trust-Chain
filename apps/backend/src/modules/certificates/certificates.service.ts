@@ -793,6 +793,7 @@ export async function verifyCertificateById(
 
   // Self-heal missing PDF bytes (DB version with empty/missing object storage).
   let artifactHealed = false;
+  let artifactHealError: string | null = null;
   try {
     if (status === CertificateStatuses.issued) {
       const { finalizeIssuedCertificate } = await import("./certificates.publish.js");
@@ -808,6 +809,7 @@ export async function verifyCertificateById(
       artifactHealed = true;
     }
   } catch (error) {
+    artifactHealError = error instanceof Error ? error.message : String(error);
     console.error("[certificates] PDF self-heal during verify failed", error);
   }
 
@@ -849,6 +851,9 @@ export async function verifyCertificateById(
   const verifyMs = Date.now() - verifyStarted;
   certificateProcessMetrics.recordVerification(verifyMs);
 
+  const { getObjectStorageMode } = await import("../../integrations/objectStorage.js");
+  const storageMode = getObjectStorageMode();
+
   await repo.createCertificateEvent({
     certificateId: row.id,
     organizationId: row.organizationId,
@@ -862,6 +867,8 @@ export async function verifyCertificateById(
       chain,
       integrityRepaired: integrityRepaired || undefined,
       artifactHealed: artifactHealed || undefined,
+      artifactHealError: artifactHealError || undefined,
+      storageMode,
     },
   });
 
@@ -869,6 +876,11 @@ export async function verifyCertificateById(
     certificate: repo.toPublicCertificate({ ...row, status }),
     verification: result,
     chain,
+    storage: {
+      mode: storageMode,
+      artifactHealed,
+      healError: artifactHealError,
+    },
   };
 }
 

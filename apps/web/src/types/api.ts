@@ -819,6 +819,11 @@ export type CertificateVerifyResponse = {
   certificate: CertificateSummary;
   verification: CertificateVerificationResult;
   chain?: CertificateTrustChain;
+  storage?: {
+    mode: "b2" | "local";
+    artifactHealed: boolean;
+    healError: string | null;
+  };
 };
 
 export type CertificateChainSummary = {

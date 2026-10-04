@@ -6,11 +6,16 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Readable, Transform, PassThrough } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ObjectStorageProvider } from "@trustchain/config";
+
+// Backblaze B2 rejects AWS SDK v3 flexible checksums on many operations.
+process.env.AWS_REQUEST_CHECKSUM_CALCULATION ??= "WHEN_REQUIRED";
+process.env.AWS_RESPONSE_CHECKSUM_VALIDATION ??= "WHEN_REQUIRED";
 
 function envFirst(...names: string[]): string | undefined {
   for (const name of names) {
@@ -52,11 +57,27 @@ export function isRemoteObjectStorageConfigured(): boolean {
   );
 }
 
+export function getObjectStorageMode(): "b2" | "local" {
+  return isRemoteObjectStorageConfigured() ? "b2" : "local";
+}
+
+function canWriteDir(dir: string): boolean {
+  try {
+    mkdirSync(dir, { recursive: true });
+    accessSync(dir, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function localStorageRoot(): string {
-  return (
-    process.env.OBJECT_STORAGE_DIR?.trim() ||
-    join(process.cwd(), ".data", "object-storage")
-  );
+  const configured = process.env.OBJECT_STORAGE_DIR?.trim();
+  if (configured && canWriteDir(configured)) return configured;
+  const cwdRoot = join(process.cwd(), ".data", "object-storage");
+  if (canWriteDir(cwdRoot)) return cwdRoot;
+  // Serverless hosts (e.g. Vercel) often only allow writes under /tmp.
+  return join(tmpdir(), "trustchain-object-storage");
 }
 
 function localObjectPath(objectKey: string): string {
@@ -88,6 +109,7 @@ function createClient(): S3Client {
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true,
+    // Required for Backblaze B2 compatibility with AWS SDK JS v3.
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   });
@@ -100,6 +122,19 @@ export function getClient(): S3Client {
     client = createClient();
   }
   return client;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const name = (error as { name?: string }).name;
+  const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    name === "NotFound" ||
+    name === "NoSuchKey" ||
+    name === "NoSuchBucket" ||
+    status === 404 ||
+    /not\s*found|no such key|nosuchkey/i.test(message)
+  );
 }
 
 export async function createUploadUrl(input: {
@@ -190,9 +225,7 @@ export async function headObject(objectKey: string): Promise<{
       etag: result.ETag,
     };
   } catch (error) {
-    const name = (error as { name?: string }).name;
-    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
-    if (name === "NotFound" || name === "NoSuchKey" || status === 404) {
+    if (isNotFoundError(error)) {
       return { exists: false };
     }
     throw error;
@@ -231,10 +264,15 @@ export async function getObjectBuffer(objectKey: string): Promise<{
       contentLength: result.ContentLength,
     };
   } catch (error) {
-    const name = (error as { name?: string }).name;
-    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
-    if (name === "NotFound" || name === "NoSuchKey" || name === "NoSuchBucket" || status === 404) {
+    if (isNotFoundError(error)) {
       return { exists: false };
+    }
+    // Some B2/SDK checksum mismatches surface as 400/403 — confirm with Head first.
+    try {
+      const head = await headObject(objectKey);
+      if (!head.exists) return { exists: false };
+    } catch {
+      // fall through
     }
     throw error;
   }
@@ -259,14 +297,30 @@ export async function putObjectBuffer(input: {
       bucket: getBucket(),
     };
   }
-  await getClient().send(
-    new PutObjectCommand({
-      Bucket: getBucket(),
-      Key: input.objectKey,
-      Body: input.body,
-      ContentType: input.contentType,
-    }),
-  );
+  try {
+    await getClient().send(
+      new PutObjectCommand({
+        Bucket: getBucket(),
+        Key: input.objectKey,
+        Body: input.body,
+        ContentType: input.contentType,
+      }),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `B2 PutObject failed for ${input.objectKey} (bucket=${getBucket()}): ${message}`,
+    );
+  }
+
+  // Read-after-write check — catches silent B2/auth mismatches early.
+  const written = await getObjectBuffer(input.objectKey);
+  if (!written.exists || !written.body?.length) {
+    throw new Error(
+      `B2 PutObject succeeded but object is not readable: ${input.objectKey} (bucket=${getBucket()}). Check B2_KEY_ID/B2_APPLICATION_KEY permissions and B2_BUCKET.`,
+    );
+  }
+
   return {
     objectKey: input.objectKey,
     provider: ObjectStorageProvider,

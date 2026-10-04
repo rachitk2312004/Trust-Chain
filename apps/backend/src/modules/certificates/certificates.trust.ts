@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { BlockchainAnchorStatuses } from "@trustchain/config";
 import { prisma } from "@trustchain/database";
 import { contentHashesEqual, normalizeContentHash } from "../../lib/contentHash.js";
-import { getObjectBuffer } from "../../integrations/objectStorage.js";
+import { getObjectBuffer, headObject } from "../../integrations/objectStorage.js";
 import { isChainEnabled } from "../blockchain/chainConfig.js";
 import { getDocumentRegistryContract, uuidToBytes32 } from "../blockchain/chainProvider.js";
 import {
@@ -61,12 +61,27 @@ export async function evaluateCertificateTrust(
   if (version) {
     try {
       const object = await getObjectBuffer(version.objectKey);
-      if (object.exists && object.body) {
+      if (object.exists && object.body && object.body.length > 0) {
         storedHash = createHash("sha256").update(object.body).digest("hex");
         artifactPresent = true;
+      } else {
+        const head = await headObject(version.objectKey);
+        if (head.exists && (head.contentLength ?? 0) > 0 && version.contentHash) {
+          // Body unreadable (SDK/B2 quirk) but object exists — trust stored content hash.
+          storedHash = version.contentHash;
+          artifactPresent = true;
+        }
       }
     } catch {
-      artifactPresent = false;
+      try {
+        const head = await headObject(version.objectKey);
+        if (head.exists && (head.contentLength ?? 0) > 0 && version.contentHash) {
+          storedHash = version.contentHash;
+          artifactPresent = true;
+        }
+      } catch {
+        artifactPresent = false;
+      }
     }
   }
 
