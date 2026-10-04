@@ -338,7 +338,8 @@ export async function previewCertificateTemplate(
         displayName: branding?.displayName,
       },
     },
-    "png",
+    // SVG preview uses the browser's fonts — never shows tofu boxes on serverless hosts.
+    "svg",
     "CERT-PREVIEW",
   );
 }

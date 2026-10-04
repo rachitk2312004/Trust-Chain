@@ -312,10 +312,9 @@ export function renderCertificateSvg(model: CertificateRenderModel): string {
       : "";
 
   const recipient = escapeXml(model.context.recipient_name?.trim() || "Recipient");
-  // Generic CSS families only — named fonts (Times/Helvetica) are missing on Linux
-  // sharp/librsvg hosts and render as tofu boxes (□) in the PNG preview.
-  const serif = "serif";
-  const sans = "sans-serif";
+  // Bundled Noto Serif is loaded by resvg for PNG; SVG preview also uses this family in browsers.
+  const serif = "Noto Serif, 'Times New Roman', Times, serif";
+  const sans = "Noto Serif, Helvetica, Arial, sans-serif";
   const footerY = height - geo.margin - 10;
   const issuedLine = `Issued ${escapeXml(model.context.issue_date)} · Valid through ${escapeXml(model.context.expiration_date)}`;
 

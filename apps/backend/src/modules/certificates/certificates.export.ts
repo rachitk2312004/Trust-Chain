@@ -1,7 +1,12 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
 import { AppError } from "../../lib/errors.js";
 import { pageSizePoints } from "./certificates.layout.js";
+import {
+  CERTIFICATE_FONT_FAMILY,
+  resolveCertificateFontFiles,
+} from "./certificates.fonts.js";
 import {
   buildCertificateRenderModel,
   renderCertificateSvg,
@@ -302,7 +307,21 @@ export async function exportCertificatePdf(model: CertificateRenderModel): Promi
 
 export async function exportCertificatePng(model: CertificateRenderModel): Promise<Buffer> {
   const svg = renderCertificateSvg(model);
+  const fontFiles = resolveCertificateFontFiles();
   try {
+    if (fontFiles.length) {
+      const resvg = new Resvg(svg, {
+        fitTo: { mode: "width", value: model.width },
+        font: {
+          fontFiles,
+          loadSystemFonts: true,
+          defaultFontFamily: CERTIFICATE_FONT_FAMILY,
+        },
+        background: model.layout.backgroundColor,
+      });
+      return Buffer.from(resvg.render().asPng());
+    }
+    // Fallback when fonts are missing from the deploy bundle.
     return await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
   } catch (error) {
     throw new AppError(

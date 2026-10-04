@@ -140,9 +140,13 @@ export const certificateApi = {
     const response = await apiClient.post<ArrayBuffer>("/certificates/templates/preview", body, {
       responseType: "arraybuffer",
     });
+    const contentType =
+      (response.headers["content-type"] as string | undefined)?.split(";")[0]?.trim() ||
+      "image/svg+xml";
     const warnings = warningList(response.headers["x-certificate-warnings"] as string | undefined);
-    const blob = new Blob([response.data], { type: "image/png" });
-    return { blob, warnings, fileName: "template-preview.png" };
+    const blob = new Blob([response.data], { type: contentType });
+    const extension = contentType.includes("svg") ? "svg" : "png";
+    return { blob, warnings, fileName: `template-preview.${extension}`, contentType };
   },
 
   async download(

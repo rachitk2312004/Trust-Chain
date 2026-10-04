@@ -258,7 +258,7 @@ export function useTemplateLayoutPreview(
         recipientName: recipient || undefined,
       });
       const url = URL.createObjectURL(result.blob);
-      return { url, warnings: result.warnings };
+      return { url, warnings: result.warnings, contentType: result.contentType };
     },
     enabled: Boolean(accessToken && organizationId && layout && enabled),
     staleTime: 2_000,
