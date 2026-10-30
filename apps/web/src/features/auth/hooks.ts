@@ -92,7 +92,13 @@ export function useForgotPassword() {
 export function useResetPassword() {
   const navigate = useNavigate();
   return useMutation({
-    mutationFn: async (input: { password: string; oobCode?: string; token?: string }) => {
+    mutationFn: async (input: {
+      password: string;
+      email?: string;
+      otp?: string;
+      oobCode?: string;
+      token?: string;
+    }) => {
       const { data } = await authApi.resetPassword(input);
       return data;
     },

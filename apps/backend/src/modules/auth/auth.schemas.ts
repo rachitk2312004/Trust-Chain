@@ -49,12 +49,23 @@ export const forgotPasswordBodySchema = z.object({
 export const resetPasswordBodySchema = z
   .object({
     password: z.string().min(8).max(128),
-    /** Firebase Auth oobCode from the password-reset email link. */
+    /** Email + 6-digit OTP from the Firebase-delivered reset message. */
+    email: z.string().email().optional(),
+    otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits").optional(),
+    /** Firebase Auth oobCode from an older password-reset link. */
     oobCode: z.string().min(1).optional(),
-    /** Legacy Postgres email-token (SMTP-era). Still accepted if present. */
+    /** Legacy opaque token. */
     token: z.string().min(1).optional(),
   })
-  .refine((value) => Boolean(value.oobCode?.trim() || value.token?.trim()), {
-    message: "Reset code or token is required",
-    path: ["oobCode"],
-  });
+  .refine(
+    (value) =>
+      Boolean(
+        (value.email?.trim() && value.otp?.trim()) ||
+          value.oobCode?.trim() ||
+          value.token?.trim(),
+      ),
+    {
+      message: "Email and OTP, or a reset code, is required",
+      path: ["otp"],
+    },
+  );

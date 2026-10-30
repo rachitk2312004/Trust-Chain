@@ -181,8 +181,11 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     await authRateLimit(req, "password_forgot");
     const body = parseBody(forgotPasswordBodySchema, req.body);
-    await requestPasswordReset(body.email);
-    res.status(200).json({ ok: true });
+    const result = await requestPasswordReset(body.email);
+    res.status(200).json({
+      ok: true,
+      verification: result ?? { method: "otp", expiresInSeconds: 600 },
+    });
   }),
 );
 

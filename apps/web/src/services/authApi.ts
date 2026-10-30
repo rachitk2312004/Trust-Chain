@@ -23,9 +23,11 @@ export type LoginInput = {
 
 export type ResetPasswordInput = {
   password: string;
-  /** Firebase Auth oobCode from the reset email link. */
+  email?: string;
+  otp?: string;
+  /** Firebase Auth oobCode from an older reset email link. */
   oobCode?: string;
-  /** Legacy SMTP-era token. */
+  /** Legacy opaque token. */
   token?: string;
 };
 
@@ -62,7 +64,10 @@ export const authApi = {
     return apiClient.post<{ ok: boolean }>("/auth/logout");
   },
   forgotPassword(email: string) {
-    return apiClient.post<{ ok: boolean }>("/auth/password/forgot", { email });
+    return apiClient.post<{
+      ok: boolean;
+      verification?: { method: "otp"; expiresInSeconds: number };
+    }>("/auth/password/forgot", { email });
   },
   resetPassword(input: ResetPasswordInput) {
     return apiClient.post<{ user: PublicUser }>("/auth/password/reset", input);

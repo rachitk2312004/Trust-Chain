@@ -1,56 +1,167 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button, Field, FormError, FormHint, Input, Label } from "@trustchain/ui";
-import { useForgotPassword } from "../features/auth/hooks";
+import { useForgotPassword, useResetPassword } from "../features/auth/hooks";
 import { getApiErrorMessage, isRateLimited } from "../lib/apiErrors";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { Card } from "../components/ui";
 
 export function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const forgot = useForgotPassword();
+  const reset = useResetPassword();
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  function onSubmit(event: FormEvent) {
+  function onSendCode(event: FormEvent) {
     event.preventDefault();
+    setLocalError(null);
+    forgot.mutate(email.trim(), {
+      onSuccess: () => setStep("otp"),
+    });
+  }
+
+  function onReset(event: FormEvent) {
+    event.preventDefault();
+    setLocalError(null);
+    if (password !== confirm) {
+      setLocalError("Passwords do not match.");
+      return;
+    }
+    reset.mutate(
+      { email: email.trim(), otp: otp.trim(), password },
+      {
+        onSuccess: () => {
+          navigate("/login", { replace: true, state: { passwordReset: true } });
+        },
+      },
+    );
+  }
+
+  function onResend() {
+    setLocalError(null);
     forgot.mutate(email.trim());
   }
 
-  const errorMessage = forgot.error
+  const emailError = forgot.error
     ? isRateLimited(forgot.error)
       ? "Too many attempts. Try again later."
       : getApiErrorMessage(forgot.error)
     : null;
+  const resetError =
+    localError ??
+    (reset.error
+      ? isRateLimited(reset.error)
+        ? "Too many attempts. Try again later."
+        : getApiErrorMessage(reset.error)
+      : null);
 
   return (
     <AuthLayout>
       <Card className="shadow-card">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">Forgot password</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">
+          {step === "otp" ? "Enter reset code" : "Forgot password"}
+        </h1>
         <p className="mt-1 text-sm text-tc-muted">
-          If an account exists, Firebase emails a password reset link.
+          {step === "otp"
+            ? `We emailed a 6-digit code to ${email}. Enter it with your new password. Use the number after “Hello” in the email (ignore any Firebase link).`
+            : "If an account exists, we email a 6-digit reset code via Firebase."}
         </p>
-        <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
-          <Field>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field>
-          <FormError>{errorMessage}</FormError>
-          {forgot.isSuccess ? (
-            <FormHint>If an account exists for that email, a reset message was sent.</FormHint>
-          ) : null}
-          <Button type="submit" disabled={forgot.isPending} className="w-full">
-            {forgot.isPending ? "Sending…" : "Send reset email"}
-          </Button>
-          <Link to="/login" className="text-sm text-tc-muted hover:text-tc-fg">
-            Back to sign in
-          </Link>
-        </form>
+
+        {step === "email" ? (
+          <form className="mt-6 flex flex-col gap-4" onSubmit={onSendCode}>
+            <Field>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
+            <FormError>{emailError}</FormError>
+            <Button type="submit" disabled={forgot.isPending} className="w-full">
+              {forgot.isPending ? "Sending…" : "Send reset code"}
+            </Button>
+            <Link to="/login" className="text-sm text-tc-muted hover:text-tc-fg">
+              Back to sign in
+            </Link>
+          </form>
+        ) : (
+          <form className="mt-6 flex flex-col gap-4" onSubmit={onReset}>
+            <Field>
+              <Label htmlFor="otp">6-digit code</Label>
+              <Input
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                autoFocus
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="password">New password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="confirm">Confirm password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </Field>
+            <FormError>{resetError}</FormError>
+            {forgot.isSuccess ? <FormHint>Code sent. Check your inbox.</FormHint> : null}
+            <Button type="submit" disabled={reset.isPending || otp.length !== 6} className="w-full">
+              {reset.isPending ? "Updating…" : "Update password"}
+            </Button>
+            <div className="flex justify-between text-sm text-tc-muted">
+              <button
+                type="button"
+                className="transition hover:text-tc-fg disabled:opacity-50"
+                disabled={forgot.isPending}
+                onClick={onResend}
+              >
+                {forgot.isPending ? "Sending…" : "Resend code"}
+              </button>
+              <button
+                type="button"
+                className="transition hover:text-tc-fg"
+                onClick={() => {
+                  setStep("email");
+                  setOtp("");
+                  setPassword("");
+                  setConfirm("");
+                }}
+              >
+                Change email
+              </button>
+            </div>
+          </form>
+        )}
       </Card>
     </AuthLayout>
   );

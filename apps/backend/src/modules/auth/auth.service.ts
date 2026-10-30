@@ -7,12 +7,10 @@ import {
   lookupFirebaseUidByEmail,
   markFirebaseEmailVerified,
   sendFirebaseEmailOtp,
-  sendFirebasePasswordResetEmail,
   updateFirebasePassword,
   upsertFirebaseUserWithPassword,
   verifyFirebaseEmailPassword,
 } from "../../integrations/firebaseAdmin.js";
-import { getPublicAppUrl } from "../../lib/appUrls.js";
 import {
   createEmailToken,
   findValidEmailToken,
@@ -285,42 +283,102 @@ export async function loginWithPassword(input: {
   };
 }
 
-export async function requestPasswordReset(email: string): Promise<void> {
-  const user = await findUserByEmail(email);
+export async function requestPasswordReset(email: string): Promise<{
+  method: "otp";
+  expiresInSeconds: number;
+} | void> {
+  let user = await findUserByEmail(email);
   // Always return quietly for unknown emails (no account enumeration).
   if (!user) {
-    return;
+    return { method: "otp", expiresInSeconds: EMAIL_OTP_EXPIRES_IN_SECONDS };
   }
 
-  // Firebase Auth sends the reset email (works on Railway without SMTP).
-  const continueUrl = `${getPublicAppUrl()}/reset-password`;
-  try {
-    await sendFirebasePasswordResetEmail({
-      email: user.email,
-      continueUrl,
-    });
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    console.error("[auth] Firebase password reset email failed", {
-      userId: user.id,
-      error: error instanceof Error ? error.message : "unknown",
-    });
+  if (!user.firebase_uid) {
+    const linked = await lookupFirebaseUidByEmail(user.email);
+    if (linked) {
+      try {
+        user = await setFirebaseUid(user.id, linked);
+      } catch {
+        user = { ...user, firebase_uid: linked };
+      }
+    }
+  }
+
+  if (!user.firebase_uid) {
     throw new AppError(
-      502,
-      "FIREBASE_ERROR",
-      "Could not send the password reset email. Try again shortly.",
+      503,
+      "FIREBASE_UID_MISSING",
+      "This account is not linked to Firebase Auth, so a reset email cannot be sent.",
     );
   }
+
+  // Same Firebase mailer path as email verification: 6-digit OTP in %DISPLAY_NAME%.
+  // Do not use PASSWORD_RESET oob links (Firebase hosted UI, no OTP).
+  const otp = generateNumericOtp(6);
+  const restoreDisplayName =
+    [user.first_name, user.last_name].filter(Boolean).join(" ").trim() ||
+    user.email.split("@")[0] ||
+    "TrustChain user";
+
+  await sendFirebaseEmailOtp({
+    uid: user.firebase_uid,
+    email: user.email,
+    otp,
+    restoreDisplayName,
+    preserveEmailVerified: true,
+  });
+
+  await invalidateEmailTokens(user.id, "password_reset");
+  await createEmailToken({
+    userId: user.id,
+    purpose: "password_reset",
+    tokenHash: hashToken(otp),
+    expiresAt: minutesFromNow(EMAIL_OTP_TTL_MINUTES),
+  });
+
+  return { method: "otp", expiresInSeconds: EMAIL_OTP_EXPIRES_IN_SECONDS };
 }
 
 export async function resetPassword(input: {
   password: string;
+  email?: string;
+  otp?: string;
   oobCode?: string;
   token?: string;
 }) {
   const passwordHash = await hashPassword(input.password);
 
-  // Preferred path: Firebase oobCode from the emailed reset link.
+  // Preferred: email + 6-digit OTP from Firebase-delivered message.
+  if (input.email?.trim() && input.otp?.trim()) {
+    const user = await findUserByEmail(input.email.trim());
+    if (!user) {
+      throw new AppError(400, "INVALID_TOKEN", "Reset code is invalid or expired");
+    }
+    const record = await findValidEmailTokenForUser(
+      user.id,
+      hashToken(input.otp.trim()),
+      "password_reset",
+    );
+    if (!record) {
+      throw new AppError(400, "INVALID_TOKEN", "Reset code is invalid or expired");
+    }
+
+    await updatePasswordHash(user.id, passwordHash);
+    await markEmailTokenUsed(record.id);
+    await invalidateEmailTokens(user.id, "password_reset");
+    if (user.firebase_uid) {
+      await updateFirebasePassword(user.firebase_uid, input.password);
+    } else {
+      const linked = await lookupFirebaseUidByEmail(user.email);
+      if (linked) {
+        await setFirebaseUid(user.id, linked);
+        await updateFirebasePassword(linked, input.password);
+      }
+    }
+    return toPublicUser(user);
+  }
+
+  // Older Firebase password-reset link (oobCode).
   if (input.oobCode?.trim()) {
     const { email } = await confirmFirebasePasswordReset({
       oobCode: input.oobCode.trim(),
@@ -335,10 +393,10 @@ export async function resetPassword(input: {
     return toPublicUser(user);
   }
 
-  // Legacy Postgres token path (older SMTP emails).
+  // Legacy opaque token.
   const legacyToken = input.token?.trim();
   if (!legacyToken) {
-    throw new AppError(400, "INVALID_TOKEN", "Password reset code is invalid or expired");
+    throw new AppError(400, "INVALID_TOKEN", "Reset code is invalid or expired");
   }
 
   const record = await findValidEmailToken(hashToken(legacyToken), "password_reset");

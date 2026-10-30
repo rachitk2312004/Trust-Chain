@@ -6,22 +6,23 @@ import { getApiErrorMessage, isRateLimited } from "../lib/apiErrors";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { Card } from "../components/ui";
 
+/**
+ * Handles:
+ * - Preferred: /forgot-password OTP flow (email + 6-digit code)
+ * - Legacy Firebase link: ?mode=resetPassword&oobCode=...
+ */
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
-  // Firebase emails use oobCode (+ mode=resetPassword). Legacy SMTP used token=.
   const oobFromQuery = params.get("oobCode") ?? "";
-  const tokenFromQuery = params.get("token") ?? "";
   const mode = params.get("mode") ?? "";
   const reset = useResetPassword();
-  const [oobCode, setOobCode] = useState(oobFromQuery);
-  const [token, setToken] = useState(tokenFromQuery);
+  const [oobCode] = useState(oobFromQuery);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const hasFirebaseCode = Boolean(oobCode.trim());
-  const hasLegacyToken = Boolean(token.trim());
-  const wrongMode = Boolean(mode) && mode !== "resetPassword" && !hasLegacyToken;
+  const wrongMode = Boolean(mode) && mode !== "resetPassword";
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -30,20 +31,17 @@ export function ResetPasswordPage() {
       setLocalError("Passwords do not match.");
       return;
     }
-    if (!hasFirebaseCode && !hasLegacyToken) {
-      setLocalError("Open the reset link from your email, or paste the reset code.");
+    if (!hasFirebaseCode) {
+      setLocalError("Use Forgot password to get a 6-digit reset code.");
       return;
     }
-    reset.mutate({
-      password,
-      ...(hasFirebaseCode ? { oobCode: oobCode.trim() } : { token: token.trim() }),
-    });
+    reset.mutate({ password, oobCode: oobCode.trim() });
   }
 
   const errorMessage =
     localError ??
     (wrongMode
-      ? "This link is not a password reset link. Request a new reset from Forgot password."
+      ? "This link is not a password reset link. Use Forgot password instead."
       : null) ??
     (reset.error
       ? isRateLimited(reset.error)
@@ -51,27 +49,34 @@ export function ResetPasswordPage() {
         : getApiErrorMessage(reset.error)
       : null);
 
+  if (!hasFirebaseCode) {
+    return (
+      <AuthLayout>
+        <Card className="shadow-card">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">Reset password</h1>
+          <p className="mt-1 text-sm text-tc-muted">
+            Password reset now uses a 6-digit email code on the Forgot password page.
+          </p>
+          <Link
+            to="/forgot-password"
+            className="mt-6 inline-flex text-sm font-medium text-tc-fg underline-offset-2 hover:underline"
+          >
+            Go to Forgot password
+          </Link>
+        </Card>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout>
       <Card className="shadow-card">
         <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">Reset password</h1>
-        <p className="mt-1 text-sm text-tc-muted">Choose a new password for your account.</p>
+        <p className="mt-1 text-sm text-tc-muted">
+          Choose a new password. This completes the Firebase reset link.
+        </p>
         <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
-          {!oobFromQuery && !tokenFromQuery ? (
-            <Field>
-              <Label htmlFor="oobCode">Reset code</Label>
-              <Input
-                id="oobCode"
-                required
-                value={oobCode || token}
-                onChange={(e) => {
-                  setOobCode(e.target.value);
-                  setToken(e.target.value);
-                }}
-              />
-              <FormHint>Paste the code from your email link if this page did not open automatically.</FormHint>
-            </Field>
-          ) : null}
+          <FormHint>Reset code from your email link is ready. Enter a new password below.</FormHint>
           <Field>
             <Label htmlFor="password">New password</Label>
             <Input

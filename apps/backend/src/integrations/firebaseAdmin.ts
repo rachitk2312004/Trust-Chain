@@ -352,11 +352,17 @@ export async function sendFirebaseEmailOtp(input: {
   email: string;
   otp: string;
   restoreDisplayName: string;
+  /** When true (password reset), restore prior emailVerified after send. */
+  preserveEmailVerified?: boolean;
 }): Promise<void> {
   const auth = assertFirebaseReady();
   firebaseWebApiKey();
   await ensureOtpOnlyVerifyEmailTemplate();
 
+  const existing = await auth.getUser(input.uid);
+  const priorVerified = Boolean(existing.emailVerified);
+
+  // VERIFY_EMAIL only sends when Firebase considers the address unverified.
   await auth.updateUser(input.uid, { displayName: input.otp, emailVerified: false, disabled: false });
   try {
     const idToken = await idTokenForUid(input.uid);
@@ -365,8 +371,14 @@ export async function sendFirebaseEmailOtp(input: {
       idToken,
     });
   } finally {
-    await auth.updateUser(input.uid, { displayName: input.restoreDisplayName }).catch((error) => {
-      console.error("[firebase] failed to restore display name after OTP email", error);
+    const restore: { displayName: string; emailVerified?: boolean } = {
+      displayName: input.restoreDisplayName,
+    };
+    if (input.preserveEmailVerified && priorVerified) {
+      restore.emailVerified = true;
+    }
+    await auth.updateUser(input.uid, restore).catch((error) => {
+      console.error("[firebase] failed to restore user after OTP email", error);
     });
   }
 }
