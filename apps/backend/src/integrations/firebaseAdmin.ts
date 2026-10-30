@@ -281,6 +281,7 @@ type IdentityToolkitError = {
   error?: { message?: string; status?: string };
   idToken?: string;
   email?: string;
+  requestType?: string;
 };
 
 const FIREBASE_EMAIL_QUOTA_CODES = [
@@ -381,5 +382,86 @@ export async function firebaseEmailIsVerified(email: string): Promise<boolean> {
     if (firebaseErrorCode(error) === "auth/user-not-found") return false;
     console.error("[firebase] failed to read emailVerified", error);
     return false;
+  }
+}
+
+/** Verify email+password against Firebase Auth (Identity Toolkit). Does not log secrets. */
+export async function verifyFirebaseEmailPassword(
+  email: string,
+  password: string,
+): Promise<boolean> {
+  if (!firebaseConfigured()) return false;
+  try {
+    firebaseWebApiKey();
+    await identityToolkitPost("accounts:signInWithPassword", {
+      email: email.trim().toLowerCase(),
+      password,
+      returnSecureToken: true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ask Firebase Auth to email a password-reset link (Google delivers the mail — no SMTP).
+ * Prefer setting Firebase Console → Authentication → Templates → Password reset
+ * action URL to `{PUBLIC_APP_URL}/reset-password` so the link opens TrustChain with oobCode.
+ */
+export async function sendFirebasePasswordResetEmail(input: {
+  email: string;
+  continueUrl: string;
+}): Promise<void> {
+  assertFirebaseReady();
+  firebaseWebApiKey();
+  try {
+    await identityToolkitPost("accounts:sendOobCode", {
+      requestType: "PASSWORD_RESET",
+      email: input.email.trim().toLowerCase(),
+      continueUrl: input.continueUrl,
+      canHandleCodeInApp: true,
+    });
+  } catch (error) {
+    if (isAppError(error) && error.code === "FIREBASE_EMAIL_RATE_LIMITED") {
+      throw new AppError(
+        429,
+        "FIREBASE_EMAIL_RATE_LIMITED",
+        "Firebase already sent a password reset email. Wait a few minutes, then try again.",
+        error.details,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Complete a Firebase password-reset oobCode and set the new password in Firebase Auth.
+ * Returns the account email from Firebase.
+ */
+export async function confirmFirebasePasswordReset(input: {
+  oobCode: string;
+  newPassword: string;
+}): Promise<{ email: string }> {
+  assertFirebaseReady();
+  firebaseWebApiKey();
+  try {
+    const result = await identityToolkitPost("accounts:resetPassword", {
+      oobCode: input.oobCode,
+      newPassword: input.newPassword,
+    });
+    const email = result.email?.trim().toLowerCase();
+    if (!email) {
+      throw new AppError(400, "INVALID_TOKEN", "Password reset code is invalid or expired");
+    }
+    return { email };
+  } catch (error) {
+    if (isAppError(error)) {
+      if (error.code === "FIREBASE_ERROR") {
+        throw new AppError(400, "INVALID_TOKEN", "Password reset code is invalid or expired");
+      }
+      throw error;
+    }
+    throw new AppError(400, "INVALID_TOKEN", "Password reset code is invalid or expired");
   }
 }

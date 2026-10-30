@@ -26,7 +26,7 @@ export function ForgotPasswordPage() {
       <Card className="shadow-card">
         <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">Forgot password</h1>
         <p className="mt-1 text-sm text-tc-muted">
-          We email a reset link when the account exists.
+          If an account exists, Firebase emails a password reset link.
         </p>
         <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
           <Field>

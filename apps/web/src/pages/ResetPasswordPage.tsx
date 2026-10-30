@@ -8,12 +8,20 @@ import { Card } from "../components/ui";
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
+  // Firebase emails use oobCode (+ mode=resetPassword). Legacy SMTP used token=.
+  const oobFromQuery = params.get("oobCode") ?? "";
   const tokenFromQuery = params.get("token") ?? "";
+  const mode = params.get("mode") ?? "";
   const reset = useResetPassword();
+  const [oobCode, setOobCode] = useState(oobFromQuery);
   const [token, setToken] = useState(tokenFromQuery);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const hasFirebaseCode = Boolean(oobCode.trim());
+  const hasLegacyToken = Boolean(token.trim());
+  const wrongMode = Boolean(mode) && mode !== "resetPassword" && !hasLegacyToken;
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -22,15 +30,21 @@ export function ResetPasswordPage() {
       setLocalError("Passwords do not match.");
       return;
     }
-    if (!token.trim()) {
-      setLocalError("Reset token is required.");
+    if (!hasFirebaseCode && !hasLegacyToken) {
+      setLocalError("Open the reset link from your email, or paste the reset code.");
       return;
     }
-    reset.mutate({ token: token.trim(), password });
+    reset.mutate({
+      password,
+      ...(hasFirebaseCode ? { oobCode: oobCode.trim() } : { token: token.trim() }),
+    });
   }
 
   const errorMessage =
     localError ??
+    (wrongMode
+      ? "This link is not a password reset link. Request a new reset from Forgot password."
+      : null) ??
     (reset.error
       ? isRateLimited(reset.error)
         ? "Too many attempts. Try again later."
@@ -43,11 +57,19 @@ export function ResetPasswordPage() {
         <h1 className="font-display text-2xl font-bold tracking-tight text-tc-fg">Reset password</h1>
         <p className="mt-1 text-sm text-tc-muted">Choose a new password for your account.</p>
         <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
-          {!tokenFromQuery ? (
+          {!oobFromQuery && !tokenFromQuery ? (
             <Field>
-              <Label htmlFor="token">Reset token</Label>
-              <Input id="token" required value={token} onChange={(e) => setToken(e.target.value)} />
-              <FormHint>Paste the token if the email link did not open this page directly.</FormHint>
+              <Label htmlFor="oobCode">Reset code</Label>
+              <Input
+                id="oobCode"
+                required
+                value={oobCode || token}
+                onChange={(e) => {
+                  setOobCode(e.target.value);
+                  setToken(e.target.value);
+                }}
+              />
+              <FormHint>Paste the code from your email link if this page did not open automatically.</FormHint>
             </Field>
           ) : null}
           <Field>
@@ -75,7 +97,7 @@ export function ResetPasswordPage() {
             />
           </Field>
           <FormError>{errorMessage}</FormError>
-          <Button type="submit" disabled={reset.isPending} className="w-full">
+          <Button type="submit" disabled={reset.isPending || wrongMode} className="w-full">
             {reset.isPending ? "Updating…" : "Update password"}
           </Button>
           <Link to="/login" className="text-sm text-tc-muted hover:text-tc-fg">

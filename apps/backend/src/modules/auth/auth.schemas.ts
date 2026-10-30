@@ -46,7 +46,15 @@ export const forgotPasswordBodySchema = z.object({
   email: z.string().email(),
 });
 
-export const resetPasswordBodySchema = z.object({
-  token: z.string().min(1),
-  password: z.string().min(8).max(128),
-});
+export const resetPasswordBodySchema = z
+  .object({
+    password: z.string().min(8).max(128),
+    /** Firebase Auth oobCode from the password-reset email link. */
+    oobCode: z.string().min(1).optional(),
+    /** Legacy Postgres email-token (SMTP-era). Still accepted if present. */
+    token: z.string().min(1).optional(),
+  })
+  .refine((value) => Boolean(value.oobCode?.trim() || value.token?.trim()), {
+    message: "Reset code or token is required",
+    path: ["oobCode"],
+  });

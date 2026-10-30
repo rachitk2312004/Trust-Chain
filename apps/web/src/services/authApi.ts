@@ -22,8 +22,11 @@ export type LoginInput = {
 };
 
 export type ResetPasswordInput = {
-  token: string;
   password: string;
+  /** Firebase Auth oobCode from the reset email link. */
+  oobCode?: string;
+  /** Legacy SMTP-era token. */
+  token?: string;
 };
 
 export type MfaVerifyInput = {

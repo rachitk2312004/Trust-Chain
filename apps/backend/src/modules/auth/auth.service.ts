@@ -1,15 +1,18 @@
 import argon2 from "argon2";
 import { AppError } from "../../lib/errors.js";
-import { generateNumericOtp, generateOpaqueToken, hashToken } from "../../lib/crypto.js";
-import { sendEmail } from "../../integrations/mailer.js";
+import { generateNumericOtp, hashToken } from "../../lib/crypto.js";
 import {
+  confirmFirebasePasswordReset,
   firebaseEmailIsVerified,
   lookupFirebaseUidByEmail,
   markFirebaseEmailVerified,
   sendFirebaseEmailOtp,
+  sendFirebasePasswordResetEmail,
   updateFirebasePassword,
   upsertFirebaseUserWithPassword,
+  verifyFirebaseEmailPassword,
 } from "../../integrations/firebaseAdmin.js";
+import { getPublicAppUrl } from "../../lib/appUrls.js";
 import {
   createEmailToken,
   findValidEmailToken,
@@ -33,7 +36,6 @@ import { createMfaLoginChallenge, userHasMfaEnabled } from "./mfa.service.js";
 import { issueSessionForUser } from "./session.service.js";
 
 const EMAIL_OTP_TTL_MINUTES = 10;
-const PASSWORD_RESET_TTL_HOURS = 1;
 
 export const EMAIL_OTP_EXPIRES_IN_SECONDS = EMAIL_OTP_TTL_MINUTES * 60;
 
@@ -43,10 +45,6 @@ async function hashPassword(password: string): Promise<string> {
 
 async function verifyPassword(hash: string, password: string): Promise<boolean> {
   return argon2.verify(hash, password);
-}
-
-function hoursFromNow(hours: number): Date {
-  return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
 function minutesFromNow(minutes: number): Date {
@@ -235,9 +233,15 @@ export async function loginWithPassword(input: {
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
-  const valid = await verifyPassword(user.password_hash, input.password);
+  let valid = await verifyPassword(user.password_hash, input.password);
   if (!valid) {
-    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+    // If the user reset via Firebase's hosted page, Postgres may lag — sync on successful Firebase auth.
+    const firebaseOk = await verifyFirebaseEmailPassword(user.email, input.password);
+    if (!firebaseOk) {
+      throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+    }
+    await updatePasswordHash(user.id, await hashPassword(input.password));
+    valid = true;
   }
 
   await ensureSuperAdminRoleForUser(user.id, user.email);
@@ -283,33 +287,65 @@ export async function loginWithPassword(input: {
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const user = await findUserByEmail(email);
+  // Always return quietly for unknown emails (no account enumeration).
   if (!user) {
     return;
   }
 
-  await invalidateEmailTokens(user.id, "password_reset");
-  const token = generateOpaqueToken();
-  await createEmailToken({
-    userId: user.id,
-    purpose: "password_reset",
-    tokenHash: hashToken(token),
-    expiresAt: hoursFromNow(PASSWORD_RESET_TTL_HOURS),
-  });
-
-  await sendEmail({
-    to: user.email,
-    subject: "Reset your TrustChain password",
-    text: `Your TrustChain password reset token is:\n\n${token}\n\nThis token expires in ${PASSWORD_RESET_TTL_HOURS} hour(s).`,
-  });
+  // Firebase Auth sends the reset email (works on Railway without SMTP).
+  const continueUrl = `${getPublicAppUrl()}/reset-password`;
+  try {
+    await sendFirebasePasswordResetEmail({
+      email: user.email,
+      continueUrl,
+    });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    console.error("[auth] Firebase password reset email failed", {
+      userId: user.id,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    throw new AppError(
+      502,
+      "FIREBASE_ERROR",
+      "Could not send the password reset email. Try again shortly.",
+    );
+  }
 }
 
-export async function resetPassword(input: { token: string; password: string }) {
-  const record = await findValidEmailToken(hashToken(input.token), "password_reset");
+export async function resetPassword(input: {
+  password: string;
+  oobCode?: string;
+  token?: string;
+}) {
+  const passwordHash = await hashPassword(input.password);
+
+  // Preferred path: Firebase oobCode from the emailed reset link.
+  if (input.oobCode?.trim()) {
+    const { email } = await confirmFirebasePasswordReset({
+      oobCode: input.oobCode.trim(),
+      newPassword: input.password,
+    });
+    const user = await findUserByEmail(email);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+    await updatePasswordHash(user.id, passwordHash);
+    await invalidateEmailTokens(user.id, "password_reset");
+    return toPublicUser(user);
+  }
+
+  // Legacy Postgres token path (older SMTP emails).
+  const legacyToken = input.token?.trim();
+  if (!legacyToken) {
+    throw new AppError(400, "INVALID_TOKEN", "Password reset code is invalid or expired");
+  }
+
+  const record = await findValidEmailToken(hashToken(legacyToken), "password_reset");
   if (!record) {
     throw new AppError(400, "INVALID_TOKEN", "Password reset token is invalid or expired");
   }
 
-  const passwordHash = await hashPassword(input.password);
   await updatePasswordHash(record.user_id, passwordHash);
   await markEmailTokenUsed(record.id);
   await invalidateEmailTokens(record.user_id, "password_reset");
